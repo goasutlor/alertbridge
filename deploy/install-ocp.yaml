@@ -1,14 +1,15 @@
-# alertbridge-lite - Deploy on OCP
+# alertbridge-lite - OCP Deployment (v1.1.0)
 #
-# Steps:
-# 1. Edit Secret (TARGET_URL_OCP, TARGET_URL_CONFLUENT, API keys) as needed
+# Deploy steps:
+# 1. Edit Secret (TARGET_URL_OCP, TARGET_URL_CONFLUENT, API keys) below
 # 2. oc apply -f deploy/install-ocp.yaml
-# 3. oc start-build alertbridge-lite -n alertbridge   # build from GitHub
-# 4. Wait for build (oc get builds -n alertbridge), then Pod will come up
-# 5. oc get route -n alertbridge   # Get webhook URL
+# 3. oc start-build alertbridge-lite -n alertbridge
+# 4. oc get builds -n alertbridge   # wait until Complete
+# 5. oc get route -n alertbridge    # get webhook URL
+# 6. Test: curl -k https://<route>/healthz
 #
-# Save from UI: Edit Rules, Target, API Keys in web UI and click Save to patch ConfigMap directly
-# (permanent, no oc edit or /admin/reload needed)
+# Features: Alert unrolling, Circuit breaker, Config auto-reload, Target Fwd status
+# Save from UI: Edit Rules/Target/API Keys in web UI → patches ConfigMap (permanent)
 
 ---
 apiVersion: v1
@@ -167,6 +168,8 @@ spec:
           env:
             - name: ALERTBRIDGE_CONFIGMAP_NAME
               value: "alertbridge-rules"
+            - name: ALERTBRIDGE_CONFIG_WATCH_INTERVAL
+              value: "30"
             - name: TARGET_URL_OCP
               valueFrom:
                 secretKeyRef:
