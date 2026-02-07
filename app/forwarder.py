@@ -1,7 +1,7 @@
 import asyncio
 import os
-from typing import Any, Optional, Tuple
-from urllib.parse import urlparse
+from typing import Any, Dict, Optional, Tuple
+from urllib.parse import urlparse, urlunparse
 
 import httpx
 
@@ -11,6 +11,7 @@ _client: Optional[httpx.AsyncClient] = None
 
 # Allowed target URL schemes only (no file:, gopher:, ftp: etc. to prevent SSRF)
 ALLOWED_URL_SCHEMES = ("https", "http")
+CHECK_TIMEOUT = httpx.Timeout(2.0, connect=1.5)
 
 
 def _is_safe_forward_url(url: str) -> bool:
@@ -100,3 +101,75 @@ async def forward_payload(
             return False, None, exc
 
     return False, None, last_error
+
+
+def _build_forward_headers(route: RouteConfig) -> Dict[str, str]:
+    """Build headers used for forwarding (auth, content-type)."""
+    headers: Dict[str, str] = {"Content-Type": "application/json", "X-Request-ID": "target-status-check"}
+    if route.target.auth_header_env:
+        auth_value = os.getenv(route.target.auth_header_env)
+        if auth_value:
+            headers["Authorization"] = auth_value
+    if route.target.api_key_header:
+        api_key_value = None
+        if route.target.api_key_env:
+            api_key_value = os.getenv(route.target.api_key_env)
+        if not api_key_value and route.target.api_key:
+            api_key_value = route.target.api_key
+        if api_key_value:
+            headers[route.target.api_key_header] = api_key_value
+    return headers
+
+
+def _base_url(url: str) -> str:
+    """Return scheme://netloc (origin) from URL."""
+    try:
+        p = urlparse(url)
+        return urlunparse((p.scheme, p.netloc, "", "", "", ""))
+    except Exception:
+        return url
+
+
+async def check_target_status(route: RouteConfig, defaults: Defaults) -> Dict[str, Any]:
+    """
+    Two-phase target reachability check.
+    Phase 1: Server reachable (GET base URL).
+    Phase 2: API handshake OK (POST with auth to webhook URL).
+    """
+    url = (route.target.url or "").strip() or os.getenv(route.target.url_env)
+    if not url:
+        return {"route": route.name, "target_url": None, "phase1_ok": False, "phase2_ok": False, "error": "No target URL"}
+    if not _is_safe_forward_url(url):
+        return {"route": route.name, "target_url": url, "phase1_ok": False, "phase2_ok": False, "error": "Invalid URL scheme"}
+    client = get_client()
+    base = _base_url(url)
+    phase1_ok = False
+    phase2_ok = False
+    error_msg: Optional[str] = None
+    try:
+        # Phase 1: Server reachable
+        try:
+            r = await client.get(f"{base.rstrip('/')}/", timeout=CHECK_TIMEOUT)
+            phase1_ok = True
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.RequestError) as e:
+            error_msg = f"Phase1: {type(e).__name__}"
+            return {"route": route.name, "target_url": url, "phase1_ok": False, "phase2_ok": False, "error": str(e)}
+        # Phase 2: API handshake (POST with auth)
+        headers = _build_forward_headers(route)
+        timeout = httpx.Timeout(defaults.target_timeout_read_sec, connect=defaults.target_timeout_connect_sec)
+        try:
+            r = await client.post(url, json={}, headers=headers, timeout=timeout)
+            phase2_ok = 200 <= r.status_code < 300
+            if not phase2_ok:
+                error_msg = f"Phase2: HTTP {r.status_code}"
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.RequestError) as e:
+            error_msg = f"Phase2: {type(e).__name__}"
+    except Exception as e:
+        error_msg = str(e)
+    return {
+        "route": route.name,
+        "target_url": url,
+        "phase1_ok": phase1_ok,
+        "phase2_ok": phase2_ok,
+        "error": error_msg,
+    }

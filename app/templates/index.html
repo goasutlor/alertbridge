@@ -28,6 +28,10 @@
             <span id="portalStatusDot" class="portal-status-dot"></span>
             <span id="portalStatusText">Checking…</span>
           </div>
+          <div id="targetFwdStatus" class="portal-status target-fwd-status" aria-live="polite" style="display:none;">
+            <span id="targetFwdStatusDot" class="portal-status-dot"></span>
+            <span id="targetFwdStatusText" data-i18n="targetFwdChecking">Target Fwd: Checking…</span>
+          </div>
         </div>
       </header>
 
@@ -71,6 +75,7 @@
                 <th>Time (UTC)</th>
                 <th>Source</th>
                 <th>Route</th>
+                <th>Alert</th>
                 <th>Status</th>
                 <th>Forwarded</th>
                 <th>Request ID</th>
@@ -79,6 +84,30 @@
             <tbody id="liveRequestsBody"></tbody>
           </table>
           <p id="liveRequestsEmpty" class="live-empty"><span data-i18n="liveEmpty">No webhooks yet. POST to</span> <code>/webhook/ocp</code> <code>/webhook/confluent</code> <span data-i18n="orSource">or other source</span></p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title" data-i18n="failedEvents">Failed Events (Forward did not succeed)</h2>
+        <p class="card-subtitle" data-i18n="failedEventsSub">Display 20 · up to 200 stored (search all) · in-memory only (lost on restart)</p>
+        <div class="failed-events-toolbar">
+          <input type="text" id="failedEventsSearch" class="input-inline" placeholder="Search: source, route, request_id..." data-i18n-placeholder="failedSearchPlaceholder" />
+        </div>
+        <div id="failedEventsContainer" class="live-requests">
+          <table class="live-table">
+            <thead>
+              <tr>
+                <th>Time (UTC)</th>
+                <th>Source</th>
+                <th>Route</th>
+                <th>Status</th>
+                <th>Request ID</th>
+                <th>Error</th>
+              </tr>
+            </thead>
+            <tbody id="failedEventsBody"></tbody>
+          </table>
+          <p id="failedEventsEmpty" class="live-empty" data-i18n="failedEmpty">No failed events. Forward failures will appear here.</p>
         </div>
       </section>
 
@@ -223,6 +252,6 @@
     </main>
 
     <script src="/static/i18n.js"></script>
-    <script src="/static/app.js?v=14"></script>
+    <script src="/static/app.js?v=16"></script>
   </body>
 </html>

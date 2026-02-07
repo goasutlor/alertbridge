@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -15,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.config import get_rules, persist_rules, reload_rules, rules_loaded, set_rules
-from app.forwarder import close_client, forward_payload, get_client
+from app.forwarder import check_target_status, close_client, forward_payload, get_client
 from app.logging_conf import configure_logging
 from app.hmac_verify import verify_hmac as verify_hmac_signature
 from app.metrics import (
@@ -40,12 +41,12 @@ from app.patterns import (
     save_pattern as save_pattern_data,
     delete_pattern as delete_pattern_data,
 )
-from app.rules import ApiKeyConfig, RuleSet, sanitize_payload, select_route, transform_payload
+from app.rules import ApiKeyConfig, Defaults, RuleSet, sanitize_payload, select_route, transform_payload
 
 
 configure_logging()
 logger = logging.getLogger("alertbridge")
-app = FastAPI(title="alertbridge-lite", version="1.0.0")
+app = FastAPI(title="alertbridge-lite", version="1.1.0")
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_FILE = BASE_DIR / "templates" / "index.html"
@@ -58,8 +59,39 @@ MAX_CONFIG_BODY_BYTES = 512 * 1024         # 512 KiB
 RECENT_WEBHOOKS: deque = deque(maxlen=20)
 # Recent incoming payloads (sanitized) so UI can "Use as source pattern" from real traffic
 RECENT_PAYLOADS: deque = deque(maxlen=30)
+# Failed forward events (limited, stateless - lost on restart)
+RECENT_FAILED: deque = deque(maxlen=200)
 
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+
+
+def extract_alert_summary(payload: Any) -> str:
+    """Extract alert name/summary from OCP Alertmanager or Confluent payload."""
+    if not payload or not isinstance(payload, dict):
+        return ""
+    # Confluent: description, alertId, severity
+    for k in ("description", "alertId", "severity"):
+        v = payload.get(k)
+        if v and isinstance(v, str):
+            return v[:100]
+    # OCP Alertmanager: alerts[0].labels.alertname, annotations.summary, annotations.description
+    alerts = payload.get("alerts")
+    if isinstance(alerts, list) and alerts and isinstance(alerts[0], dict):
+        a = alerts[0]
+        labels = (a.get("labels") or {})
+        ann = (a.get("annotations") or {})
+        for key in ("alertname", "summary", "description"):
+            v = labels.get(key) or ann.get(key)
+            if v and isinstance(v, str):
+                return v[:100]
+    # Single alert (no alerts array)
+    labels = payload.get("labels") or {}
+    ann = payload.get("annotations") or {}
+    for key in ("alertname", "summary", "description"):
+        v = labels.get(key) or ann.get(key)
+        if v and isinstance(v, str):
+            return v[:100]
+    return ""
 
 
 @app.on_event("startup")
@@ -274,8 +306,18 @@ async def webhook(source: str, request: Request) -> Response:
                 "sanitized_payload": sanitize_payload(output),
             },
         )
+        RECENT_FAILED.append({
+            "ts": datetime.now(timezone.utc).isoformat()[:23],
+            "request_id": request_id,
+            "source": source,
+            "route": route.name,
+            "http_status": http_status,
+            "payload_preview": json.dumps(sanitize_payload(output))[:200],
+            "error": str(error) if error else None,
+        })
 
     # Append to live feed for UI (newest at end; API returns reversed)
+    alert_summary = extract_alert_summary(payload)
     RECENT_WEBHOOKS.append({
         "ts": datetime.now(timezone.utc).isoformat()[:23],
         "request_id": request_id,
@@ -283,6 +325,7 @@ async def webhook(source: str, request: Request) -> Response:
         "route": route.name,
         "http_status": http_status,
         "forwarded": success,
+        "alert_summary": alert_summary or None,
     })
     # Store sanitized incoming payload so UI can use as source pattern (real traffic shape)
     RECENT_PAYLOADS.append({
@@ -329,6 +372,14 @@ async def api_recent_requests() -> Response:
     return JSONResponse(snapshot)
 
 
+@app.get("/api/recent-failed")
+async def api_recent_failed() -> Response:
+    """Return last N failed forward events (limited, stateless). No auth."""
+    snapshot = list(RECENT_FAILED)
+    snapshot.reverse()
+    return JSONResponse(snapshot)
+
+
 @app.get("/api/recent-payloads")
 async def api_recent_payloads() -> Response:
     """Return last N incoming payloads (sanitized) so UI can use as source pattern from real traffic (no auth)."""
@@ -346,6 +397,35 @@ async def api_config_targets() -> Response:
         url = (r.target.url or "").strip() or os.getenv(r.target.url_env) or None
         out.append({"route": r.name, "source": r.match.source, "target_url": url or "(not set)"})
     return JSONResponse(out)
+
+
+@app.get("/api/target-status")
+async def api_target_status() -> Response:
+    """Two-phase check: Phase1 server reachable, Phase2 API handshake OK. No auth."""
+    try:
+        rules = get_rules()
+        defaults = rules.defaults if rules.defaults is not None else Defaults()
+        tasks = [check_target_status(r, defaults) for r in rules.routes]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        out = []
+        for i, r in enumerate(results):
+            if isinstance(r, Exception):
+                route_name = rules.routes[i].name if i < len(rules.routes) else "?"
+                out.append({"route": route_name, "phase1_ok": False, "phase2_ok": False, "error": str(r)})
+            else:
+                out.append(r)
+        configured = [x for x in out if x.get("target_url") and x.get("target_url") != "(not set)"]
+        has_any_target = len(configured) > 0
+        all_ok = has_any_target and all(
+            x.get("phase1_ok") and x.get("phase2_ok") for x in configured
+        )
+        return JSONResponse({"routes": out, "has_any_target": has_any_target, "all_ok": all_ok})
+    except Exception as exc:
+        logger.exception("target_status_failed")
+        return JSONResponse(
+            {"routes": [], "has_any_target": False, "all_ok": False, "error": str(exc)},
+            status_code=200,
+        )
 
 
 # ---------- Field mapper / patterns (optional Basic Auth) ----------

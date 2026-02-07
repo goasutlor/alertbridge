@@ -15,6 +15,9 @@ const statsForwardFail = document.getElementById("statsForwardFail");
 const statsStatus = document.getElementById("statsStatus");
 const liveRequestsBody = document.getElementById("liveRequestsBody");
 const liveRequestsEmpty = document.getElementById("liveRequestsEmpty");
+const failedEventsBody = document.getElementById("failedEventsBody");
+const failedEventsEmpty = document.getElementById("failedEventsEmpty");
+const failedEventsSearch = document.getElementById("failedEventsSearch");
 const heartbeatChart = document.getElementById("heartbeatChart");
 const heartbeatLabel = document.getElementById("heartbeatLabel");
 const targetUrlsPanel = document.getElementById("targetUrlsPanel");
@@ -42,6 +45,8 @@ const mapperSourceExample = document.getElementById("mapperSourceExample");
 const mapperParseSourceBtn = document.getElementById("mapperParseSourceBtn");
 const portalStatus = document.getElementById("portalStatus");
 const portalStatusText = document.getElementById("portalStatusText");
+const targetFwdStatus = document.getElementById("targetFwdStatus");
+const targetFwdStatusText = document.getElementById("targetFwdStatusText");
 const recentPayloadsList = document.getElementById("recentPayloadsList");
 const recentPayloadsStatus = document.getElementById("recentPayloadsStatus");
 const apiKeyNameInput = document.getElementById("apiKeyNameInput");
@@ -52,6 +57,9 @@ const apiKeyNewKeyValue = document.getElementById("apiKeyNewKeyValue");
 const apiKeyCopyBtn = document.getElementById("apiKeyCopyBtn");
 const apiKeysList = document.getElementById("apiKeysList");
 let recentPayloadsCache = [];
+let failedEventsCache = [];
+let targetsCache = [];
+let targetStatusCache = { routes: [] };
 
 function tr(key) {
   const fn = (typeof window !== "undefined" && window.t) ? window.t : (k => k);
@@ -112,20 +120,36 @@ async function loadConfig() {
   }
 }
 
+function renderTargetUrlsEffective(targets, statusByRoute) {
+  if (!targetUrlsEffective) return;
+  if (!Array.isArray(targets) || !targets.length) {
+    targetUrlsEffective.innerHTML = "<span class=\"not-set\">No routes or targets not loaded.</span>";
+    return;
+  }
+  const statusMap = {};
+  if (statusByRoute && statusByRoute.length) {
+    statusByRoute.forEach((s) => { statusMap[s.route] = s; });
+  }
+  targetUrlsEffective.innerHTML = "<strong>Server will forward to:</strong><br>" + targets.map((r) => {
+    const cls = (r.target_url === "(not set)") ? "not-set" : "effective-url";
+    const st = statusMap[r.route];
+    let badge = "";
+    if (st && r.target_url !== "(not set)") {
+      const ok = st.phase1_ok && st.phase2_ok;
+      badge = ` <span class="target-status-badge ${ok ? "target-ok" : "target-fail"}" title="${escapeHtml(st.error || "")}">${ok ? tr("targetOk") : tr("targetFail")}</span>`;
+    }
+    return `<span class="effective-row">${escapeHtml(r.route)} → <span class="${cls}">${escapeHtml(r.target_url)}</span>${badge}</span>`;
+  }).join("<br>");
+}
+
 async function loadEffectiveTargets() {
   if (!targetUrlsEffective) return;
   try {
     const response = await fetch("/api/config/targets", { credentials: "include" });
     if (!response.ok) return;
     const data = await response.json();
-    if (!Array.isArray(data) || !data.length) {
-      targetUrlsEffective.innerHTML = "<span class=\"not-set\">No routes or targets not loaded.</span>";
-      return;
-    }
-    targetUrlsEffective.innerHTML = "<strong>Server will forward to:</strong><br>" + data.map((r) => {
-      const cls = (r.target_url === "(not set)") ? "not-set" : "effective-url";
-      return `<span class="effective-row">${escapeHtml(r.route)} → <span class="${cls}">${escapeHtml(r.target_url)}</span></span>`;
-    }).join("<br>");
+    targetsCache = Array.isArray(data) ? data : [];
+    renderTargetUrlsEffective(targetsCache, targetStatusCache.routes);
   } catch (err) {
     targetUrlsEffective.textContent = "";
   }
@@ -547,6 +571,37 @@ function setPortalStatus(online) {
   portalStatusText.textContent = online ? "Portal online" : "Portal offline";
 }
 
+function setTargetFwdStatus(hasTarget, online, okCount, totalCount) {
+  if (!targetFwdStatus || !targetFwdStatusText) return;
+  if (!hasTarget) {
+    targetFwdStatus.style.display = "none";
+    return;
+  }
+  targetFwdStatus.style.display = "";
+  targetFwdStatus.classList.remove("online", "offline");
+  targetFwdStatus.classList.add(online ? "online" : "offline");
+  let text = online ? tr("targetFwdOnline") : tr("targetFwdOffline");
+  if (totalCount != null && totalCount > 1) {
+    text = `Target Fwd: ${okCount}/${totalCount} OK`;
+  }
+  targetFwdStatusText.textContent = text;
+}
+
+async function loadTargetFwdStatus() {
+  try {
+    const response = await fetch("/api/target-status", { credentials: "include" });
+    if (!response.ok) return;
+    const data = await response.json();
+    targetStatusCache = { routes: data.routes || [], has_any_target: data.has_any_target, all_ok: data.all_ok };
+    const configured = (data.routes || []).filter((r) => r.target_url && r.target_url !== "(not set)");
+    const okCount = configured.filter((r) => r.phase1_ok && r.phase2_ok).length;
+    setTargetFwdStatus(data.has_any_target || false, data.all_ok || false, okCount, configured.length);
+    if (targetsCache.length) renderTargetUrlsEffective(targetsCache, targetStatusCache.routes);
+  } catch (err) {
+    if (targetFwdStatus) targetFwdStatus.style.display = "none";
+  }
+}
+
 async function loadStatsAndChart() {
   try {
     const response = await fetch("/api/stats", { credentials: "include" });
@@ -601,6 +656,7 @@ function renderLiveRequests(list) {
           <td>${escapeHtml(r.ts || "")}</td>
           <td>${escapeHtml(r.source || "")}</td>
           <td>${escapeHtml(r.route || "")}</td>
+          <td class="live-alert-summary" title="${escapeHtml(r.alert_summary || "")}">${escapeHtml((r.alert_summary || "-").slice(0, 60))}${(r.alert_summary || "").length > 60 ? "…" : ""}</td>
           <td class="status-${r.http_status || ""}">${escapeHtml(String(r.http_status || ""))}</td>
           <td class="${r.forwarded ? "forwarded-ok" : "forwarded-fail"}">${r.forwarded ? "yes" : "no"}</td>
           <td><code>${escapeHtml((r.request_id || "").slice(0, 8))}</code></td>
@@ -620,6 +676,59 @@ async function loadLiveRequests() {
     if (!response.ok) return;
     const data = await response.json();
     renderLiveRequests(Array.isArray(data) ? data : []);
+  } catch (err) {}
+}
+
+function filterFailedEvents(list, q) {
+  if (!q || !q.trim()) return list;
+  const ql = q.trim().toLowerCase();
+  return list.filter((r) => {
+    const src = (r.source || "").toLowerCase();
+    const route = (r.route || "").toLowerCase();
+    const rid = (r.request_id || "").toLowerCase();
+    const err = (r.error || "").toLowerCase();
+    const preview = (r.payload_preview || "").toLowerCase();
+    return src.includes(ql) || route.includes(ql) || rid.includes(ql) || err.includes(ql) || preview.includes(ql);
+  });
+}
+
+const FAILED_EVENTS_DISPLAY_LIMIT = 20;
+
+function renderFailedEvents(list) {
+  if (!failedEventsBody || !failedEventsEmpty) return;
+  const q = failedEventsSearch ? failedEventsSearch.value.trim() : "";
+  const filtered = filterFailedEvents(list, q);
+  const toShow = filtered.slice(0, FAILED_EVENTS_DISPLAY_LIMIT);
+  if (!toShow.length) {
+    failedEventsBody.innerHTML = "";
+    failedEventsEmpty.style.display = "block";
+    failedEventsEmpty.textContent = q
+      ? tr("noMatchesForSearch")
+      : tr("failedEmpty");
+    return;
+  }
+  failedEventsEmpty.style.display = "none";
+  failedEventsBody.innerHTML = toShow
+    .map((r) =>
+      `<tr>
+        <td>${escapeHtml(r.ts || "")}</td>
+        <td>${escapeHtml(r.source || "")}</td>
+        <td>${escapeHtml(r.route || "")}</td>
+        <td class="status-${r.http_status || ""}">${escapeHtml(String(r.http_status || ""))}</td>
+        <td><code>${escapeHtml((r.request_id || "").slice(0, 8))}</code></td>
+        <td class="failed-error-cell" title="${escapeHtml(r.error || "")}">${escapeHtml((r.error || r.payload_preview || "").slice(0, 60))}${(r.error || r.payload_preview || "").length > 60 ? "…" : ""}</td>
+      </tr>`
+    )
+    .join("");
+}
+
+async function loadFailedEvents() {
+  try {
+    const response = await fetch("/api/recent-failed", { credentials: "include" });
+    if (!response.ok) return;
+    const data = await response.json();
+    failedEventsCache = Array.isArray(data) ? data : [];
+    renderFailedEvents(failedEventsCache);
   } catch (err) {}
 }
 
@@ -1035,7 +1144,9 @@ function onVisibilityChange() {
   if (document.visibilityState === "visible") {
     loadStatsAndChart();
     loadLiveRequests();
+    loadFailedEvents();
     loadEffectiveTargets();
+    loadTargetFwdStatus();
   }
 }
 document.addEventListener("visibilitychange", onVisibilityChange);
@@ -1170,7 +1281,15 @@ setInterval(loadRecentPayloads, 5000);
 loadStatsAndChart();
 setInterval(loadStatsAndChart, 1000);
 loadLiveRequests();
+loadFailedEvents();
+loadTargetFwdStatus();
 setInterval(loadLiveRequests, 1500);
+setInterval(loadFailedEvents, 1500);
 setInterval(loadEffectiveTargets, 3000);
+setInterval(loadTargetFwdStatus, 5000);
+
+if (failedEventsSearch) {
+  failedEventsSearch.addEventListener("input", () => renderFailedEvents(failedEventsCache));
+}
 
 if (window.applyI18n) window.applyI18n();

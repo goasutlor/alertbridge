@@ -6,6 +6,10 @@ Stateless webhook relay/transformer for OpenShift. Receives JSON webhooks, appli
 - FastAPI + Uvicorn, async HTTP forwarding with httpx
 - YAML rules: include/drop/rename/enrich/map values/output template
 - Config UI with save/reload/preview transform
+- Live Events & Failed Events (search, in-memory, limit 20 display / 200 stored)
+- Target Forward status (Phase1 server + Phase2 API handshake)
+- Alert summary in Live Events (OCP Alertmanager + Confluent)
+- EN/TH i18n, Field Mapper, API Keys
 - JSON logs and Prometheus metrics
 - Stateless and scale-friendly (rules cache only)
 
@@ -210,6 +214,8 @@ routes:
 If HMAC is enabled and the signature is missing or invalid, the request is rejected with `401`.
 
 ## Security and VA (Vulnerability Assessment)
+- **VA Test:** Passed (Reference version v1.1.0). See [VA_TEST.md](VA_TEST.md) for full report.
+- **Standards:** OWASP Top 10, CWE Top 25, pip-audit (Python advisory DB).
 - Run dependency scan: `pip install pip-audit && pip-audit`
 - See [SECURITY.md](SECURITY.md) for checklist and hardening notes.
 - Use HTTPS in production; Basic Auth over HTTP sends credentials in base64.

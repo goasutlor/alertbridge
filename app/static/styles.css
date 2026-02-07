@@ -169,6 +169,13 @@ body {
 .portal-status.online #portalStatusText { color: var(--accent); }
 .portal-status.offline #portalStatusText { color: var(--danger); }
 
+.target-fwd-status { margin-left: 12px; }
+.target-status-badge { margin-left: 6px; font-size: 10px; }
+.target-status-badge.target-ok { color: var(--accent); }
+.target-status-badge.target-fail { color: var(--danger); }
+.target-fwd-status.online #targetFwdStatusText { color: var(--accent); }
+.target-fwd-status.offline #targetFwdStatusText { color: var(--danger); }
+
 /* Cards */
 .card {
   background: var(--bg-card);
@@ -643,6 +650,11 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .live-table .forwarded-ok { color: var(--accent); }
 .live-table .forwarded-fail { color: var(--danger); }
 .live-table code { font-size: 12px; color: var(--text-muted); }
+
+.failed-events-toolbar { margin-bottom: 12px; }
+.failed-events-toolbar .input-inline { min-width: 220px; }
+.failed-error-cell { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-alert-summary { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .live-empty {
   color: var(--text-muted);
