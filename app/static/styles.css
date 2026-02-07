@@ -759,7 +759,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .recent-payloads-list .payload-route { font-weight: 500; color: var(--text); }
 
-.payload-preview { margin: 4px 0; max-height: 80px; overflow: hidden; position: relative; }
+.payload-preview { margin: 4px 0; max-height: 400px; overflow-y: auto; overflow-x: auto; position: relative; }
 .payload-preview-code {
   display: block;
   font-size: 11px;

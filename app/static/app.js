@@ -1083,7 +1083,7 @@ async function loadRecentPayloads() {
               <span class="payload-route">Route: <strong>${escapeHtml(item.route || "")}</strong></span>
             </div>
             <div class="payload-preview">
-              <code class="payload-preview-code">${escapeHtml(JSON.stringify(item.payload || {}, null, 2).substring(0, 150))}${JSON.stringify(item.payload || {}).length > 150 ? "..." : ""}</code>
+              <code class="payload-preview-code">${escapeHtml(JSON.stringify(item.payload || {}, null, 2))}</code>
             </div>
             <button type="button" class="btn btn-primary btn-use-payload" data-idx="${idx}">Use as source fields</button>
           </li>`
