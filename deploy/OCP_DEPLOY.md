@@ -1,32 +1,40 @@
 # Deploy alertbridge-lite on OpenShift (Production)
 
-Guide สำหรับ deploy บน OCP ให้ OCP Alertmanager และ Confluent Platform ส่ง webhook ผ่าน HTTPS
+Guide for deploying on OCP with OCP Alertmanager and Confluent Platform sending webhooks over HTTPS.
 
-## สถาปัตยกรรม
+## Dev → Prod Workflow
+
+Test local → Push Git → OCP deploy → Same results 100%.
+
+- **Local**: `ALERTBRIDGE_RULES_PATH=./rules.example.yaml` + `persist_rules` → save to file
+- **OCP**: `ALERTBRIDGE_CONFIGMAP_NAME=alertbridge-rules` + `persist_rules` → patch ConfigMap
+- Same code path (`persist_rules`), different backend → identical business logic across envs
+- Add features, push → OCP rebuilds → same behavior as local
+
+## Architecture
 
 ```
 [OCP Alertmanager]  --HTTPS-->  [alertbridge-lite]  --HTTP/HTTPS-->  [Target]
 [Confluent Platform] --HTTPS-->       (Route + TLS)                      (configurable)
 ```
 
-- **ขาเข้า**: OCP Alertmanager และ Confluent ยิง webhook เข้ามาที่ alertbridge-lite ผ่าน **HTTPS** (OpenShift Route)
-- **ขาออก**: alertbridge-lite forward ไป target (HTTP หรือ HTTPS ตาม config)
+- **Inbound**: OCP Alertmanager and Confluent send webhooks to alertbridge-lite via **HTTPS** (OpenShift Route)
+- **Outbound**: alertbridge-lite forwards to target (HTTP or HTTPS per config)
 
-## HTTPS และ Wildcard Cert (*.apps.domain)
+## HTTPS and Wildcard Cert (*.apps.domain)
 
-### ไม่ต้องแลก Cert กัน
+### No cert exchange required
 
-- **Server (alertbridge-lite)**: ใช้ wildcard cert `*.apps.domain` ผ่าน OpenShift Route
-- **Client (OCP Alertmanager, Confluent)**: ใช้ API Key ใน header ไม่ใช้ client cert
-- ดังนั้น **ไม่มีการแลก cert** — แค่ Route present cert ให้ client เช็คเท่านั้น
+- **Server (alertbridge-lite)**: Uses wildcard cert `*.apps.domain` via OpenShift Route
+- **Client (OCP Alertmanager, Confluent)**: Uses API Key in header, no client cert
+- Route presents cert for client verification only
 
-### วิธีใช้ Wildcard Cert กับ Route
+### Using your wildcard cert on Route
 
-**Option A – ใช้ default cluster cert (ง่ายที่สุด)**  
-ถ้า OpenShift ใช้ wildcard อยู่แล้ว Route จะได้ HTTPS อัตโนมัติ ไม่ต้อง config เพิ่ม
+**Option A – Use default cluster cert (easiest)**  
+If OpenShift already uses a wildcard, the Route gets HTTPS automatically.
 
-**Option B – ใช้ wildcard cert ของคุณบน Route**
-สร้าง Route แบบ edge ด้วย cert โดยตรง:
+**Option B – Use your wildcard cert on Route**
 ```bash
 oc create route edge alertbridge-lite \
   --service=alertbridge-lite \
@@ -35,32 +43,31 @@ oc create route edge alertbridge-lite \
   --key=path/to/your-wildcard.key \
   -n alertbridge
 ```
-(หรือใช้ `--cert`/`--key` จากไฟล์ wildcard ที่มี *.apps.domain)
 
-**Option C – ใช้ default ingress cert**  
-ถ้า wildcard ของคุณผูกกับ default ingress controller อยู่แล้ว จะใช้ได้กับทุก Route โดยอัตโนมัติ
+**Option C – Use default ingress cert**  
+If your wildcard is bound to the default ingress controller, it applies to all Routes.
 
 ## Deploy
 
 ```bash
-# 1. เปลี่ยน namespace ถ้าต้องการ
+# 1. Set namespace if needed
 export NAMESPACE=alertbridge
 oc new-project $NAMESPACE 2>/dev/null || oc project $NAMESPACE
 
-# 2. แก้ spec.host ใน Route ให้ตรงกับ *.apps.domain
-# เช่น alertbridge-lite-alertbridge.apps.cluster.domain
+# 2. Set spec.host in Route to match *.apps.domain if needed
 
 # 3. Apply
 oc apply -f deploy/k8s.yaml
+# Or with BuildConfig: oc apply -f deploy/install-ocp.yaml
+# Then: oc start-build alertbridge-lite -n alertbridge
 
-# 4. ดู URL ของ Route
+# 4. Get Route URL
 oc get route alertbridge-lite -n alertbridge
-# จะได้ URL แบบ https://alertbridge-lite-alertbridge.apps.../ 
 ```
 
 ## Config OCP Alertmanager
 
-ใน Alertmanager config (Secret หรือ ConfigMap):
+In Alertmanager config (Secret or ConfigMap):
 
 ```yaml
 receivers:
@@ -69,12 +76,10 @@ receivers:
       - url: 'https://alertbridge-lite-alertbridge.apps.cluster.domain/webhook/ocp'
         send_resolved: true
         http_config:
-          bearer_token: '<API_KEY>'   # หรือใช้ authorization
-          # หรือ authorization:
-          #   credentials: <base64 of user:pass>  ถ้าใช้ Basic
+          bearer_token: '<API_KEY>'
 ```
 
-หรือถ้าใช้ `authorization` header:
+Or with `authorization` header:
 ```yaml
 http_config:
   authorization:
@@ -82,45 +87,51 @@ http_config:
     credentials: "<API_KEY>"
 ```
 
-ตรวจสอบว่า API Key ตรงกับที่ generate ใน alertbridge-lite (ส่วน API Keys)
+Ensure API Key matches the one generated in alertbridge-lite (API Keys section).
 
 ## Config Confluent Platform
 
-ใน Confluent notification / webhook config:
+In Confluent notification / webhook config:
 - URL: `https://alertbridge-lite-alertbridge.apps.cluster.domain/webhook/confluent`
-- Headers: ใส่ `X-API-Key: <API_KEY>` หรือ `Authorization: Bearer <API_KEY>`
+- Headers: `X-API-Key: <API_KEY>` or `Authorization: Bearer <API_KEY>`
 - Content-Type: `application/json`
 
-## ช่องทางรับ Alert (Webhook Paths)
+## Webhook Paths
 
-| Source   | Path                | ใช้กับ              |
-|----------|---------------------|---------------------|
-| ocp      | `/webhook/ocp`      | OCP Alertmanager    |
-| confluent| `/webhook/confluent`| Confluent Platform  |
+| Source   | Path                | Used by              |
+|----------|---------------------|----------------------|
+| ocp      | `/webhook/ocp`      | OCP Alertmanager     |
+| confluent| `/webhook/confluent`| Confluent Platform   |
 
-Path มาจาก `match.source` ใน route config ไม่ได้ hardcode
+Paths come from `match.source` in route config (not hardcoded).
 
-## ข้าม Cluster (Cross-Cluster)
+## Cross-Cluster
 
-ถ้า OCP Alertmanager หรือ Confluent อยู่คนละ cluster:
-- ใช้ **Route URL แบบ external** เช่น `https://alertbridge-lite-xxx.apps.cluster-a.domain`
-- ตรวจสอบ DNS / network ระหว่าง cluster
-- Wildcard cert ต้องครอบคลุม domain ที่ใช้
+If OCP Alertmanager or Confluent runs in a different cluster:
+- Use the **external Route URL** e.g. `https://alertbridge-lite-xxx.apps.cluster-a.domain`
+- Verify DNS and network between clusters
+- Wildcard cert must cover the domain used
 
-## ตรวจสอบ
+## Verification
 
 1. **Health**: `curl -k https://<route-host>/healthz`
-2. **ส่งทดสอบ**:
+2. **Test webhook**:
    ```bash
    curl -X POST "https://<route-host>/webhook/ocp" \
      -H "X-API-Key: <API_KEY>" \
      -H "Content-Type: application/json" \
      -d '{"version":"4","status":"firing","alerts":[{"status":"firing","labels":{"alertname":"Test"}}]}'
    ```
-3. **ดู Live Events** ใน UI: `https://<route-host>/`
+3. **Live Events in UI**: `https://<route-host>/`
+
+## Save from UI (Permanent)
+
+When deployed with `install-ocp.yaml` or `k8s.yaml` (ServiceAccount + RBAC):
+- Edit Rules, Target URL, API Keys in the web UI and click **Save** to **patch ConfigMap directly**
+- Changes are **permanent** (same as localhost); no `oc edit` or `/admin/reload` needed
 
 ## Compatibility
 
-- **OCP Alertmanager**: รองรับ webhook format (รวม v4)
-- **Confluent Platform**: รองรับ Confluent webhook format
-- Authentication: `X-API-Key` หรือ `Authorization: Bearer` (ทั้งสองฝั่งรองรับ header-based auth)
+- **OCP Alertmanager**: Webhook format supported (incl. v4)
+- **Confluent Platform**: Confluent webhook format supported
+- Authentication: `X-API-Key` or `Authorization: Bearer` (both sides support header-based auth)

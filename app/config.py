@@ -14,6 +14,28 @@ _rules_cache: Optional[RuleSet] = None
 _rules_loaded = False
 
 
+def persist_rules(rules: RuleSet) -> None:
+    """
+    Save rules permanently: patch ConfigMap when ALERTBRIDGE_CONFIGMAP_NAME is set (OCP),
+    otherwise write to file.
+    Raises PermissionError if both methods fail.
+    """
+    from app.k8s_configmap import persist_rules_to_configmap
+
+    rules_yaml = yaml.safe_dump(rules.model_dump(), sort_keys=False)
+
+    if persist_rules_to_configmap(rules_yaml):
+        return
+
+    try:
+        save_rules_to_file(rules)
+    except PermissionError:
+        raise PermissionError(
+            "Config is read-only. Set ALERTBRIDGE_CONFIGMAP_NAME and RBAC for ConfigMap patch, "
+            "or update ConfigMap manually and call /admin/reload."
+        )
+
+
 def load_rules_from_file(path: Path = RULES_PATH) -> RuleSet:
     if not path.exists():
         return RuleSet(version=1, defaults=Defaults(), routes=[])

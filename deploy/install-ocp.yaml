@@ -1,3 +1,16 @@
+# alertbridge-lite - Deploy on OCP
+#
+# Steps:
+# 1. Edit Secret (TARGET_URL_OCP, TARGET_URL_CONFLUENT, API keys) as needed
+# 2. oc apply -f deploy/install-ocp.yaml
+# 3. oc start-build alertbridge-lite -n alertbridge   # build from GitHub
+# 4. Wait for build (oc get builds -n alertbridge), then Pod will come up
+# 5. oc get route -n alertbridge   # Get webhook URL
+#
+# Save from UI: Edit Rules, Target, API Keys in web UI and click Save to patch ConfigMap directly
+# (permanent, no oc edit or /admin/reload needed)
+
+---
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -33,6 +46,40 @@ roleRef:
   kind: Role
   name: alertbridge-configmap-editor
   apiGroup: rbac.authorization.k8s.io
+---
+# Build from GitHub
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: alertbridge-lite
+  namespace: alertbridge
+spec:
+  runPolicy: Serial
+  source:
+    type: Git
+    git:
+      uri: https://github.com/goasutlor/alertbridge.git
+      ref: main
+  strategy:
+    type: Docker
+    dockerStrategy: {}
+  output:
+    to:
+      kind: ImageStreamTag
+      name: alertbridge-lite:latest
+  resources:
+    limits:
+      cpu: "1"
+      memory: 1Gi
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: alertbridge-lite
+  namespace: alertbridge
+spec:
+  lookupPolicy:
+    local: true
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -88,6 +135,7 @@ metadata:
   namespace: alertbridge
 type: Opaque
 stringData:
+  # Change to real target URLs for forwarding
   TARGET_URL_OCP: "https://example.ocp.target/webhook"
   TARGET_API_KEY_OCP: "change-me"
   TARGET_URL_CONFLUENT: "https://example.confluent.target/webhook"
@@ -99,7 +147,7 @@ metadata:
   name: alertbridge-lite
   namespace: alertbridge
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: alertbridge-lite
@@ -111,8 +159,8 @@ spec:
       serviceAccountName: alertbridge-lite
       containers:
         - name: alertbridge-lite
-          image: alertbridge-lite:latest
-          imagePullPolicy: IfNotPresent
+          image: image-registry.openshift-image-registry.svc:5000/alertbridge/alertbridge-lite:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
@@ -169,7 +217,6 @@ spec:
               - key: rules.yaml
                 path: rules.yaml
 ---
-# Service distributes traffic to Pods by label (load balance when scaling replicas)
 apiVersion: v1
 kind: Service
 metadata:
@@ -183,16 +230,13 @@ spec:
       port: 80
       targetPort: 8080
 ---
-# Route: HTTPS via TLS edge termination (OCP uses default or custom wildcard cert)
-# Clients (OCP Alertmanager, Confluent) call: https://<host>/webhook/ocp or /webhook/confluent
-# Set spec.host to match your wildcard (*.apps.domain) e.g. alertbridge-lite-alertbridge.apps.cluster.domain
+# Route: omit host for auto-generated OCP host, or set to match *.apps.domain
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   name: alertbridge-lite
   namespace: alertbridge
 spec:
-  host: alertbridge-lite-alertbridge.apps.cluster.domain  # Change to match *.apps.domain
   to:
     kind: Service
     name: alertbridge-lite
@@ -201,3 +245,4 @@ spec:
   tls:
     termination: edge
     insecureEdgeTerminationPolicy: None   # HTTPS only, no HTTP
+  # host: alertbridge-lite-alertbridge.apps.cluster.domain  # uncomment and set your domain

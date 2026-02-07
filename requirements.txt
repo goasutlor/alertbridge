@@ -6,4 +6,5 @@ PyYAML>=6.0.1,<7
 prometheus-client>=0.21,<1
 python-json-logger>=2.0,<3
 pydantic>=2,<3
+kubernetes>=28,<29
 pytest>=8,<9

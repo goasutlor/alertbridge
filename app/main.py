@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-from app.config import get_rules, reload_rules, rules_loaded, save_rules_to_file, set_rules
+from app.config import get_rules, persist_rules, reload_rules, rules_loaded, set_rules
 from app.forwarder import close_client, forward_payload, get_client
 from app.logging_conf import configure_logging
 from app.hmac_verify import verify_hmac as verify_hmac_signature
@@ -166,13 +166,10 @@ async def put_config(
         raise HTTPException(status_code=400, detail=f"Invalid config: {exc}") from exc
 
     try:
-        save_rules_to_file(rules)
+        persist_rules(rules)
     except PermissionError as exc:
         CONFIG_RELOAD_TOTAL.labels(result="fail").inc()
-        raise HTTPException(
-            status_code=409,
-            detail="Config is read-only. Update ConfigMap and call /admin/reload.",
-        ) from exc
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     set_rules(rules)
     CONFIG_RELOAD_TOTAL.labels(result="success").inc()
@@ -442,11 +439,11 @@ async def api_apply_pattern(
     new_rules = rules.model_copy(update={"routes": updated_routes})
     set_rules(new_rules)
     try:
-        save_rules_to_file(new_rules)
+        persist_rules(new_rules)
         CONFIG_RELOAD_TOTAL.labels(result="success").inc()
     except PermissionError:
         CONFIG_RELOAD_TOTAL.labels(result="fail").inc()
-        pass  # in-memory updated; file read-only
+        pass  # in-memory updated; ConfigMap/file read-only
 
     return JSONResponse({"applied": True, "route_name": route_name})
 
@@ -487,15 +484,11 @@ async def api_create_api_key(
         rules.auth.api_keys = ApiKeyConfig(keys=[], required=True)
     
     rules.auth.api_keys.keys.append(new_key)
-    
-    # Save config
+
     try:
-        save_rules_to_file(rules)
-    except PermissionError:
-        raise HTTPException(
-            status_code=409,
-            detail="Config is read-only. Update ConfigMap and call /admin/reload.",
-        )
+        persist_rules(rules)
+    except PermissionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     
     set_rules(rules)
     
@@ -522,15 +515,11 @@ async def api_delete_api_key(
     
     if len(rules.auth.api_keys.keys) == original_count:
         raise HTTPException(status_code=404, detail="API key not found")
-    
-    # Save config
+
     try:
-        save_rules_to_file(rules)
-    except PermissionError:
-        raise HTTPException(
-            status_code=409,
-            detail="Config is read-only. Update ConfigMap and call /admin/reload.",
-        )
+        persist_rules(rules)
+    except PermissionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     
     set_rules(rules)
     return JSONResponse({"deleted": True, "name": name})
@@ -554,15 +543,11 @@ async def api_update_api_key_config(
         rules.auth.api_keys = ApiKeyConfig(keys=[], required=required)
     else:
         rules.auth.api_keys.required = required
-    
-    # Save config
+
     try:
-        save_rules_to_file(rules)
-    except PermissionError:
-        raise HTTPException(
-            status_code=409,
-            detail="Config is read-only. Update ConfigMap and call /admin/reload.",
-        )
+        persist_rules(rules)
+    except PermissionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     
     set_rules(rules)
     return JSONResponse({"required": required})

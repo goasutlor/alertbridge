@@ -81,7 +81,7 @@ Open UI at `https://127.0.0.1:8443` (browser will warn about self-signed cert; a
    ```powershell
    python scripts/load_test_webhook.py
    ```
-4. **Check**: alertbridge-lite UI (http://127.0.0.1:8081) shows request count and live feed; **mock receiver** (http://127.0.0.1:9999/) shows the **transformed payloads** that were forwarded (รับได้จริง).
+4. **Check**: alertbridge-lite UI (http://127.0.0.1:8081) shows request count and live feed; **mock receiver** (http://127.0.0.1:9999/) shows the **transformed payloads** that were forwarded.
    - **HTTPS** mock: generate cert with `openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj /CN=localhost`, then `python scripts/mock_receiver.py --https --cert cert.pem --key key.pem --port 8443` and set `TARGET_URL_OCP=https://127.0.0.1:8443/webhook` (alertbridge-lite allows HTTP/HTTPS targets).
 
 ## Build Container
@@ -99,8 +99,8 @@ oc apply -f deploy/k8s.yaml
 ```
 
 - **HTTPS**: Route uses TLS edge termination; clients call `https://<route-host>/webhook/ocp` or `/webhook/confluent`.
-- **Wildcard cert** (`*.apps.domain`): ใช้ได้กับ default ingress cert หรือผูก custom cert กับ Route (ดู [deploy/OCP_DEPLOY.md](deploy/OCP_DEPLOY.md)).
-- **No cert exchange**: OCP Alertmanager และ Confluent ใช้ API Key ใน header ไม่ใช้ client cert.
+- **Wildcard cert** (`*.apps.domain`): Works with default ingress cert or bind custom cert to Route (see [deploy/OCP_DEPLOY.md](deploy/OCP_DEPLOY.md)).
+- **No cert exchange**: OCP Alertmanager and Confluent use API Key in header, no client cert.
 
 Update the `ConfigMap` and `Secret` entries with real values. See [deploy/OCP_DEPLOY.md](deploy/OCP_DEPLOY.md) for OCP Alertmanager + Confluent setup.
 

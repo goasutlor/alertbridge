@@ -6,54 +6,64 @@
     <title>alertbridge-lite</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
+    <div class="hero-bg"></div>
     <main class="container">
       <header class="header">
-        <h1>alertbridge-lite</h1>
-        <p class="tagline">Stateless webhook relay & transformer</p>
-        <div id="portalStatus" class="portal-status" aria-live="polite">
-          <span id="portalStatusDot" class="portal-status-dot"></span>
-          <span id="portalStatusText">Checking…</span>
+        <div class="header-brand">
+          <div>
+            <h1>alertbridge-lite</h1>
+            <p class="tagline">Stateless webhook relay & transformer for OCP & Confluent</p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <div class="lang-toggle">
+            <button type="button" id="langEn" class="lang-btn" aria-pressed="true">EN</button>
+            <button type="button" id="langTh" class="lang-btn" aria-pressed="false">TH</button>
+          </div>
+          <div id="portalStatus" class="portal-status" aria-live="polite">
+            <span id="portalStatusDot" class="portal-status-dot"></span>
+            <span id="portalStatusText">Checking…</span>
+          </div>
         </div>
       </header>
 
-      <section class="card card-hero">
-        <h2 class="card-title">
-          <span class="card-title-icon">◆</span> Realtime metrics
-        </h2>
-        <p class="card-subtitle">Requests per second (live); last 90 seconds</p>
-        <div class="heartbeat-wrap">
-          <canvas id="heartbeatChart" class="heartbeat-chart"></canvas>
-          <div id="heartbeatLabel" class="heartbeat-label">0 req/s</div>
+      <section class="dashboard">
+        <div class="dashboard-hero card">
+          <h2 class="card-title">Realtime metrics</h2>
+          <p class="card-subtitle">Requests per second · last 90 seconds</p>
+          <div class="heartbeat-wrap">
+            <canvas id="heartbeatChart" class="heartbeat-chart"></canvas>
+            <div id="heartbeatLabel" class="heartbeat-label">0 req/s</div>
+          </div>
         </div>
-      </section>
-
-      <section class="card card-stats">
-        <h2 class="card-title">Request count</h2>
-        <div id="statsPanel" class="stats-panel">
-          <div class="stat-row">
-            <span class="stat-label">Total</span>
-            <strong id="statsTotal" class="stat-value">0</strong>
-            <span class="stat-unit">requests</span>
-          </div>
-          <div class="stat-row">
-            <span class="stat-label">By source</span>
-            <span id="statsBySource" class="stat-inline">-</span>
-          </div>
-          <div class="stat-row">
-            <span class="stat-label">Forward</span>
-            <span class="stat-inline">success <strong id="statsForwardOk">0</strong> · failed <strong id="statsForwardFail">0</strong></span>
+        <div class="dashboard-stats card">
+          <h2 class="card-title">Request count</h2>
+          <div id="statsPanel" class="stats-panel stats-grid">
+            <div class="stat-card">
+              <span class="stat-label">Total</span>
+              <strong id="statsTotal" class="stat-value">0</strong>
+              <span class="stat-unit">requests</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">By source</span>
+              <span id="statsBySource" class="stat-inline stat-source">-</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Forward</span>
+              <span class="stat-inline">success <strong id="statsForwardOk">0</strong> · failed <strong id="statsForwardFail">0</strong></span>
+            </div>
           </div>
           <span id="statsStatus" class="status"></span>
         </div>
       </section>
 
       <section class="card">
-        <h2 class="card-title">Live Events (Webhooks ที่เข้ามา)</h2>
-        <p class="card-subtitle">Last 20 webhooks · refreshes every 1.5s · <strong>ใช้ Live Events เหล่านี้สร้าง Pattern ได้</strong> (ดูด้านล่างใน Field Mapper)</p>
+        <h2 class="card-title" data-i18n="liveEvents">Live Events (Incoming Webhooks)</h2>
+        <p class="card-subtitle" data-i18n="liveEventsSub">Last 20 webhooks · refreshes every 1.5s · Use these for Field Mapper</p>
         <div id="liveRequestsContainer" class="live-requests">
           <table class="live-table">
             <thead>
@@ -68,21 +78,21 @@
             </thead>
             <tbody id="liveRequestsBody"></tbody>
           </table>
-          <p id="liveRequestsEmpty" class="live-empty">ยังไม่มี webhooks เข้ามา. ส่ง POST มาที่ <code>/webhook/ocp</code> หรือ <code>/webhook/confluent</code> (หรือ source อื่นที่ configure ไว้) เพื่อดู Live Events</p>
+          <p id="liveRequestsEmpty" class="live-empty"><span data-i18n="liveEmpty">No webhooks yet. POST to</span> <code>/webhook/ocp</code> <code>/webhook/confluent</code> <span data-i18n="orSource">or other source</span></p>
         </div>
       </section>
 
       <section class="card card-routes">
-        <h2 class="card-title">Webhook Endpoints (ช่องทางการรับ Alert)</h2>
-        <p class="card-subtitle">Routes ที่เปิดอยู่ — Clients สามารถส่ง POST มาที่ <code>/webhook/{source}</code> ได้</p>
+        <h2 class="card-title" data-i18n="webhookEndpoints">Webhook Endpoints (Alert Receivers)</h2>
+        <p class="card-subtitle" data-i18n="webhookSub">Routes available — Clients can POST to <code>/webhook/{source}</code></p>
         <div id="routesPanel" class="routes-panel">
           <ul id="routesList" class="routes-list"></ul>
           <div id="routesEmpty" class="routes-empty" style="display:none;">
-            <p class="text-muted">ยังไม่มี routes configured. เพิ่ม routes ใน Config (YAML) ด้านล่าง</p>
+            <p class="text-muted" data-i18n="noRoutes">No routes configured. Add routes in Config (YAML) below.</p>
           </div>
         </div>
         <div id="clientInfoPanel" class="client-info-panel" style="display:none;">
-          <h3 class="client-info-title">📋 ข้อมูลสำหรับ Client ที่จะส่ง Alert มา</h3>
+          <h3 class="client-info-title" data-i18n="clientInfo">Client Info (for sending alerts)</h3>
           <div id="clientInfoContent" class="client-info-content"></div>
         </div>
       </section>
@@ -96,7 +106,7 @@
           <span id="apiKeysStatus" class="status"></span>
         </div>
         <div id="apiKeyNewKeyBox" class="api-key-new-box" style="display:none;">
-          <p class="api-key-copy-hint">Copy now — this key is shown only once.</p>
+          <p class="api-key-copy-hint" data-i18n="copyNow">Copy now — this key is shown only once.</p>
           <div class="api-key-value-row">
             <code id="apiKeyNewKeyValue"></code>
             <button type="button" id="apiKeyCopyBtn" class="btn btn-secondary">Copy</button>
@@ -109,15 +119,15 @@
         <h2 class="card-title">Field Mapper</h2>
         <p class="card-subtitle">Map alarm fields from source (left) to target (right). Save as pattern and apply to route.</p>
         <div class="mapper-two-modes">
-          <p class="mapper-modes-desc"><strong>Source pattern ได้ 2 แบบ:</strong></p>
+          <p class="mapper-modes-desc" data-i18n="sourceModes"><strong>Source pattern options:</strong></p>
           <ul class="mapper-modes-list">
-            <li><strong>จับจาก Live Traffic</strong> — เลือก payload จริงที่ยิงเข้ามาแล้ว ด้านล่าง "From live traffic" แล้วกด Use as source fields</li>
-            <li><strong>กำหนดเอง (Manual)</strong> — เลือก template (OCP / Confluent) หรือเลือก "Custom (paste example log)" แล้ววาง JSON เอง</li>
+            <li data-i18n="fromLive"><strong>From live traffic</strong> — Select payload below, then Use as source fields</li>
+            <li data-i18n="manual"><strong>Manual</strong> — Select template (OCP/Confluent) or Custom (paste example log)</li>
           </ul>
         </div>
         <div class="mapper-target-upload">
-          <h3 class="mapper-col-title">Target (ปลายทาง) — from example log</h3>
-          <p class="mapper-desc">Upload or paste one example log (JSON) of the format you want to send to the target. It will be parsed into fields for mapping.</p>
+          <h3 class="mapper-col-title" data-i18n="targetTitle">Target (output) — from example log</h3>
+          <p class="mapper-desc" data-i18n="targetDesc">Upload or paste one example log (JSON) of the format you want to send. Parsed into fields for mapping.</p>
           <div class="mapper-paste-row">
             <textarea id="mapperTargetExample" class="textarea mapper-paste-json" placeholder='Paste target example JSON e.g. {"severity":"P1","title":"...","message":"..."}'></textarea>
             <div class="mapper-paste-actions">
@@ -129,7 +139,7 @@
           <div id="mapperTargetPatternStatus" class="status"></div>
         </div>
         <div class="mapper-toolbar">
-          <label for="mapperSourceType">แบบที่ 2 — Manual: Source (incoming log)</label>
+          <label for="mapperSourceType">Option 2 — Manual: Source (incoming log)</label>
           <select id="mapperSourceType" class="select mapper-select"></select>
           <div id="mapperSourceCustomWrap" class="mapper-custom-paste" style="display:none;">
             <textarea id="mapperSourceExample" class="textarea mapper-paste-json-small" placeholder="Paste example incoming log JSON"></textarea>
@@ -142,9 +152,9 @@
         </div>
         <div id="mapperSourceDescription" class="mapper-desc"></div>
         <div id="recentPayloadsSection" class="recent-payloads-section">
-          <h3 class="mapper-col-title">แบบที่ 1 — From live traffic (แนะนำ)</h3>
-          <p class="mapper-desc"><strong>ขั้นตอน:</strong> 1) ดู Live Events ด้านบนว่ามี source อะไรเข้ามา 2) เลือก payload ที่ต้องการจากรายการด้านล่าง 3) กด "Use as source fields" เพื่อจับ pattern จาก payload จริง 4) Map กับ Target fields 5) Save as pattern</p>
-          <p class="mapper-desc" style="margin-top: 8px; color: var(--accent);"><strong>💡 Tip:</strong> ถ้ายังไม่มี Live Events ให้ส่ง test webhook มาที่ <code>/webhook/{source}</code> ก่อน (ดู Routes ด้านบนว่า source อะไรเปิดอยู่)</p>
+          <h3 class="mapper-col-title" data-i18n="mode1">Option 1 — From live traffic (recommended)</h3>
+          <p class="mapper-desc" data-i18n="mode1Steps"><strong>Steps:</strong> 1) Check Live Events 2) Select payload 3) Use as source fields 4) Map to Target 5) Save as pattern</p>
+          <p class="mapper-desc tip-desc" style="margin-top: 8px; color: var(--accent);"><span data-i18n="tip">Tip: If no Live Events, send test webhook to</span> <code>/webhook/{source}</code> <span data-i18n="first">first</span></p>
           <ul id="recentPayloadsList" class="recent-payloads-list"></ul>
           <div id="recentPayloadsStatus" class="status"></div>
         </div>
@@ -177,12 +187,12 @@
       </section>
 
       <section class="card card-target-urls">
-        <h2 class="card-title">Target URLs & API Keys (ขา Forward)</h2>
-        <p class="card-subtitle">ตั้งค่า URL และ API Key สำหรับส่ง Alert ไปที่ปลายทาง (forward side).</p>
+        <h2 class="card-title" data-i18n="targetUrls">Target URLs & API Keys (Forward Out)</h2>
+        <p class="card-subtitle" data-i18n="targetUrlsSub">Set URL and API Key for forwarding alerts to target.</p>
         <div id="targetUrlsPanel" class="target-urls-panel"></div>
         <div id="targetUrlsEffective" class="target-urls-effective"></div>
         <div class="actions">
-          <button id="saveTargetUrlsBtn" class="btn btn-primary">Save target URLs & API Keys</button>
+          <button id="saveTargetUrlsBtn" class="btn btn-primary" data-i18n="saveTargetUrls">Save target URLs & API Keys</button>
           <span id="targetUrlsStatus" class="status"></span>
         </div>
       </section>
@@ -212,6 +222,7 @@
       </section>
     </main>
 
-    <script src="/static/app.js?v=11"></script>
+    <script src="/static/i18n.js"></script>
+    <script src="/static/app.js?v=14"></script>
   </body>
 </html>

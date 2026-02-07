@@ -53,6 +53,11 @@ const apiKeyCopyBtn = document.getElementById("apiKeyCopyBtn");
 const apiKeysList = document.getElementById("apiKeysList");
 let recentPayloadsCache = [];
 
+function tr(key) {
+  const fn = (typeof window !== "undefined" && window.t) ? window.t : (k => k);
+  return fn(key);
+}
+
 const RATE_HISTORY_MAX = 90;
 let patternSchemas = { source_schemas: {}, target_fields: [] };
 let targetFieldsFromUpload = [];
@@ -163,14 +168,14 @@ function renderTargetUrls(routes) {
     const apiKeyHeaderRow = document.createElement("div");
     apiKeyHeaderRow.className = "target-api-key-header-row";
     const apiKeyLabel = document.createElement("label");
-    apiKeyLabel.textContent = "API Key Header (ขา Forward):";
+    apiKeyLabel.textContent = tr("apiKeyHeader");
     apiKeyHeaderRow.appendChild(apiKeyLabel);
     const headerSelect = document.createElement("select");
     headerSelect.className = "select target-api-key-header-select";
     headerSelect.setAttribute("data-route-name", routeName);
     headerSelect.setAttribute("data-field", "api_key_header");
     headerSelect.innerHTML = `
-      <option value="">— ไม่ใช้ API Key —</option>
+      <option value="">${tr("noApiKeyOpt")}</option>
       <option value="X-API-Key" ${route.target?.api_key_header === "X-API-Key" ? "selected" : ""}>X-API-Key</option>
       <option value="Authorization" ${route.target?.api_key_header === "Authorization" ? "selected" : ""}>Authorization (Bearer)</option>
       <option value="X-Auth-Token" ${route.target?.api_key_header === "X-Auth-Token" ? "selected" : ""}>X-Auth-Token</option>
@@ -183,16 +188,16 @@ function renderTargetUrls(routes) {
     apiKeyValueRow.className = "target-api-key-value-row";
     apiKeyValueRow.style.display = route.target?.api_key_header ? "flex" : "none";
     const apiKeyValueLabel = document.createElement("label");
-    apiKeyValueLabel.textContent = "API Key Value:";
+    apiKeyValueLabel.textContent = tr("apiKeyValue");
     const apiKeyValueInput = document.createElement("input");
     apiKeyValueInput.type = "text";
-    apiKeyValueInput.placeholder = "ใส่ API Key หรือใช้ env var (เช่น TARGET_API_KEY_OCP)";
+    apiKeyValueInput.placeholder = tr("apiKeyPlaceholder");
     apiKeyValueInput.value = route.target?.api_key || "";
     apiKeyValueInput.setAttribute("data-route-name", routeName);
     apiKeyValueInput.setAttribute("data-field", "api_key");
     const apiKeyEnvLabel = document.createElement("label");
     apiKeyEnvLabel.className = "target-api-key-env-label";
-    apiKeyEnvLabel.textContent = "หรือใช้ Env Var:";
+    apiKeyEnvLabel.textContent = tr("orEnvVar");
     const apiKeyEnvInput = document.createElement("input");
     apiKeyEnvInput.type = "text";
     apiKeyEnvInput.placeholder = "TARGET_API_KEY_OCP";
@@ -273,8 +278,8 @@ function renderRoutes(routes) {
     const clientInfoContent = document.getElementById("clientInfoContent");
     if (clientInfoContent) {
       let html = `<div class="client-info-section">`;
-      html += `<h4>🔗 Webhook URL</h4>`;
-      html += `<p>Client ต้องส่ง POST request มาที่:</p>`;
+      html += `<h4>Webhook URL</h4>`;
+      html += `<p>${tr("clientSendTo")}</p>`;
       routes.forEach((route) => {
         const source = route.match?.source || "";
         const endpoint = `/webhook/${source}`;
@@ -288,50 +293,50 @@ function renderRoutes(routes) {
       html += `</div>`;
       
       html += `<div class="client-info-section">`;
-      html += `<h4>🔑 Authentication</h4>`;
+      html += `<h4>Authentication</h4>`;
       if (apiKeysRequired && apiKeysList.length > 0) {
-        html += `<p><strong style="color: var(--warn);">⚠️ API Key จำเป็นต้องมี!</strong> Client ต้องส่ง API Key มาด้วย:</p>`;
+        html += `<p><strong style="color: var(--warn);">${tr("apiKeyRequired")}</strong></p>`;
         html += `<div class="client-auth-methods">`;
         html += `<div class="auth-method">`;
-        html += `<strong>วิธีที่ 1:</strong> ส่ง header <code>X-API-Key</code><br>`;
+        html += `<strong>${tr("method1")}</strong> <code>X-API-Key</code><br>`;
         html += `<code class="auth-example">curl -X POST "${baseUrl}/webhook/ocp" \\<br>`;
         html += `  -H "X-API-Key: YOUR_API_KEY_HERE" \\<br>`;
         html += `  -H "Content-Type: application/json" \\<br>`;
         html += `  -d '{"status":"firing",...}'</code>`;
         html += `</div>`;
         html += `<div class="auth-method">`;
-        html += `<strong>วิธีที่ 2:</strong> ส่ง header <code>Authorization: Bearer</code><br>`;
+        html += `<strong>${tr("method2")}</strong> <code>Authorization: Bearer</code><br>`;
         html += `<code class="auth-example">curl -X POST "${baseUrl}/webhook/ocp" \\<br>`;
         html += `  -H "Authorization: Bearer YOUR_API_KEY_HERE" \\<br>`;
         html += `  -H "Content-Type: application/json" \\<br>`;
         html += `  -d '{"status":"firing",...}'</code>`;
         html += `</div>`;
-        html += `<p style="margin-top: 12px;"><strong>API Keys ที่มีอยู่:</strong></p>`;
+        html += `<p style="margin-top: 12px;"><strong>${tr("apiKeysAvailable")}</strong></p>`;
         html += `<ul class="api-keys-for-client">`;
         apiKeysList.forEach((k) => {
           html += `<li><code>${escapeHtml(k.name)}</code> - Prefix: <code>${escapeHtml(k.key_prefix || "")}</code></li>`;
         });
         html += `</ul>`;
-        html += `<p class="text-muted" style="font-size: 12px; margin-top: 8px;">💡 Copy API Key จากส่วน "API Keys" ด้านบน</p>`;
+        html += `<p class="text-muted" style="font-size: 12px; margin-top: 8px;">${tr("copyFromSection")}</p>`;
         html += `</div>`;
       } else {
-        html += `<p style="color: var(--accent);">✅ ไม่ต้องใช้ API Key (ยังไม่ได้เปิดใช้งาน)</p>`;
+        html += `<p style="color: var(--accent);">${tr("noApiKey")}</p>`;
       }
       html += `</div>`;
       
       html += `<div class="client-info-section">`;
-      html += `<h4>📝 Request Format</h4>`;
+      html += `<h4>${tr("requestFormat")}</h4>`;
       html += `<p>Content-Type: <code>application/json</code></p>`;
-      html += `<p>Body: JSON payload ตาม format ของ source (OCP/Confluent/etc.)</p>`;
+      html += `<p>${tr("bodyFormat")}</p>`;
       html += `</div>`;
       
       html += `<div class="client-info-section">`;
-      html += `<h4>⚠️ ปัญหาที่พบบ่อย</h4>`;
+      html += `<h4>${tr("troubleshooting")}</h4>`;
       html += `<ul class="troubleshooting-list">`;
-      html += `<li><strong>401 Unauthorized:</strong> ต้องส่ง API Key มาด้วย (ดู Authentication ด้านบน)</li>`;
-      html += `<li><strong>404 Not Found:</strong> ตรวจสอบว่า source ใน URL ตรงกับ routes ที่ configure ไว้</li>`;
-      html += `<li><strong>Connection refused:</strong> ถ้าใช้ <code>127.0.0.1</code> จากเครื่องอื่นจะยิงไม่ได้ ต้องใช้ IP จริงของ server</li>`;
-      html += `<li><strong>Invalid JSON:</strong> ตรวจสอบว่า body เป็น JSON ที่ถูกต้อง</li>`;
+      html += `<li><strong>401 Unauthorized:</strong> ${tr("t401")}</li>`;
+      html += `<li><strong>404 Not Found:</strong> ${tr("t404")}</li>`;
+      html += `<li><strong>Connection refused:</strong> ${tr("tConnRefused")}</li>`;
+      html += `<li><strong>Invalid JSON:</strong> ${tr("tInvalidJson")}</li>`;
       html += `</ul>`;
       html += `</div>`;
       
@@ -479,7 +484,8 @@ function drawHeartbeatChart(data) {
 
   const dpr = window.devicePixelRatio || 1;
   const wrap = heartbeatChart.parentElement;
-  const cw = (wrap && wrap.clientWidth) || 800;
+  const rawW = (wrap && wrap.clientWidth) || 800;
+  const cw = Math.min(rawW, 1200);
   const ch = 140;
   heartbeatChart.width = cw * dpr;
   heartbeatChart.height = ch * dpr;
@@ -519,7 +525,7 @@ function drawHeartbeatChart(data) {
   ctx.lineTo(points[points.length - 1].x, padding.top + graphH);
   ctx.lineTo(points[0].x, padding.top + graphH);
   ctx.closePath();
-  ctx.fillStyle = "rgba(46, 160, 67, 0.12)";
+  ctx.fillStyle = "rgba(34, 197, 94, 0.15)";
   ctx.fill();
 
   ctx.beginPath();
@@ -527,7 +533,7 @@ function drawHeartbeatChart(data) {
   for (let i = 1; i < points.length; i++) {
     ctx.lineTo(points[i].x, points[i].y);
   }
-  ctx.strokeStyle = "#2ea043";
+  ctx.strokeStyle = "#22c55e";
   ctx.lineWidth = 2;
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
@@ -559,7 +565,7 @@ async function loadStatsAndChart() {
     }
     lastTotalRequests = total;
     rateHistory.push(rate);
-    if (rateHistory.length > RATE_HISTORY_MAX) rateHistory.shift();
+    while (rateHistory.length > RATE_HISTORY_MAX) rateHistory.shift();
 
     if (heartbeatLabel) heartbeatLabel.textContent = rate + " req/s";
     drawHeartbeatChart(rateHistory);
@@ -1141,6 +1147,20 @@ if (apiKeyCopyBtn && apiKeyNewKeyValue) {
   });
 }
 
+window.onLangChange = () => {
+  if (configJson) {
+    renderRoutes(configJson.routes || []);
+    renderTargetUrls(configJson.routes || []);
+  }
+};
+
+document.querySelector(".lang-toggle")?.addEventListener("click", (e) => {
+  const btn = e.target.closest("button.lang-btn");
+  if (!btn || !window.setLang) return;
+  if (btn.id === "langEn") window.setLang("en");
+  if (btn.id === "langTh") window.setLang("th");
+});
+
 loadConfig();
 loadPatternSchemas();
 loadSavedPatterns();
@@ -1152,3 +1172,5 @@ setInterval(loadStatsAndChart, 1000);
 loadLiveRequests();
 setInterval(loadLiveRequests, 1500);
 setInterval(loadEffectiveTargets, 3000);
+
+if (window.applyI18n) window.applyI18n();
