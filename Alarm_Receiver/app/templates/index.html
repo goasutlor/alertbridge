@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Alarm Receiver</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: 'IBM Plex Sans Thai', -apple-system, sans-serif;
+  background: #1a1d23;
+  color: #e2e4e8;
+  min-height: 100vh;
+}
+.container { max-width: 1000px; margin: 0 auto; padding: 1.5rem; }
+.header {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #2d3239;
+}
+.header h1 { margin: 0 0 0.25rem; font-size: 1.5rem; font-weight: 600; }
+.tagline { margin: 0; color: #8b9199; font-size: 0.9rem; }
+.tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; }
+.tab {
+  padding: 0.5rem 1rem;
+  background: #252930;
+  border: 1px solid #2d3239;
+  color: #a8adb5;
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+.tab:hover { background: #2d3239; color: #e2e4e8; }
+.tab.active { background: #3b82f6; color: white; border-color: #3b82f6; }
+.panel { display: none; }
+.panel.active { display: block; }
+.card {
+  background: #21252d;
+  border: 1px solid #2d3239;
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+.card h2 { margin: 0 0 0.5rem; font-size: 1.1rem; font-weight: 600; }
+.card-sub { margin: 0 0 1rem; color: #8b9199; font-size: 0.85rem; }
+.toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.toolbar input, .toolbar select {
+  padding: 0.4rem 0.6rem;
+  background: #1a1d23;
+  border: 1px solid #2d3239;
+  color: #e2e4e8;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+.toolbar input { min-width: 160px; }
+.btn {
+  padding: 0.4rem 0.8rem;
+  background: #2d3239;
+  border: 1px solid #3d434d;
+  color: #e2e4e8;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.btn:hover { background: #3d434d; }
+.btn-primary { background: #3b82f6; border-color: #3b82f6; color: white; }
+.btn-primary:hover { background: #2563eb; }
+.btn-danger { background: #dc2626; border-color: #dc2626; color: white; }
+.btn-danger:hover { background: #b91c1c; }
+.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
+.table-wrap { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.data-table th:last-child, .data-table td:last-child {
+  position: sticky; right: 0; background: #21252d; box-shadow: -4px 0 8px rgba(0,0,0,0.3);
+  white-space: nowrap;
+}
+.data-table th, .data-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #2d3239;
+}
+.data-table th { color: #8b9199; font-weight: 500; }
+.data-table tr:hover td { background: rgba(59, 130, 246, 0.08); }
+.data-table tr:hover td:last-child { background: #2d3239; }
+.empty { color: #8b9199; font-size: 0.9rem; margin: 1rem 0 0; }
+.raw-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; padding: 2rem; }
+.raw-modal.show { display: flex; }
+.raw-modal-content { background: #21252d; border: 1px solid #2d3239; border-radius: 8px; max-width: 90%; max-height: 85vh; overflow: hidden; display: flex; flex-direction: column; }
+.raw-modal-header { padding: 1rem; border-bottom: 1px solid #2d3239; display: flex; justify-content: space-between; align-items: center; }
+.raw-modal-body { padding: 1rem; overflow: auto; }
+.raw-modal-body pre { margin: 0; font-size: 0.85rem; color: #34d399; white-space: pre-wrap; word-break: break-all; }
+.key-result {
+  background: #1a1d23;
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  border: 1px solid #2d3239;
+}
+.key-result code {
+  display: block;
+  word-break: break-all;
+  font-size: 0.9rem;
+  color: #34d399;
+}
+.realtime-badge { color: #34d399; font-size: 0.75rem; font-weight: 500; margin-left: 0.5rem; }
+.pattern-form .form-row { margin-bottom: 1rem; }
+.pattern-form label { display: block; margin-bottom: 0.25rem; color: #8b9199; font-size: 0.85rem; }
+.pattern-form .form-hint { margin: 0 0 0.25rem; color: #6b7280; font-size: 0.8rem; }
+.pattern-form input, .pattern-form textarea { width: 100%; max-width: 500px; padding: 0.5rem; background: #1a1d23; border: 1px solid #2d3239; color: #e2e4e8; border-radius: 4px; font-family: inherit; }
+.pattern-form textarea { font-size: 0.85rem; }
+.mappings-table { margin-top: 0.5rem; }
+.mappings-table .btn-sm { margin-top: 0.5rem; }
+.expected-json-box { margin-bottom: 1rem; padding: 1rem; background: #1a1d23; border-radius: 6px; border: 1px solid #2d3239; }
+.expected-json-box label { display: block; margin-bottom: 0.5rem; color: #8b9199; font-size: 0.85rem; }
+.expected-json-box textarea { width: 100%; min-height: 120px; padding: 0.5rem; background: #0d1117; border: 1px solid #2d3239; color: #34d399; font-family: monospace; font-size: 0.85rem; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <header class="header">
+      <h1>Alarm Receiver</h1>
+      <p class="tagline">ตัวรับ Alarm แบบ HTTP/HTTPS · API Key Auth · Pattern Mapping</p>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="alarms">Alarms</button>
+      <button class="tab" data-tab="keys">API Keys</button>
+      <button class="tab" data-tab="patterns">Patterns</button>
+    </nav>
+
+    <section id="panel-alarms" class="panel active">
+      <div class="card">
+        <h2>รายการ Alarms ที่ Forward มา <span class="realtime-badge">● Realtime</span></h2>
+        <p class="card-sub">โชว์เฉพาะ Alarm ที่มีข้อมูลจริง (กรอง Blank ออก) • Refresh ทุก 2 วินาทีเมื่อมี Event, ทุก 10 วินาทีเมื่อว่าง</p>
+        <div class="toolbar">
+          <label for="filterSource" style="margin-right:0.5rem;">Filter by Schema:</label>
+          <select id="filterSource">
+            <option value="">ทุก Schema</option>
+          </select>
+          <button id="btnRefreshAlarms" class="btn">โหลดใหม่</button>
+          <button id="btnClearAlarms" class="btn btn-danger">Reset / Clear</button>
+        </div>
+        <div id="alarmsTableWrap" class="table-wrap" style="display:none;">
+          <table class="data-table">
+            <thead>
+              <tr id="alarmsHeader"></tr>
+            </thead>
+            <tbody id="alarmsBody"></tbody>
+          </table>
+        </div>
+        <p id="alarmsEmpty" class="empty">ยังไม่มี alarm ที่มีข้อมูล — ต้นทางส่ง POST มาที่ /webhook/{source} พร้อม X-API-Key (จะแสดงเมื่อมี Event จริง)</p>
+        <div id="rawModal" class="raw-modal">
+          <div class="raw-modal-content">
+            <div class="raw-modal-header">
+              <strong>Raw Payload (ทุก Field / Nested)</strong>
+              <button id="rawModalClose" class="btn btn-sm">ปิด</button>
+            </div>
+            <div class="raw-modal-body">
+              <pre id="rawModalPre"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="panel-keys" class="panel">
+      <div class="card">
+        <h2>API Keys</h2>
+        <div class="toolbar">
+          <input id="keyName" type="text" placeholder="ชื่อ key (เช่น client-1)" />
+          <button id="btnGenerateKey" class="btn btn-primary">Generate API Key</button>
+        </div>
+        <div id="keyResult" class="key-result" style="display:none;">
+          <p><strong>API Key (บันทึกไว้ — แสดงครั้งเดียว):</strong></p>
+          <code id="keyValue"></code>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ชื่อ</th>
+                <th>Prefix</th>
+                <th>สร้างเมื่อ</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="keysBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="panel-patterns" class="panel">
+      <div class="card">
+        <h2>Schema (เราเป็นหลัก)</h2>
+        <p class="card-sub">เรากำหนด Schema ไว้ — Default มี OCP, Confluent — Gen JSON ส่งให้ต้นทาง Map/Transform มาให้ตรงกับที่เราต้องการ</p>
+        <div class="pattern-form">
+          <div class="form-row">
+            <label>ชื่อ Pattern</label>
+            <input id="patternName" type="text" placeholder="เช่น OCP Alertmanager" />
+          </div>
+          <div class="form-row">
+            <label>Source ID (path ใน /webhook/{source_id} — ใช้ชื่อ Schema เช่น ocp, confluent)</label>
+            <input id="patternSourceId" type="text" placeholder="เช่น ocp, confluent" />
+          </div>
+          <div class="form-row">
+            <label>Auto Gen (ถ้าต้องการสร้าง Schema ใหม่จาก sample)</label>
+            <p class="form-hint">วาง sample JSON แล้วกด Auto Gen เพื่อสร้าง mappings — หรือ Manual Fill</p>
+            <textarea id="patternSampleJson" rows="4" placeholder='{"labels":{"severity":"critical"},"annotations":{"summary":"Disk 95%"}}'></textarea>
+            <button id="btnAutoGen" class="btn btn-primary">Auto Gen จาก JSON</button>
+            <span style="margin-left:0.5rem;color:#8b9199;">หรือ</span>
+            <button id="btnAutoGenFromAlarm" class="btn">Auto Gen จาก Alarm ล่าสุด</button>
+          </div>
+          <div class="form-row">
+            <label>Mappings (Schema ที่เรากำหนด)</label>
+            <div class="mappings-table">
+              <table class="data-table">
+                <thead><tr><th>Source Path (JSON path)</th><th>Target Field</th><th></th></tr></thead>
+                <tbody id="mappingsBody"></tbody>
+              </table>
+              <button id="btnAddMapping" class="btn btn-sm">+ เพิ่มแถว</button>
+            </div>
+          </div>
+          <div class="form-row">
+            <button id="btnGenJsonFromForm" class="btn btn-primary">Gen JSON (ส่งให้ต้นทาง)</button>
+            <button id="btnSavePattern" class="btn btn-primary">Save Pattern</button>
+            <button id="btnCancelPattern" class="btn">ยกเลิก</button>
+          </div>
+          <div id="expectedJsonBox" class="expected-json-box form-row" style="display:none;">
+            <label>Schema (JSON) ที่ต้นทางต้องส่งมา — คัดลอกไปให้ต้นทาง Map/Transform</label>
+            <textarea id="expectedJsonText" readonly rows="12"></textarea>
+            <button id="btnCopyExpectedJson" class="btn btn-primary">คัดลอก</button>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:1rem;">
+        <h2>Schema ที่มีอยู่</h2>
+        <p class="card-sub">กด Gen JSON → ได้ Schema (JSON template) → ส่งให้ต้นทาง ตั้งค่า Map/Transform ให้ส่งมาให้ตรง</p>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ชื่อ</th>
+                <th>Source ID</th>
+                <th>Mappings</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="patternsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script>
+(function () {
+  const base = window.location.origin;
+  function api(url, opts = {}) {
+    return fetch(base + url, {
+      headers: { 'Content-Type': 'application/json', ...opts.headers },
+      ...opts,
+    }).then(r => r.json());
+  }
+  var alarmRefreshTimeout = null;
+  var META_KEYS = ['_source','_schema_id','_pattern_matched','_received_at','_request_id','_raw_body'];
+  function hasContent(a) {
+    if (a._raw_body && String(a._raw_body).trim() !== '') return true;
+    for (var k in a) {
+      if (META_KEYS.indexOf(k) >= 0) continue;
+      var v = a[k];
+      if (v != null && String(v).trim() !== '') return true;
+    }
+    return false;
+  }
+  function startRealtime() {
+    if (alarmRefreshTimeout) clearTimeout(alarmRefreshTimeout);
+    function run() {
+      loadAlarms(function(hasAlarms) {
+        var delay = hasAlarms ? 2000 : 10000;
+        alarmRefreshTimeout = setTimeout(run, delay);
+      });
+    }
+    run();
+  }
+  function stopRealtime() {
+    if (alarmRefreshTimeout) { clearTimeout(alarmRefreshTimeout); alarmRefreshTimeout = null; }
+  }
+  function getAlarmColumns(data) {
+    var cols = ['_received_at','_source','_schema_id','_pattern_matched'];
+    var seen = {};
+    (data || []).forEach(a => {
+      Object.keys(a).filter(k => !k.startsWith('_') || k === '_source' || k === '_schema_id' || k === '_pattern_matched').forEach(k => {
+        if (!seen[k]) { seen[k] = true; if (!cols.includes(k)) cols.push(k); }
+      });
+    });
+    return cols.filter(c => c !== '_request_id');
+  }
+  function loadAlarms(done) {
+    const source = document.getElementById('filterSource').value;
+    let url = '/api/alarms?limit=20';
+    if (source) url += '&source=' + encodeURIComponent(source);
+    api(url).then(data => {
+      var filtered = Array.isArray(data) ? data.filter(hasContent) : [];
+      const tbody = document.getElementById('alarmsBody');
+      const thead = document.getElementById('alarmsHeader');
+      const empty = document.getElementById('alarmsEmpty');
+      tbody.innerHTML = '';
+      if (filtered.length === 0) {
+        document.getElementById('alarmsTableWrap').style.display = 'none';
+        empty.style.display = 'block';
+        var rawCount = Array.isArray(data) ? data.length : 0;
+        empty.textContent = rawCount > 0
+          ? 'มี ' + rawCount + ' alarms ในระบบ แต่ไม่มีรายการที่มีข้อมูล — ตรวจสอบ path/pattern หรือลอง Reset'
+          : 'ยังไม่มี alarm — ต้นทางส่ง POST มาที่ /webhook/{source} พร้อม X-API-Key';
+        thead.innerHTML = '';
+        if (typeof done === 'function') done(false);
+        return;
+      }
+      document.getElementById('alarmsTableWrap').style.display = 'block';
+      empty.style.display = 'none';
+      var cols = getAlarmColumns(filtered);
+      var headerLabels = { _received_at:'เวลา', _source:'Route', _schema_id:'Schema', _pattern_matched:'Match', status:'Status', severity:'Severity', alertname:'Alert', message:'Message', description:'Description', instance:'Instance', namespace:'Namespace', pod:'Pod', job:'Job', timestamp:'Timestamp', time:'Time', generator_url:'Generator URL', alert_id:'Alert ID', cluster_id:'Cluster', title:'Title', trace_id:'Trace ID', event:'Event', id:'ID', region:'Region', source:'Source' };
+      thead.innerHTML = cols.map(c => '<th>' + escapeHtml(headerLabels[c] || c) + '</th>').join('') + '<th>Raw</th>';
+      filtered.forEach(function(a, idx) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = cols.map(c => {
+          var v = a[c];
+          if (c === '_received_at' && v) v = new Date(v).toLocaleString();
+          if (c === '_pattern_matched') {
+            v = v === true ? 'ตรง' : (v === false ? '<span style="color:#f59e0b;">ไม่มี match</span>' : '-');
+            return '<td>' + (typeof v === 'string' && v.startsWith('<') ? v : escapeHtml(v != null && v !== '' ? String(v) : '-')) + '</td>';
+          }
+          return '<td>' + escapeHtml(v != null && v !== '' ? String(v) : '-') + '</td>';
+        }).join('') + '<td><button class="btn btn-sm raw-payload-btn" data-idx="' + idx + '">Raw</button></td>';
+        tbody.appendChild(tr);
+      });
+      var alarmsData = filtered;
+      tbody.querySelectorAll('.raw-payload-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var a = alarmsData[parseInt(btn.dataset.idx, 10)];
+          var rawBody = a && typeof a._raw_body === 'string' ? a._raw_body : null;
+          if (rawBody) {
+            document.querySelector('#rawModal .raw-modal-header strong').textContent = 'Raw Body (ที่รับมาที่ Server — ไม่ parse แสดงตามที่ส่งมา)';
+            document.getElementById('rawModalPre').textContent = rawBody;
+          } else {
+            document.querySelector('#rawModal .raw-modal-header strong').textContent = 'ข้อมูลที่ Map แล้ว (Alarm เก่าไม่มี _raw_body — Reset แล้วส่งใหม่)';
+            document.getElementById('rawModalPre').textContent = JSON.stringify(a, null, 2);
+          }
+          document.getElementById('rawModal').classList.add('show');
+        });
+      });
+      if (typeof done === 'function') done(true);
+    }).catch(function(err) {
+      document.getElementById('alarmsBody').innerHTML = '<tr><td colspan="10">โหลดไม่ได้: ' + escapeHtml(err.message) + '</td></tr>';
+      if (typeof done === 'function') done(false);
+    });
+  }
+  document.getElementById('btnRefreshAlarms').addEventListener('click', () => { loadAlarms(); });
+  document.getElementById('btnClearAlarms').addEventListener('click', () => {
+    if (!confirm('ล้างรายการ Alarm ทั้งหมด?')) return;
+    fetch(base + '/api/alarms/clear', { method: 'POST' })
+      .then(function() { loadAlarms(); });
+  });
+  document.getElementById('filterSource').addEventListener('change', () => { loadAlarms(); });
+  document.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+      if (btn.dataset.tab === 'alarms') { loadAlarms(); startRealtime(); }
+      else if (btn.dataset.tab === 'keys') { stopRealtime(); loadKeys(); }
+      else if (btn.dataset.tab === 'patterns') { stopRealtime(); loadPatterns(); }
+    });
+  });
+  function loadKeys() {
+    api('/api/keys').then(data => {
+      const tbody = document.getElementById('keysBody');
+      tbody.innerHTML = '';
+      (data || []).forEach(k => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + escapeHtml(k.name || '-') + '</td><td><code>' + escapeHtml(k.prefix || '-') + '</code></td><td>' + escapeHtml(k.created_at || '-') + '</td><td><button class="btn btn-danger btn-sm revoke" data-id="' + escapeHtml(k.id) + '">Revoke</button></td>';
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.revoke').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (!confirm('Revoke key นี้?')) return;
+          fetch(base + '/api/keys/' + btn.dataset.id, { method: 'DELETE' })
+            .then(r => r.json()).then(() => loadKeys()).catch(console.error);
+        });
+      });
+    });
+  }
+  document.getElementById('btnGenerateKey').addEventListener('click', () => {
+    const name = document.getElementById('keyName').value.trim() || 'default';
+    api('/api/keys/generate', { method: 'POST', body: JSON.stringify({ name }) })
+      .then(r => {
+        document.getElementById('keyResult').style.display = 'block';
+        document.getElementById('keyValue').textContent = r.api_key || '';
+        loadKeys();
+      })
+      .catch(err => alert('Generate ไม่ได้: ' + err.message));
+  });
+  var currentMappings = [];
+  function addMappingRow(src, tgt) {
+    const tbody = document.getElementById('mappingsBody');
+    const tr = document.createElement('tr');
+    const inp1 = document.createElement('input');
+    inp1.type = 'text'; inp1.className = 'mapping-src'; inp1.placeholder = 'labels.severity'; inp1.value = src || '';
+    const inp2 = document.createElement('input');
+    inp2.type = 'text'; inp2.className = 'mapping-tgt'; inp2.placeholder = 'severity'; inp2.value = tgt || '';
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn btn-sm btn-remove-mapping'; delBtn.textContent = 'ลบ';
+    delBtn.addEventListener('click', () => tr.remove());
+    tr.innerHTML = '<td></td><td></td><td></td>';
+    tr.cells[0].appendChild(inp1);
+    tr.cells[1].appendChild(inp2);
+    tr.cells[2].appendChild(delBtn);
+    tbody.appendChild(tr);
+  }
+  function getMappingsFromForm() {
+    const rows = document.querySelectorAll('#mappingsBody tr');
+    var out = [];
+    rows.forEach(r => {
+      const src = (r.querySelector('.mapping-src') || {}).value;
+      const tgt = (r.querySelector('.mapping-tgt') || {}).value;
+      if (src && tgt) out.push({ source_path: src.trim(), target_field: tgt.trim() });
+    });
+    return out;
+  }
+  function setMappingsForm(maps) {
+    document.getElementById('mappingsBody').innerHTML = '';
+    (maps || []).forEach(m => addMappingRow(m.source_path, m.target_field));
+    if ((maps || []).length === 0) addMappingRow('', '');
+  }
+  document.getElementById('btnAddMapping').addEventListener('click', () => addMappingRow('', ''));
+  document.getElementById('btnAutoGen').addEventListener('click', () => {
+    var raw = document.getElementById('patternSampleJson').value.trim().replace(/^\uFEFF/, '');
+    if (!raw) { alert('วาง sample JSON ก่อน'); return; }
+    try {
+      const sample = JSON.parse(raw);
+      if (!sample || typeof sample !== 'object') { alert('JSON ต้องเป็น Object'); return; }
+      api('/api/patterns/auto-gen', { method: 'POST', body: JSON.stringify({ sample }) })
+        .then(r => {
+          const maps = r && r.mappings ? r.mappings : [];
+          setMappingsForm(maps);
+          alert('Auto Gen เสร็จ: สร้าง ' + maps.length + ' mappings');
+        })
+        .catch(err => alert('Auto Gen ไม่ได้: ' + (err.message || 'error')));
+    } catch (e) { alert('JSON ไม่ถูกต้อง: ' + (e.message || '')); }
+  });
+  document.getElementById('btnAutoGenFromAlarm').addEventListener('click', () => {
+    const source_id = document.getElementById('patternSourceId').value.trim();
+    if (!source_id) { alert('กรอก Source ID ก่อน (เช่น ocp)'); return; }
+    api('/api/patterns/auto-gen', { method: 'POST', body: JSON.stringify({ source_id }) })
+      .then(r => { setMappingsForm(r.mappings || []); })
+      .catch(err => alert('Auto Gen ไม่ได้: ' + (err.message || 'error') + ' (อาจยังไม่มี alarm จาก source นี้)'));
+  });
+  document.getElementById('btnGenJsonFromForm').addEventListener('click', () => {
+    const mappings = getMappingsFromForm();
+    if (mappings.length === 0) {
+      alert('เพิ่ม mapping อย่างน้อย 1 แถว (กรอก Source Path และ Target Field) — ใช้ Auto Gen จาก JSON หรือ Manual Fill');
+      return;
+    }
+    var box = document.getElementById('expectedJsonBox');
+    var ta = document.getElementById('expectedJsonText');
+    box.style.display = 'block';
+    ta.value = 'กำลังโหลด...';
+    fetch(base + '/api/patterns/gen-expected-json', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mappings: mappings })
+    })
+      .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })
+      .then(function(o) {
+        if (o.ok && o.data.expected_json) {
+          ta.value = o.data.expected_json;
+          box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+          ta.value = 'Error: ' + (o.data.detail || 'ไม่สามารถสร้าง JSON ได้');
+        }
+      })
+      .catch(function(err) {
+        ta.value = 'Error: ' + (err.message || 'connection failed');
+      });
+  });
+  document.getElementById('btnSavePattern').addEventListener('click', () => {
+    const name = document.getElementById('patternName').value.trim() || 'Unnamed';
+    const source_id = document.getElementById('patternSourceId').value.trim();
+    if (!source_id) { alert('กรอก Source ID'); return; }
+    var mappings = getMappingsFromForm();
+    if (mappings.length === 0) {
+      var raw = document.getElementById('patternSampleJson').value.trim().replace(/^\uFEFF/, '');
+      if (raw) {
+        try {
+          var sample = JSON.parse(raw);
+          if (sample && typeof sample === 'object') {
+            api('/api/patterns/auto-gen', { method: 'POST', body: JSON.stringify({ sample: sample }) })
+              .then(function(r) {
+                var maps = r && r.mappings ? r.mappings : [];
+                if (maps.length > 0) {
+                  setMappingsForm(maps);
+                  doSavePattern(name, source_id, maps);
+                } else {
+                  alert('Auto Gen จาก JSON ไม่ได้ mapping — ลองกรอก Mapping เองหรือแก้ JSON');
+                }
+              })
+              .catch(function(err) { alert('Auto Gen ไม่ได้: ' + (err.message || 'error')); });
+            return;
+          }
+        } catch (e) { /* fall through */ }
+      }
+      alert('ใส่ sample JSON แล้วกด Save (จะ Auto Gen ให้) — หรือกรอก Mapping เอง');
+      return;
+    }
+    doSavePattern(name, source_id, mappings);
+  });
+  function doSavePattern(name, source_id, mappings) {
+    api('/api/patterns', { method: 'POST', body: JSON.stringify({ name, source_id, mappings }) })
+      .then(() => { loadPatterns(); clearPatternForm(); alert('Save แล้ว'); })
+      .catch(err => alert('Save ไม่ได้: ' + (err.message || 'error')));
+  }
+  document.getElementById('btnCancelPattern').addEventListener('click', clearPatternForm);
+  function clearPatternForm() {
+    document.getElementById('patternName').value = '';
+    document.getElementById('patternSourceId').value = '';
+    document.getElementById('patternSampleJson').value = '';
+    setMappingsForm([]);
+  }
+  function loadPatterns() {
+    api('/api/patterns').then(data => {
+      const tbody = document.getElementById('patternsBody');
+      tbody.innerHTML = '';
+      (data || []).forEach(p => {
+        const maps = (p.mappings || []).map(m => m.source_path + ' → ' + m.target_field).join(', ');
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + escapeHtml(p.name || '-') + '</td><td><code>' + escapeHtml(p.source_id || '-') + '</code></td><td>' + escapeHtml(maps || '-') + '</td><td><button class="btn btn-sm gen-json-pattern" data-id="' + escapeHtml(p.source_id) + '">Gen JSON</button> <button class="btn btn-sm edit-pattern" data-id="' + escapeHtml(p.source_id) + '">แก้ไข</button> <button class="btn btn-sm btn-danger delete-pattern" data-id="' + escapeHtml(p.source_id) + '">ลบ</button></td>';
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.gen-json-pattern').forEach(btn => {
+        btn.addEventListener('click', () => {
+          var box = document.getElementById('expectedJsonBox');
+          var ta = document.getElementById('expectedJsonText');
+          box.style.display = 'block';
+          ta.value = 'กำลังโหลด...';
+          fetch(base + '/api/patterns/' + encodeURIComponent(btn.dataset.id) + '/expected-json')
+            .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+            .then(function(o) {
+              if (o.ok && o.data.expected_json) {
+                ta.value = o.data.expected_json;
+              } else {
+                ta.value = 'Error: ' + (o.data.detail || 'Pattern not found');
+              }
+              box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            })
+            .catch(function(err) { ta.value = 'Error: ' + (err.message || err); });
+        });
+      });
+      tbody.querySelectorAll('.edit-pattern').forEach(btn => {
+        btn.addEventListener('click', () => {
+          api('/api/patterns/' + btn.dataset.id).then(p => {
+            document.getElementById('patternName').value = p.name || '';
+            document.getElementById('patternSourceId').value = p.source_id || '';
+            setMappingsForm(p.mappings || []);
+          });
+        });
+      });
+      tbody.querySelectorAll('.delete-pattern').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (!confirm('ลบ Pattern นี้?')) return;
+          fetch(base + '/api/patterns/' + btn.dataset.id, { method: 'DELETE' })
+            .then(() => loadPatterns()).catch(console.error);
+        });
+      });
+    });
+  }
+  api('/api/patterns').then(data => {
+    const sel = document.getElementById('filterSource');
+    (data || []).forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.source_id;
+      opt.textContent = p.name + ' (' + p.source_id + ')';
+      sel.appendChild(opt);
+    });
+  });
+  startRealtime();
+  loadAlarms();
+  function escapeHtml(s) {
+    if (s == null) return '';
+    const div = document.createElement('div');
+    div.textContent = String(s);
+    return div.innerHTML;
+  }
+  document.getElementById('rawModalClose').addEventListener('click', function() {
+    document.getElementById('rawModal').classList.remove('show');
+  });
+  document.getElementById('rawModal').addEventListener('click', function(e) {
+    if (e.target === this) this.classList.remove('show');
+  });
+  document.getElementById('btnCopyExpectedJson').addEventListener('click', () => {
+    var ta = document.getElementById('expectedJsonText');
+    var txt = ta.value;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(() => alert('คัดลอกแล้ว'));
+    } else {
+      ta.select();
+      document.execCommand('copy');
+      alert('คัดลอกแล้ว');
+    }
+  });
+})();
+  </script>
+</body>
+</html>
