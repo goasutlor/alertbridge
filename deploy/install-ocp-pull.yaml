@@ -1,18 +1,17 @@
-# alertbridge-lite - OCP Deployment (v1.1.0)
+# alertbridge-lite - OCP Deployment via Pre-built Image (v1.1.0)
+#
+# Use this when OCP BuildConfig fails (e.g. proxy blocks pip). Image is built by GitHub Actions
+# and pushed to ghcr.io on every push to main.
 #
 # Deploy steps:
-# 1. Edit Secret (TARGET_URL_OCP, TARGET_URL_CONFLUENT, API keys) below
-# 2. oc apply -f deploy/install-ocp.yaml
-# 3. oc start-build alertbridge-lite -n alertbridge
-# 4. oc get builds -n alertbridge   # wait until Complete
-# 5. oc get route -n alertbridge    # get webhook URL
-# 6. Test: curl -k https://<route>/healthz
+# 1. Image is at ghcr.io/goasutlor/alertbridge-lite:latest (auto-built on push to main)
 #
-# If build fails (e.g. proxy blocks pip): use install-ocp-pull.yaml instead.
-# Build image locally, push to registry, then deploy via pull.
+# 2. Edit Secret (TARGET_URL_OCP, TARGET_URL_CONFLUENT, API keys) below
 #
-# Features: Alert unrolling, Circuit breaker, Config auto-reload, Target Fwd status
-# Save from UI: Edit Rules/Target/API Keys in web UI → patches ConfigMap (permanent)
+# 3. oc apply -f deploy/install-ocp-pull.yaml
+#
+# 4. oc get route -n alertbridge   # get webhook URL
+# 5. Test: curl -k https://<route>/healthz
 
 ---
 apiVersion: v1
@@ -50,40 +49,6 @@ roleRef:
   kind: Role
   name: alertbridge-configmap-editor
   apiGroup: rbac.authorization.k8s.io
----
-# Build from GitHub
-apiVersion: build.openshift.io/v1
-kind: BuildConfig
-metadata:
-  name: alertbridge-lite
-  namespace: alertbridge
-spec:
-  runPolicy: Serial
-  source:
-    type: Git
-    git:
-      uri: https://github.com/goasutlor/alertbridge.git
-      ref: main
-  strategy:
-    type: Docker
-    dockerStrategy: {}
-  output:
-    to:
-      kind: ImageStreamTag
-      name: alertbridge-lite:latest
-  resources:
-    limits:
-      cpu: "1"
-      memory: 1Gi
----
-apiVersion: image.openshift.io/v1
-kind: ImageStream
-metadata:
-  name: alertbridge-lite
-  namespace: alertbridge
-spec:
-  lookupPolicy:
-    local: true
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -140,7 +105,6 @@ metadata:
   namespace: alertbridge
 type: Opaque
 stringData:
-  # Change to real target URLs for forwarding
   TARGET_URL_OCP: "https://example.ocp.target/webhook"
   TARGET_API_KEY_OCP: "change-me"
   TARGET_URL_CONFLUENT: "https://example.confluent.target/webhook"
@@ -164,7 +128,7 @@ spec:
       serviceAccountName: alertbridge-lite
       containers:
         - name: alertbridge-lite
-          image: image-registry.openshift-image-registry.svc:5000/alertbridge/alertbridge-lite:latest
+          image: ghcr.io/goasutlor/alertbridge-lite:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
@@ -237,7 +201,6 @@ spec:
       port: 80
       targetPort: 8080
 ---
-# Route: omit host for auto-generated OCP host, or set to match *.apps.domain
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
@@ -251,5 +214,4 @@ spec:
     targetPort: http
   tls:
     termination: edge
-    insecureEdgeTerminationPolicy: None   # HTTPS only, no HTTP
-  # host: alertbridge-lite-alertbridge.apps.cluster.domain  # uncomment and set your domain
+    insecureEdgeTerminationPolicy: None
