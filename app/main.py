@@ -60,7 +60,7 @@ configure_logging()
 logger = logging.getLogger("alertbridge")
 app = FastAPI(
     title="AlertBridge",
-    version="1.0.07022026",
+    version="1.0.08022026",
     description="Stateless webhook relay and transformer. Author: Sontas Jiamsripong",
 )
 
@@ -412,7 +412,7 @@ async def version() -> Response:
     """Return app version, author, and git commit (for deploy verification)."""
     git_sha = os.getenv("GIT_SHA", "unknown")
     return JSONResponse({
-        "version": "1.0.07022026",
+        "version": "1.0.08022026",
         "author": "Sontas Jiamsripong",
         "git_sha": git_sha,
     })
