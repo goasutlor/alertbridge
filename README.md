@@ -217,6 +217,7 @@ If HMAC is enabled and the signature is missing or invalid, the request is rejec
 
 ## Security and VA (Vulnerability Assessment)
 - **VA Test:** Passed (Reference version v1.1.0). See [VA_TEST.md](VA_TEST.md) for full report.
+- **Run tests:** `pytest tests/` (unit) · `python scripts/post_test.py` (API) · `pip-audit` (VA scan)
 - **Standards:** OWASP Top 10, CWE Top 25, pip-audit (Python advisory DB).
 - Run dependency scan: `pip install pip-audit && pip-audit`
 - See [SECURITY.md](SECURITY.md) for checklist and hardening notes.
