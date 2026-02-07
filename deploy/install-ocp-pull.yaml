@@ -6,12 +6,16 @@
 # Deploy steps:
 # 1. Image is at ghcr.io/goasutlor/alertbridge-lite:latest (auto-built on push to main)
 #
-# 2. Edit Secret (TARGET_URL_OCP, TARGET_URL_CONFLUENT, API keys) below
+# 2. Edit Secret (TARGET_URL_*, API keys, BASIC_AUTH_*). Default UI login: admin/change-me
 #
-# 3. oc apply -f deploy/install-ocp-pull.yaml
+# 3. If 403 Forbidden when pulling: create GHCR pull secret (uncomment imagePullSecrets below):
+#    oc create secret docker-registry ghcr-pull-secret \
+#      --docker-server=ghcr.io --docker-username=goasutlor --docker-password=YOUR_GITHUB_PAT \
+#      -n alertbridge
 #
-# 4. oc get route -n alertbridge   # get webhook URL
-# 5. Test: curl -k https://<route>/healthz
+# 4. oc apply -f deploy/install-ocp-pull.yaml
+# 5. oc get route -n alertbridge   # get webhook URL
+# 6. Test: curl -k https://<route>/healthz
 
 ---
 apiVersion: v1
@@ -109,6 +113,9 @@ stringData:
   TARGET_API_KEY_OCP: "change-me"
   TARGET_URL_CONFLUENT: "https://example.confluent.target/webhook"
   TARGET_API_KEY_CONFLUENT: "change-me"
+  # Basic Auth for UI (enabled by default). CHANGE password before production!
+  BASIC_AUTH_USER: "admin"
+  BASIC_AUTH_PASSWORD: "change-me"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -126,6 +133,9 @@ spec:
         app: alertbridge-lite
     spec:
       serviceAccountName: alertbridge-lite
+      # Uncomment if package is private or cluster gets 403 when pulling from ghcr.io:
+      # imagePullSecrets:
+      #   - name: ghcr-pull-secret
       containers:
         - name: alertbridge-lite
           image: ghcr.io/goasutlor/alertbridge-lite:latest
@@ -157,6 +167,16 @@ spec:
                 secretKeyRef:
                   name: alertbridge-secrets
                   key: TARGET_API_KEY_CONFLUENT
+            - name: BASIC_AUTH_USER
+              valueFrom:
+                secretKeyRef:
+                  name: alertbridge-secrets
+                  key: BASIC_AUTH_USER
+            - name: BASIC_AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: alertbridge-secrets
+                  key: BASIC_AUTH_PASSWORD
           volumeMounts:
             - name: rules
               mountPath: /etc/alertbridge/rules.yaml
@@ -207,6 +227,7 @@ metadata:
   name: alertbridge-lite
   namespace: alertbridge
 spec:
+  host: alertbridge-lite.apps.cwdc.esb-kafka-prod.intra.ais  # EDIT: match your cluster apps domain
   to:
     kind: Service
     name: alertbridge-lite
