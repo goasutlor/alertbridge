@@ -2,6 +2,8 @@
 
 Stateless webhook relay/transformer for OpenShift. Receives JSON webhooks, applies YAML-based rules, transforms payloads, and forwards to HTTPS targets.
 
+**Docs:** [ARCHITECTURE.md](ARCHITECTURE.md) (context & data flow) · [FEATURES.md](FEATURES.md) (API & functions)
+
 ## Features
 - FastAPI + Uvicorn, async HTTP forwarding with httpx
 - YAML rules: include/drop/rename/enrich/map values/output template
