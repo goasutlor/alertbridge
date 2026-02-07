@@ -1,4 +1,4 @@
-# Run Alarm Receiver on HTTPS (port 8443)
+# Run Alert Receiver on HTTPS (port 8443)
 # Generates self-signed cert if missing (ต้องมี openssl — ติดตั้ง Git for Windows หรือ OpenSSL)
 $CertPath = ".\certs"
 $KeyFile = "$CertPath\key.pem"
@@ -21,5 +21,5 @@ if (-not (Test-Path $KeyFile) -or -not (Test-Path $CertFile)) {
 
 $env:ALARM_RECEIVER_RULES_PATH = if (Test-Path ".\config\patterns.yaml") { ".\config\patterns.yaml" } else { $null }
 $Port = if ($args[0]) { $args[0] } else { 8443 }
-Write-Host "Alarm Receiver: https://localhost:$Port (self-signed cert)" -ForegroundColor Green
+Write-Host "Alert Receiver: https://localhost:$Port (self-signed cert)" -ForegroundColor Green
 python -m uvicorn app.main:app --host 0.0.0.0 --port $Port --ssl-keyfile $KeyFile --ssl-certfile $CertFile

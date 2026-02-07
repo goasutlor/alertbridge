@@ -1,5 +1,5 @@
 """
-API Key management for Alarm Receiver.
+API Key management for Alert Receiver.
 Generate keys, validate incoming requests - reject if API key not issued by this system.
 """
 import json

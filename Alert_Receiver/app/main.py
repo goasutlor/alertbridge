@@ -1,4 +1,4 @@
-"""Alarm Receiver - HTTP/HTTPS webhook receiver with API Key auth, pattern mapping, alarm list."""
+"""Alert Receiver - HTTP/HTTPS webhook receiver with API Key auth, pattern mapping, alarm list."""
 import json
 import logging
 import os
@@ -30,7 +30,7 @@ from app.pattern_gen import auto_gen_mappings, gen_expected_json
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("alarm_receiver")
 
-app = FastAPI(title="Alarm Receiver", version="1.0.0")
+app = FastAPI(title="Alert Receiver", version="1.0.0")
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_FILE = BASE_DIR / "templates" / "index.html"
@@ -54,8 +54,8 @@ async def favicon() -> Response:
 
 @app.get("/info")
 async def info() -> Response:
-    """Identify this app - use to verify Alarm Receiver is running."""
-    return JSONResponse({"app": "Alarm Receiver", "version": "1.0.0"})
+    """Identify this app - use to verify Alert Receiver is running."""
+    return JSONResponse({"app": "Alert Receiver", "version": "1.0.0"})
 
 
 @app.on_event("startup")
