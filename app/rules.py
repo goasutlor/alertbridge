@@ -111,6 +111,8 @@ class RuleSet(BaseModel):
 
 
 _PATH_SEGMENT = re.compile(r"([^\[\]]+)(?:\[(\d+)\])?")
+MAX_PATH_DEPTH = 20
+MAX_ARRAY_INDEX = 10000
 
 
 def select_route(rules: RuleSet, source: str) -> Optional[RouteConfig]:
@@ -204,14 +206,20 @@ def _select_jsonpath(payload: Any, selector: str) -> Any:
 
 def _parse_path(path: str) -> List[Tuple[str, Optional[int]]]:
     segments = []
-    for part in path.split("."):
+    parts = path.split(".")
+    if len(parts) > MAX_PATH_DEPTH:
+        return segments
+    for part in parts:
         match = _PATH_SEGMENT.fullmatch(part.strip())
         if not match:
             segments.append((part, None))
         else:
             key = match.group(1)
             idx = match.group(2)
-            segments.append((key, int(idx) if idx is not None else None))
+            i = int(idx) if idx is not None else None
+            if i is not None and (i < 0 or i > MAX_ARRAY_INDEX):
+                continue
+            segments.append((key, i))
     return segments
 
 
@@ -247,6 +255,8 @@ def _set_by_path(data: Any, path: str, value: Any) -> None:
             if is_last:
                 if isinstance(current, list) and key.isdigit():
                     i_key = int(key)
+                    if i_key < 0 or i_key > MAX_ARRAY_INDEX:
+                        return
                     while len(current) <= i_key:
                         current.append({})
                     current[i_key] = value
@@ -262,6 +272,8 @@ def _set_by_path(data: Any, path: str, value: Any) -> None:
                 current = current[key]
             elif isinstance(current, list) and key.isdigit():
                 i_key = int(key)
+                if i_key < 0 or i_key > MAX_ARRAY_INDEX:
+                    return
                 while len(current) <= i_key:
                     current.append({})
                 if not isinstance(current[i_key], (dict, list)):
@@ -271,6 +283,8 @@ def _set_by_path(data: Any, path: str, value: Any) -> None:
                 return
             continue
 
+        if idx < 0 or idx > MAX_ARRAY_INDEX:
+            return
         if key not in current or not isinstance(current[key], list):
             current[key] = []
         target_list = current[key]

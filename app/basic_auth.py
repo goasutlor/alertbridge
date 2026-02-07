@@ -63,7 +63,7 @@ def require_basic_auth(request: Request) -> Optional[str]:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing or invalid Authorization header",
-            headers={"WWW-Authenticate": "Basic realm=\"alertbridge-lite\""},
+            headers={"WWW-Authenticate": "Basic realm=\"AlertBridge\""},
         )
 
     username, password = creds

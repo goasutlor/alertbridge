@@ -1,6 +1,6 @@
 # Features & Functions Reference
 
-> Quick lookup for enhancement and bug fixes. Version: 1.1.0
+> AlertBridge features. Author: Sontas Jiamsripong · Version: 1.0.07022026
 
 ---
 

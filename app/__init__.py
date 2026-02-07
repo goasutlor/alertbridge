@@ -1,1 +1,4 @@
-"""Application package for alertbridge-lite."""
+"""AlertBridge - Stateless webhook relay and transformer.
+
+Author: Sontas Jiamsripong
+"""

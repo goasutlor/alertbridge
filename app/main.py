@@ -58,7 +58,11 @@ from app.rules import ApiKeyConfig, Defaults, RuleSet, sanitize_payload, select_
 
 configure_logging()
 logger = logging.getLogger("alertbridge")
-app = FastAPI(title="alertbridge-lite", version="1.2.0")
+app = FastAPI(
+    title="AlertBridge",
+    version="1.0.07022026",
+    description="Stateless webhook relay and transformer. Author: Sontas Jiamsripong",
+)
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_FILE = BASE_DIR / "templates" / "index.html"
@@ -117,8 +121,8 @@ async def _config_watch_loop() -> None:
         await asyncio.sleep(CONFIG_WATCH_INTERVAL)
         try:
             watch_and_reload()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Config watch loop error: %s", exc)
 
 
 @app.on_event("startup")
@@ -228,7 +232,8 @@ async def put_config(
             data = yaml.safe_load(raw_body.decode("utf-8"))
         rules = RuleSet.model_validate(data)
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid config: {exc}") from exc
+        logger.warning("Invalid config: %s", exc)
+        raise HTTPException(status_code=400, detail="Invalid config format") from exc
 
     try:
         persist_rules(rules)
@@ -404,10 +409,11 @@ async def healthz() -> Response:
 
 @app.get("/version")
 async def version() -> Response:
-    """Return app version and git commit (for deploy verification)."""
+    """Return app version, author, and git commit (for deploy verification)."""
     git_sha = os.getenv("GIT_SHA", "unknown")
     return JSONResponse({
-        "version": "1.2.0",
+        "version": "1.0.07022026",
+        "author": "Sontas Jiamsripong",
         "git_sha": git_sha,
     })
 
@@ -532,15 +538,18 @@ async def api_save_pattern(
     _: Optional[str] = Depends(require_basic_auth),
 ) -> Response:
     """Save a pattern. Body: { name, source_type, mappings[, id] }."""
-    body = await request.json()
-    name = body.get("name") or "Unnamed pattern"
-    source_type = body.get("source_type") or ""
+    body = await _read_json_with_limit(request)
+    name = (body.get("name") or "Unnamed pattern").strip()[:200]
+    source_type = (body.get("source_type") or "").strip()[:100]
     mappings = body.get("mappings") or []
+    if len(mappings) > 500:
+        raise HTTPException(status_code=400, detail="Too many mappings")
     pattern_id = body.get("id")
     try:
         saved = save_pattern_data(name=name, source_type=source_type, mappings=mappings, pattern_id=pattern_id)
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        logger.warning("Pattern save failed: %s", exc)
+        raise HTTPException(status_code=400, detail="Invalid pattern") from exc
     try:
         persist_rules(get_rules())
     except PermissionError:
@@ -573,7 +582,7 @@ async def api_apply_pattern(
     When applying from form (mappings), optional pattern_name will save the pattern so it appears in Saved Patterns.
     Updates the route's transform and saves config if writable.
     """
-    body = await request.json()
+    body = await _read_json_with_limit(request)
     route_name = body.get("route_name")
     if not route_name:
         raise HTTPException(status_code=400, detail="route_name required")
@@ -581,7 +590,7 @@ async def api_apply_pattern(
     rules = get_rules()
     route = next((r for r in rules.routes if r.name == route_name), None)
     if not route:
-        raise HTTPException(status_code=404, detail=f"Route '{route_name}' not found")
+        raise HTTPException(status_code=404, detail="Route not found")
 
     pattern_id = body.get("pattern_id")
     source_type = body.get("source_type") or ""
@@ -595,6 +604,8 @@ async def api_apply_pattern(
         mappings = body.get("mappings") or []
         if not mappings:
             raise HTTPException(status_code=400, detail="Provide pattern_id or mappings")
+        if len(mappings) > 500:
+            raise HTTPException(status_code=400, detail="Too many mappings")
         # Auto-save pattern when applying from form, so it appears in Saved Patterns
         pattern_name = (body.get("pattern_name") or "").strip() or f"Applied to {route_name}"
         saved_pattern = save_pattern_data(name=pattern_name, source_type=source_type, mappings=mappings)
@@ -636,10 +647,14 @@ async def api_create_api_key(
     _: Optional[str] = Depends(require_basic_auth),
 ) -> Response:
     """Create a new API key. Body: { name: string }."""
-    body = await request.json()
-    name = body.get("name", "").strip()
+    body = await _read_json_with_limit(request)
+    name = (body.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="name is required")
+    if len(name) > 128:
+        raise HTTPException(status_code=400, detail="name too long")
+    if any(c in name for c in "\x00\r\n\t"):
+        raise HTTPException(status_code=400, detail="name contains invalid characters")
     
     new_key = create_api_key(name)
     
@@ -700,7 +715,7 @@ async def api_update_api_key_config(
     _: Optional[str] = Depends(require_basic_auth),
 ) -> Response:
     """Update API key config. Body: { required: boolean }."""
-    body = await request.json()
+    body = await _read_json_with_limit(request)
     required = body.get("required", True)
     
     rules = get_rules()
@@ -732,6 +747,18 @@ async def _read_body_with_limit(request: Request, max_bytes: int) -> bytes:
     return body
 
 
+async def _read_json_with_limit(request: Request, max_bytes: int = MAX_CONFIG_BODY_BYTES) -> Any:
+    """Read JSON body with size limit (DoS mitigation for admin endpoints)."""
+    raw = await _read_body_with_limit(request, max_bytes)
+    if not raw:
+        return {}
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except json.JSONDecodeError as exc:
+        logger.warning("Invalid JSON body: %s", exc)
+        raise HTTPException(status_code=400, detail="Invalid JSON") from exc
+
+
 async def _get_request_json(request: Request, max_bytes: int = MAX_WEBHOOK_BODY_BYTES) -> Any:
     try:
         body = await _read_body_with_limit(request, max_bytes)
@@ -739,4 +766,5 @@ async def _get_request_json(request: Request, max_bytes: int = MAX_WEBHOOK_BODY_
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid JSON: {exc}") from exc
+        logger.warning("Invalid webhook JSON: %s", exc)
+        raise HTTPException(status_code=400, detail="Invalid JSON") from exc

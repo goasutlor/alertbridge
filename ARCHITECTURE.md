@@ -1,6 +1,6 @@
 # Architecture Context
 
-> Quick reference for developers enhancing or debugging alertbridge-lite. Version: 1.1.0
+> AlertBridge architecture. Author: Sontas Jiamsripong · Version: 1.0.07022026
 
 ## 1. High-Level Overview
 
