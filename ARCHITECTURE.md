@@ -7,7 +7,7 @@
 ```
 ┌─────────────────┐     POST /webhook/{source}      ┌──────────────────────┐
 │  OCP Alertmgr   │ ─────────────────────────────► │                      │
-│  Confluent      │     (API Key / HMAC可选)         │   alertbridge-lite   │
+│  Confluent      │     (API Key / HMAC optional)         │   alertbridge-lite   │
 │  Other clients  │                                 │   (FastAPI)          │
 └─────────────────┘                                 │                      │
                                                     │  Transform ────────► │  Target
