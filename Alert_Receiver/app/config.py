@@ -1,4 +1,4 @@
-"""Configuration and REST API pattern rules for Alert Receiver."""
+"""Configuration and REST API pattern rules for Alert Reciever."""
 import logging
 import os
 from pathlib import Path

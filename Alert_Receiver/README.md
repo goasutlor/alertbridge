@@ -1,4 +1,6 @@
-# Alert Receiver
+# Alert Reciever
+
+Version: 1.0.07022026
 
 ตัวรับ Alarm แบบ HTTP/HTTPS — รับ Webhook จาก AlertBridge หรือระบบอื่น, ใช้ API Key Auth และ Pattern Mapping แปลง payload เป็น fields สำหรับตรวจสอบ
 
@@ -78,10 +80,10 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8082
 
 ## แนวคิด: เราเป็นหลัก กำหนด Schema
 
-- Alert Receiver กำหนด **Schema** ไว้ (OCP, Confluent, New-OCP-Pattern)
+- Alert Reciever กำหนด **Schema** ไว้ (OCP, Confluent, New-OCP-Pattern)
 - **Gen JSON** → ได้ template ส่งให้ต้นทาง (เช่น AlertBridge)
 - ต้นทาง **Map/Transform** ให้ payload ส่งมาให้ตรง Schema
-- Alert Receiver รับและ map field ตาม pattern
+- Alert Reciever รับและ map field ตาม pattern
 
 ---
 
@@ -105,11 +107,11 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8082
 
 ## การผสานกับ AlertBridge
 
-AlertBridge ส่ง webhook มา Alert Receiver:
+AlertBridge ส่ง webhook มา Alert Reciever:
 
 1. ที่ AlertBridge → Target URL: `https://<alert-receiver-host>:8443/webhook/new-ocp-pattern`
 2. API Key Header: `X-API-Key`
-3. API Key Value: key ที่ Generate จาก Alert Receiver
+3. API Key Value: key ที่ Generate จาก Alert Reciever
 4. TLS: Skip (self-signed) ถ้าใช้ self-signed cert
 5. ถ้า AlertBridge รันใน Docker → ใช้ `https://host.docker.internal:8443/...` แทน localhost
 
