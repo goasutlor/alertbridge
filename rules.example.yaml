@@ -6,6 +6,7 @@ routes:
 - name: ocp-alertmanager
   match:
     source: ocp
+  unroll_alerts: true
   target:
     url_env: TARGET_URL_OCP
     url: http://localhost:8082/webhook/ocp
@@ -66,7 +67,7 @@ auth:
   basic: null
   api_keys:
     keys:
-    - name: kokoko2
-      key: a72096b19ba72a6eb911ee78572658de706716e8249203929a00d75235d4231d
-      created_at: '2026-02-06T13:51:42.646'
+    - name: ocp-test
+      key: c81ca9d3be38258dd5b0a064d7c217cf77176b637d6a0e65a4854384661c0ebb
+      created_at: '2026-02-07T04:25:33.647'
     required: true

@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 from threading import RLock
@@ -7,7 +8,11 @@ import yaml
 
 from app.rules import Defaults, RuleSet
 
+logger = logging.getLogger("alertbridge")
 RULES_PATH = Path(os.getenv("ALERTBRIDGE_RULES_PATH", "/etc/alertbridge/rules.yaml"))
+
+# ConfigMap watch: poll interval (seconds). Set to 0 to disable auto-reload.
+CONFIG_WATCH_INTERVAL = int(os.getenv("ALERTBRIDGE_CONFIG_WATCH_INTERVAL", "30"))
 
 _lock = RLock()
 _rules_cache: Optional[RuleSet] = None
@@ -74,3 +79,35 @@ def reload_rules() -> RuleSet:
 def rules_loaded() -> bool:
     with _lock:
         return _rules_loaded
+
+
+def get_rules_file_mtime() -> Optional[float]:
+    """Return mtime of rules file, or None if not exists."""
+    try:
+        if RULES_PATH.exists():
+            return RULES_PATH.stat().st_mtime
+    except OSError:
+        pass
+    return None
+
+
+def watch_and_reload() -> bool:
+    """
+    Check if rules file changed (by mtime) and reload if so.
+    Returns True if reloaded.
+    """
+    if CONFIG_WATCH_INTERVAL <= 0:
+        return False
+    mtime = get_rules_file_mtime()
+    if mtime is None:
+        return False
+    prev = getattr(watch_and_reload, "_last_mtime", None)
+    watch_and_reload._last_mtime = mtime
+    if prev is not None and mtime > prev:
+        try:
+            reload_rules()
+            logger.info("Config auto-reload: rules file changed")
+            return True
+        except Exception as e:
+            logger.warning("Config auto-reload failed: %s", e)
+    return False

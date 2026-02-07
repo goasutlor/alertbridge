@@ -80,11 +80,26 @@
 - **Patterns:** In-memory (_saved_patterns), build_transform_from_mapping → TransformConfig
 - **Apply:** PATCH route.transform via persist_rules
 
-### 3.5 Transform Pipeline (rules.py)
+### 3.5 Alert Unrolling
+- **Config:** `unroll_alerts: true` per route (RouteConfig)
+- **Behavior:** When payload has `alerts[]`, split and forward each alert separately (OCP Alertmanager)
+- **Backend:** main.py webhook handler
+
+### 3.6 Transform Pipeline (rules.py)
 - **Order:** include_fields → drop_fields → rename → enrich_static → map_values → output_template
 - **JSONPath:** Selector `$.field` for output_template
 
-### 3.6 Config Persistence
+### 3.7 Circuit Breaker & Retry
+- **Circuit breaker:** After 5 consecutive failures, open circuit (stop sending) for 60s; then half-open
+- **Retry:** Exponential backoff 0, 1, 2, 4 seconds on 5xx / ConnectTimeout
+- **Backend:** forwarder.py _circuit_allow, _circuit_record, BACKOFF_SCHEDULE
+
+### 3.8 Config Auto-Reload
+- **Config:** ALERTBRIDGE_CONFIG_WATCH_INTERVAL (default 30s; 0=disabled)
+- **Behavior:** Background task polls rules file mtime; reload when changed (ConfigMap mount)
+- **Backend:** config.py watch_and_reload, main.py _config_watch_loop
+
+### 3.9 Config Persistence
 - **File:** RULES_PATH (ALERTBRIDGE_RULES_PATH)
 - **ConfigMap:** When ALERTBRIDGE_CONFIGMAP_NAME set, k8s_configmap.patch_configmap_rules()
 

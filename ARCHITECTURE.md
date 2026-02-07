@@ -134,6 +134,7 @@ alertbridge-lite/
 |----------|---------|
 | ALERTBRIDGE_RULES_PATH | Rules file path (default /etc/alertbridge/rules.yaml) |
 | ALERTBRIDGE_CONFIGMAP_NAME | ConfigMap name for persist (OCP) |
+| ALERTBRIDGE_CONFIG_WATCH_INTERVAL | Poll interval (sec) for auto-reload; 0=disabled (default 30) |
 | ALERTBRIDGE_NAMESPACE | K8s namespace (default alertbridge) |
 | BASIC_AUTH_USER / BASIC_AUTH_PASSWORD | Single-user Basic Auth |
 | TARGET_URL_* | Target URL per route (from target.url_env) |

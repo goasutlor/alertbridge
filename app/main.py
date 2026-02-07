@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import json
 import logging
 import os
@@ -15,7 +16,15 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-from app.config import get_rules, persist_rules, reload_rules, rules_loaded, set_rules
+from app.config import (
+    CONFIG_WATCH_INTERVAL,
+    get_rules,
+    persist_rules,
+    reload_rules,
+    rules_loaded,
+    set_rules,
+    watch_and_reload,
+)
 from app.forwarder import check_target_status, close_client, forward_payload, get_client
 from app.logging_conf import configure_logging
 from app.hmac_verify import verify_hmac as verify_hmac_signature
@@ -94,14 +103,33 @@ def extract_alert_summary(payload: Any) -> str:
     return ""
 
 
+_config_watch_task: Optional[asyncio.Task] = None
+
+
+async def _config_watch_loop() -> None:
+    """Background task: poll rules file mtime and auto-reload when changed."""
+    while CONFIG_WATCH_INTERVAL > 0:
+        await asyncio.sleep(CONFIG_WATCH_INTERVAL)
+        try:
+            watch_and_reload()
+        except Exception:
+            pass
+
+
 @app.on_event("startup")
 async def startup() -> None:
+    global _config_watch_task
     get_client()
     reload_rules()
+    if CONFIG_WATCH_INTERVAL > 0:
+        _config_watch_task = asyncio.create_task(_config_watch_loop())
 
 
 @app.on_event("shutdown")
 async def shutdown() -> None:
+    global _config_watch_task
+    if _config_watch_task and not _config_watch_task.done():
+        _config_watch_task.cancel()
     await close_client()
 
 
@@ -269,15 +297,28 @@ async def webhook(source: str, request: Request) -> Response:
     except json.JSONDecodeError as exc:
         raise HTTPException(status_code=400, detail=f"Invalid JSON: {exc}") from exc
 
-    output = transform_payload(payload, route)
+    # Alert unrolling: split alerts[] and forward each (OCP Alertmanager)
+    outputs_to_forward: list[Any] = []
+    if getattr(route, "unroll_alerts", False) and isinstance(payload.get("alerts"), list) and payload["alerts"]:
+        for alert in payload["alerts"]:
+            sub = copy.deepcopy(payload)
+            sub["alerts"] = [alert]
+            outputs_to_forward.append(transform_payload(sub, route))
+    else:
+        outputs_to_forward.append(transform_payload(payload, route))
 
     start = time.monotonic()
-    success, status_code, error = await forward_payload(
-        output,
-        route,
-        request_id,
-        rules.defaults,
-    )
+    all_success = True
+    last_status_code: Optional[int] = None
+    last_error: Optional[Exception] = None
+    for i, output in enumerate(outputs_to_forward):
+        rid = f"{request_id}-{i}" if len(outputs_to_forward) > 1 else request_id
+        ok, status_code, err = await forward_payload(output, route, rid, rules.defaults)
+        if not ok:
+            all_success = False
+            last_status_code = status_code
+            last_error = err
+    success = all_success
     duration = time.monotonic() - start
 
     FORWARD_LATENCY_SECONDS.labels(route=route.name).observe(duration)
@@ -292,6 +333,7 @@ async def webhook(source: str, request: Request) -> Response:
     ).inc()
 
     if not success:
+        failed_output = outputs_to_forward[-1] if outputs_to_forward else {}
         logger.error(
             "forward_failed",
             extra={
@@ -301,9 +343,9 @@ async def webhook(source: str, request: Request) -> Response:
                 "forward_result": "fail",
                 "http_status": http_status,
                 "duration_ms": round(duration * 1000, 2),
-                "error_type": type(error).__name__ if error else None,
-                "error_status": status_code,
-                "sanitized_payload": sanitize_payload(output),
+                "error_type": type(last_error).__name__ if last_error else None,
+                "error_status": last_status_code,
+                "sanitized_payload": sanitize_payload(failed_output),
             },
         )
         RECENT_FAILED.append({
@@ -312,8 +354,8 @@ async def webhook(source: str, request: Request) -> Response:
             "source": source,
             "route": route.name,
             "http_status": http_status,
-            "payload_preview": json.dumps(sanitize_payload(output))[:200],
-            "error": str(error) if error else None,
+            "payload_preview": json.dumps(sanitize_payload(failed_output))[:200],
+            "error": str(last_error) if last_error else None,
         })
 
     # Append to live feed for UI (newest at end; API returns reversed)

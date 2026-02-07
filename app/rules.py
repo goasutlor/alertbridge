@@ -57,6 +57,8 @@ class RouteConfig(BaseModel):
     target: TargetConfig
     transform: TransformConfig = Field(default_factory=TransformConfig)
     verify_hmac: Optional[VerifyHmac] = None
+    unroll_alerts: bool = False
+    """If True, split payload.alerts[] and forward each alert separately (OCP Alertmanager)."""
 
 
 class BasicAuthUser(BaseModel):

@@ -225,4 +225,7 @@ If HMAC is enabled and the signature is missing or invalid, the request is rejec
 
 ## Notes
 - If the rules file is read-only (ConfigMap), `PUT /api/config` returns `409`. Update the ConfigMap and call `/admin/reload`.
-- Forward retries: up to 2 retries on connect timeout or 5xx with backoff 0.2s and 0.5s.
+- **Retry:** Exponential backoff (0, 1, 2, 4 s) on 5xx or connect timeout.
+- **Circuit breaker:** After 5 consecutive failures, forwarding stops for 60s (target degraded).
+- **Alert unrolling:** Set `unroll_alerts: true` per route to split OCP `alerts[]` and forward each separately.
+- **Config auto-reload:** Set `ALERTBRIDGE_CONFIG_WATCH_INTERVAL=30` (default) to poll rules file and reload when changed (ConfigMap).

@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urlparse, urlunparse
 
@@ -12,6 +13,17 @@ _client: Optional[httpx.AsyncClient] = None
 # Allowed target URL schemes only (no file:, gopher:, ftp: etc. to prevent SSRF)
 ALLOWED_URL_SCHEMES = ("https", "http")
 CHECK_TIMEOUT = httpx.Timeout(2.0, connect=1.5)
+
+# Circuit breaker: per-route state
+_circuit: Dict[str, Dict[str, Any]] = {}  # route_name -> {failures, last_fail, state}
+CIRCUIT_FAILURE_THRESHOLD = 5
+CIRCUIT_RESET_SECONDS = 60
+CIRCUIT_STATE_CLOSED = "closed"
+CIRCUIT_STATE_OPEN = "open"
+CIRCUIT_STATE_HALF_OPEN = "half_open"
+
+# Exponential backoff: 0, 1, 2, 4 seconds
+BACKOFF_SCHEDULE = [0.0, 1.0, 2.0, 4.0]
 
 
 def _is_safe_forward_url(url: str) -> bool:
@@ -37,6 +49,36 @@ async def close_client() -> None:
         _client = None
 
 
+def _circuit_allow(route_name: str) -> bool:
+    """Check if circuit allows request. Returns False if open."""
+    c = _circuit.get(route_name, {})
+    state = c.get("state", CIRCUIT_STATE_CLOSED)
+    if state == CIRCUIT_STATE_CLOSED:
+        return True
+    if state == CIRCUIT_STATE_OPEN:
+        last = c.get("last_fail", 0)
+        if time.monotonic() - last >= CIRCUIT_RESET_SECONDS:
+            _circuit[route_name] = {"failures": 0, "last_fail": last, "state": CIRCUIT_STATE_HALF_OPEN}
+            return True
+        return False
+    return True  # half_open: allow one try
+
+
+def _circuit_record(route_name: str, success: bool) -> None:
+    """Record success/failure for circuit breaker."""
+    c = _circuit.setdefault(route_name, {"failures": 0, "last_fail": 0, "state": CIRCUIT_STATE_CLOSED})
+    if success:
+        c["failures"] = 0
+        c["state"] = CIRCUIT_STATE_CLOSED
+    else:
+        c["failures"] = c.get("failures", 0) + 1
+        c["last_fail"] = time.monotonic()
+        if c["failures"] >= CIRCUIT_FAILURE_THRESHOLD:
+            c["state"] = CIRCUIT_STATE_OPEN
+        elif c.get("state") == CIRCUIT_STATE_HALF_OPEN:
+            c["state"] = CIRCUIT_STATE_OPEN
+
+
 async def forward_payload(
     payload: Any,
     route: RouteConfig,
@@ -48,6 +90,9 @@ async def forward_payload(
         return False, None, ValueError(f"Missing target URL (set url in config or env {route.target.url_env})")
     if not _is_safe_forward_url(url):
         return False, None, ValueError(f"Target URL scheme or host not allowed")
+
+    if not _circuit_allow(route.name):
+        return False, None, ValueError("Circuit breaker open (target degraded)")
 
     headers = {"Content-Type": "application/json", "X-Request-ID": request_id}
     if route.target.auth_header_env:
@@ -71,10 +116,9 @@ async def forward_payload(
         connect=defaults.target_timeout_connect_sec,
     )
 
-    backoff_schedule = [0.0, 0.2, 0.5]
     client = get_client()
     last_error: Optional[Exception] = None
-    for attempt, delay in enumerate(backoff_schedule, start=1):
+    for attempt, delay in enumerate(BACKOFF_SCHEDULE, start=1):
         if delay > 0:
             await asyncio.sleep(delay)
         try:
@@ -88,18 +132,23 @@ async def forward_payload(
                 last_error = httpx.HTTPStatusError(
                     "Target returned 5xx", request=response.request, response=response
                 )
-                if attempt < len(backoff_schedule):
+                if attempt < len(BACKOFF_SCHEDULE):
                     continue
+                _circuit_record(route.name, False)
                 return False, response.status_code, last_error
+            _circuit_record(route.name, True)
             return response.is_success, response.status_code, None
         except httpx.ConnectTimeout as exc:
             last_error = exc
-            if attempt < len(backoff_schedule):
+            if attempt < len(BACKOFF_SCHEDULE):
                 continue
+            _circuit_record(route.name, False)
             return False, None, last_error
         except Exception as exc:
+            _circuit_record(route.name, False)
             return False, None, exc
 
+    _circuit_record(route.name, False)
     return False, None, last_error
 
 
