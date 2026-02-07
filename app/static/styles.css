@@ -174,7 +174,9 @@ body {
 .target-status-badge.target-ok { color: var(--accent); }
 .target-status-badge.target-fail { color: var(--danger); }
 .target-fwd-status.online #targetFwdStatusText { color: var(--accent); }
+.target-fwd-status.partial #targetFwdStatusText { color: var(--warn); }
 .target-fwd-status.offline #targetFwdStatusText { color: var(--danger); }
+.target-fwd-status.partial .portal-status-dot { background: var(--warn); }
 
 /* Cards */
 .card {

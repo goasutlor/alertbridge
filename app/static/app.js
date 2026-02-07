@@ -578,8 +578,14 @@ function setTargetFwdStatus(hasTarget, online, okCount, totalCount) {
     return;
   }
   targetFwdStatus.style.display = "";
-  targetFwdStatus.classList.remove("online", "offline");
-  targetFwdStatus.classList.add(online ? "online" : "offline");
+  targetFwdStatus.classList.remove("online", "offline", "partial");
+  if (online) {
+    targetFwdStatus.classList.add("online");
+  } else if (okCount != null && totalCount != null && okCount > 0) {
+    targetFwdStatus.classList.add("partial");
+  } else {
+    targetFwdStatus.classList.add("offline");
+  }
   let text = online ? tr("targetFwdOnline") : tr("targetFwdOffline");
   if (totalCount != null && totalCount > 1) {
     text = `Target Fwd: ${okCount}/${totalCount} OK`;
