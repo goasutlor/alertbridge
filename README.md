@@ -54,6 +54,19 @@ Open UI at `https://127.0.0.1:8443` (browser will warn about self-signed cert; a
 
 **Option C – production:** Put a reverse proxy (nginx, Traefik, OpenShift route with TLS) in front and keep uvicorn on HTTP behind it.
 
+### Alert Generator (ชุดทดสอบ Web UI)
+
+เครื่องมือ **Alert Generator** ในโฟลเดอร์ `alert-generator/` ใช้ยิง Alert ไปยัง AlertBridge เพื่อทดสอบ end-to-end:
+
+```powershell
+cd alert-generator
+npm install && cd client && npm install && cd ..
+npm run dev
+```
+
+เปิด UI → เพิ่ม Target `http://127.0.0.1:8080/webhook/ocp` (หรือ port ที่ AlertBridge รัน) → ยิง Alert  
+รองรับ Manual Values, Payload Preview, API Key (X-API-Key/Bearer) — ดู [alert-generator/README.md](alert-generator/README.md)
+
 ### Quick test: Look & Feel + Load (simulate random webhooks)
 1. **Start the app** (with example rules so `/webhook/ocp` and `/webhook/confluent` exist):
    ```powershell
