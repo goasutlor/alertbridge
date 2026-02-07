@@ -389,6 +389,16 @@ async def healthz() -> Response:
     return JSONResponse({"ok": True})
 
 
+@app.get("/version")
+async def version() -> Response:
+    """Return app version and git commit (for deploy verification)."""
+    git_sha = os.getenv("GIT_SHA", "unknown")
+    return JSONResponse({
+        "version": "1.1.0",
+        "git_sha": git_sha,
+    })
+
+
 @app.get("/readyz")
 async def readyz() -> Response:
     rules_ok = rules_loaded()

@@ -1,5 +1,7 @@
 FROM python:3.11-slim
 
+ARG GIT_SHA=unknown
+ENV GIT_SHA=${GIT_SHA}
 ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
