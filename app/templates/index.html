@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>alertbridge-lite</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header class="header">
+        <h1>alertbridge-lite</h1>
+        <p class="tagline">Stateless webhook relay & transformer</p>
+        <div id="portalStatus" class="portal-status" aria-live="polite">
+          <span id="portalStatusDot" class="portal-status-dot"></span>
+          <span id="portalStatusText">Checking…</span>
+        </div>
+      </header>
+
+      <section class="card card-hero">
+        <h2 class="card-title">
+          <span class="card-title-icon">◆</span> Realtime metrics
+        </h2>
+        <p class="card-subtitle">Requests per second (live); last 90 seconds</p>
+        <div class="heartbeat-wrap">
+          <canvas id="heartbeatChart" class="heartbeat-chart"></canvas>
+          <div id="heartbeatLabel" class="heartbeat-label">0 req/s</div>
+        </div>
+      </section>
+
+      <section class="card card-stats">
+        <h2 class="card-title">Request count</h2>
+        <div id="statsPanel" class="stats-panel">
+          <div class="stat-row">
+            <span class="stat-label">Total</span>
+            <strong id="statsTotal" class="stat-value">0</strong>
+            <span class="stat-unit">requests</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">By source</span>
+            <span id="statsBySource" class="stat-inline">-</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Forward</span>
+            <span class="stat-inline">success <strong id="statsForwardOk">0</strong> · failed <strong id="statsForwardFail">0</strong></span>
+          </div>
+          <span id="statsStatus" class="status"></span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Live Events (Webhooks ที่เข้ามา)</h2>
+        <p class="card-subtitle">Last 20 webhooks · refreshes every 1.5s · <strong>ใช้ Live Events เหล่านี้สร้าง Pattern ได้</strong> (ดูด้านล่างใน Field Mapper)</p>
+        <div id="liveRequestsContainer" class="live-requests">
+          <table class="live-table">
+            <thead>
+              <tr>
+                <th>Time (UTC)</th>
+                <th>Source</th>
+                <th>Route</th>
+                <th>Status</th>
+                <th>Forwarded</th>
+                <th>Request ID</th>
+              </tr>
+            </thead>
+            <tbody id="liveRequestsBody"></tbody>
+          </table>
+          <p id="liveRequestsEmpty" class="live-empty">ยังไม่มี webhooks เข้ามา. ส่ง POST มาที่ <code>/webhook/ocp</code> หรือ <code>/webhook/confluent</code> (หรือ source อื่นที่ configure ไว้) เพื่อดู Live Events</p>
+        </div>
+      </section>
+
+      <section class="card card-routes">
+        <h2 class="card-title">Webhook Endpoints (ช่องทางการรับ Alert)</h2>
+        <p class="card-subtitle">Routes ที่เปิดอยู่ — Clients สามารถส่ง POST มาที่ <code>/webhook/{source}</code> ได้</p>
+        <div id="routesPanel" class="routes-panel">
+          <ul id="routesList" class="routes-list"></ul>
+          <div id="routesEmpty" class="routes-empty" style="display:none;">
+            <p class="text-muted">ยังไม่มี routes configured. เพิ่ม routes ใน Config (YAML) ด้านล่าง</p>
+          </div>
+        </div>
+        <div id="clientInfoPanel" class="client-info-panel" style="display:none;">
+          <h3 class="client-info-title">📋 ข้อมูลสำหรับ Client ที่จะส่ง Alert มา</h3>
+          <div id="clientInfoContent" class="client-info-content"></div>
+        </div>
+      </section>
+
+      <section class="card card-api-keys">
+        <h2 class="card-title">API Keys (incoming webhook auth)</h2>
+        <p class="card-subtitle">Generate API keys for OCP/Confluent (or any client) to send alerts. Clients send <code>X-API-Key</code> or <code>Authorization: Bearer &lt;key&gt;</code>.</p>
+        <div class="api-keys-toolbar">
+          <input type="text" id="apiKeyNameInput" class="input-inline" placeholder="e.g. ocp-prod, confluent-staging" />
+          <button id="genApiKeyBtn" class="btn btn-primary">Gen API Key</button>
+          <span id="apiKeysStatus" class="status"></span>
+        </div>
+        <div id="apiKeyNewKeyBox" class="api-key-new-box" style="display:none;">
+          <p class="api-key-copy-hint">Copy now — this key is shown only once.</p>
+          <div class="api-key-value-row">
+            <code id="apiKeyNewKeyValue"></code>
+            <button type="button" id="apiKeyCopyBtn" class="btn btn-secondary">Copy</button>
+          </div>
+        </div>
+        <ul id="apiKeysList" class="api-keys-list"></ul>
+      </section>
+
+      <section class="card card-mapper">
+        <h2 class="card-title">Field Mapper</h2>
+        <p class="card-subtitle">Map alarm fields from source (left) to target (right). Save as pattern and apply to route.</p>
+        <div class="mapper-two-modes">
+          <p class="mapper-modes-desc"><strong>Source pattern ได้ 2 แบบ:</strong></p>
+          <ul class="mapper-modes-list">
+            <li><strong>จับจาก Live Traffic</strong> — เลือก payload จริงที่ยิงเข้ามาแล้ว ด้านล่าง "From live traffic" แล้วกด Use as source fields</li>
+            <li><strong>กำหนดเอง (Manual)</strong> — เลือก template (OCP / Confluent) หรือเลือก "Custom (paste example log)" แล้ววาง JSON เอง</li>
+          </ul>
+        </div>
+        <div class="mapper-target-upload">
+          <h3 class="mapper-col-title">Target (ปลายทาง) — from example log</h3>
+          <p class="mapper-desc">Upload or paste one example log (JSON) of the format you want to send to the target. It will be parsed into fields for mapping.</p>
+          <div class="mapper-paste-row">
+            <textarea id="mapperTargetExample" class="textarea mapper-paste-json" placeholder='Paste target example JSON e.g. {"severity":"P1","title":"...","message":"..."}'></textarea>
+            <div class="mapper-paste-actions">
+              <input type="file" id="mapperTargetFile" accept=".json,application/json" class="mapper-file-input" />
+              <label for="mapperTargetFile" class="btn btn-secondary">Upload JSON</label>
+              <button id="mapperParseTargetBtn" class="btn btn-primary">Parse as target pattern</button>
+            </div>
+          </div>
+          <div id="mapperTargetPatternStatus" class="status"></div>
+        </div>
+        <div class="mapper-toolbar">
+          <label for="mapperSourceType">แบบที่ 2 — Manual: Source (incoming log)</label>
+          <select id="mapperSourceType" class="select mapper-select"></select>
+          <div id="mapperSourceCustomWrap" class="mapper-custom-paste" style="display:none;">
+            <textarea id="mapperSourceExample" class="textarea mapper-paste-json-small" placeholder="Paste example incoming log JSON"></textarea>
+            <button id="mapperParseSourceBtn" class="btn btn-secondary">Use as source fields</button>
+          </div>
+          <label for="mapperPatternName" class="mapper-name-label">Pattern name</label>
+          <input type="text" id="mapperPatternName" class="input-inline" placeholder="e.g. OCP to standard" />
+          <select id="mapperLoadPatternSelect" class="select"><option value="">— Select pattern —</option></select>
+          <button id="mapperLoadPatternBtn" class="btn btn-secondary">Load</button>
+        </div>
+        <div id="mapperSourceDescription" class="mapper-desc"></div>
+        <div id="recentPayloadsSection" class="recent-payloads-section">
+          <h3 class="mapper-col-title">แบบที่ 1 — From live traffic (แนะนำ)</h3>
+          <p class="mapper-desc"><strong>ขั้นตอน:</strong> 1) ดู Live Events ด้านบนว่ามี source อะไรเข้ามา 2) เลือก payload ที่ต้องการจากรายการด้านล่าง 3) กด "Use as source fields" เพื่อจับ pattern จาก payload จริง 4) Map กับ Target fields 5) Save as pattern</p>
+          <p class="mapper-desc" style="margin-top: 8px; color: var(--accent);"><strong>💡 Tip:</strong> ถ้ายังไม่มี Live Events ให้ส่ง test webhook มาที่ <code>/webhook/{source}</code> ก่อน (ดู Routes ด้านบนว่า source อะไรเปิดอยู่)</p>
+          <ul id="recentPayloadsList" class="recent-payloads-list"></ul>
+          <div id="recentPayloadsStatus" class="status"></div>
+        </div>
+        <div class="mapper-columns">
+          <div class="mapper-col mapper-col-source">
+            <h3 class="mapper-col-title">Source fields (incoming webhook)</h3>
+            <ul id="mapperSourceFields" class="mapper-field-list"></ul>
+          </div>
+          <div class="mapper-col mapper-col-target">
+            <h3 class="mapper-col-title">Target fields (forward output)</h3>
+            <table id="mapperMappingTable" class="mapper-table">
+              <thead>
+                <tr><th>Target</th><th>Map from source</th><th>Or static value</th></tr>
+              </thead>
+              <tbody id="mapperMappingBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="mapper-actions actions">
+          <button id="mapperSavePatternBtn" class="btn btn-primary">Save as pattern</button>
+          <label for="mapperApplyRoute">Apply to route</label>
+          <select id="mapperApplyRoute" class="select"></select>
+          <button id="mapperApplyBtn" class="btn btn-primary">Apply to route</button>
+          <span id="mapperStatus" class="status"></span>
+        </div>
+        <div id="savedPatternsSection" class="saved-patterns">
+          <h3 class="mapper-col-title">Saved patterns</h3>
+          <ul id="savedPatternsList" class="saved-patterns-list"></ul>
+        </div>
+      </section>
+
+      <section class="card card-target-urls">
+        <h2 class="card-title">Target URLs & API Keys (ขา Forward)</h2>
+        <p class="card-subtitle">ตั้งค่า URL และ API Key สำหรับส่ง Alert ไปที่ปลายทาง (forward side).</p>
+        <div id="targetUrlsPanel" class="target-urls-panel"></div>
+        <div id="targetUrlsEffective" class="target-urls-effective"></div>
+        <div class="actions">
+          <button id="saveTargetUrlsBtn" class="btn btn-primary">Save target URLs & API Keys</button>
+          <span id="targetUrlsStatus" class="status"></span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Config (YAML)</h2>
+        <textarea id="configTextarea" class="textarea" placeholder="Paste or edit rules YAML..."></textarea>
+        <div class="actions">
+          <button id="saveBtn" class="btn btn-primary">Save</button>
+          <button id="reloadBtn" class="btn btn-secondary">Reload</button>
+          <span id="configStatus" class="status"></span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Test / Preview</h2>
+        <div class="form-row">
+          <label for="sourceSelect">Source</label>
+          <select id="sourceSelect" class="select"></select>
+        </div>
+        <textarea id="sampleTextarea" class="textarea" placeholder="Paste sample JSON payload here"></textarea>
+        <div class="actions">
+          <button id="previewBtn" class="btn btn-primary">Preview Transform</button>
+          <span id="previewStatus" class="status"></span>
+        </div>
+        <pre id="previewOutput" class="output"></pre>
+      </section>
+    </main>
+
+    <script src="/static/app.js?v=11"></script>
+  </body>
+</html>

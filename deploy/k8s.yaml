@@ -1,0 +1,170 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: alertbridge
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertbridge-rules
+  namespace: alertbridge
+data:
+  rules.yaml: |
+    version: 1
+    defaults:
+      target_timeout_connect_sec: 2
+      target_timeout_read_sec: 5
+    routes:
+    - name: ocp-alertmanager
+      match:
+        source: ocp
+      target:
+        url_env: TARGET_URL_OCP
+        api_key_header: X-API-Key
+        api_key_env: TARGET_API_KEY_OCP
+      transform:
+        include_fields: [alerts, commonAnnotations, commonLabels, groupLabels]
+        output_template:
+          type: flat
+          fields:
+            title: $.groupLabels.alertname
+            message: $.commonAnnotations.summary
+            status: $.alerts.0.status
+    - name: confluent-alerts
+      match:
+        source: confluent
+      target:
+        url_env: TARGET_URL_CONFLUENT
+        api_key_header: X-API-Key
+        api_key_env: TARGET_API_KEY_CONFLUENT
+      transform:
+        include_fields: [alertId, description, severity]
+        output_template:
+          type: flat
+          fields:
+            alert_id: $.alertId
+            message: $.description
+            severity: $.severity
+    auth:
+      api_keys:
+        required: false
+        keys: []
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertbridge-secrets
+  namespace: alertbridge
+type: Opaque
+stringData:
+  TARGET_URL_OCP: "https://example.ocp.target/webhook"
+  TARGET_API_KEY_OCP: "change-me"
+  TARGET_URL_CONFLUENT: "https://example.confluent.target/webhook"
+  TARGET_API_KEY_CONFLUENT: "change-me"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertbridge-lite
+  namespace: alertbridge
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: alertbridge-lite
+  template:
+    metadata:
+      labels:
+        app: alertbridge-lite
+    spec:
+      containers:
+        - name: alertbridge-lite
+          image: alertbridge-lite:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: TARGET_URL_OCP
+              valueFrom:
+                secretKeyRef:
+                  name: alertbridge-secrets
+                  key: TARGET_URL_OCP
+            - name: TARGET_API_KEY_OCP
+              valueFrom:
+                secretKeyRef:
+                  name: alertbridge-secrets
+                  key: TARGET_API_KEY_OCP
+            - name: TARGET_URL_CONFLUENT
+              valueFrom:
+                secretKeyRef:
+                  name: alertbridge-secrets
+                  key: TARGET_URL_CONFLUENT
+            - name: TARGET_API_KEY_CONFLUENT
+              valueFrom:
+                secretKeyRef:
+                  name: alertbridge-secrets
+                  key: TARGET_API_KEY_CONFLUENT
+          volumeMounts:
+            - name: rules
+              mountPath: /etc/alertbridge/rules.yaml
+              subPath: rules.yaml
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+      volumes:
+        - name: rules
+          configMap:
+            name: alertbridge-rules
+            items:
+              - key: rules.yaml
+                path: rules.yaml
+---
+# Service แจก traffic ไปยัง Pod ตาม label (distribute workload เมื่อ scale หลาย replicas)
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertbridge-lite
+  namespace: alertbridge
+spec:
+  selector:
+    app: alertbridge-lite
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+# Route: HTTPS via TLS edge termination (OCP uses default or custom wildcard cert)
+# Clients (OCP Alertmanager, Confluent) call: https://<host>/webhook/ocp or /webhook/confluent
+# Set spec.host to match your wildcard (*.apps.domain) e.g. alertbridge-lite-alertbridge.apps.cluster.domain
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: alertbridge-lite
+  namespace: alertbridge
+spec:
+  host: alertbridge-lite-alertbridge.apps.cluster.domain  # Change to match *.apps.domain
+  to:
+    kind: Service
+    name: alertbridge-lite
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    # OCP uses default ingress cert (often wildcard *.apps). To use custom cert: create
+    # secret tls and reference in Route spec.tls.
