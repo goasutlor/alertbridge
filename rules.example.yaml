@@ -6,37 +6,63 @@ routes:
 - name: ocp-alertmanager
   match:
     source: ocp
-  unroll_alerts: true
   target:
     url_env: TARGET_URL_OCP
-    url: http://localhost:8082/webhook/ocp
+    url: https://localhost:8443/webhook/new-ocp-pattern
     auth_header_env: TARGET_AUTH_OCP
     api_key_header: X-API-Key
-    api_key_env: null
-    api_key: alarm_08fb8ce21b722cf99f0eb699281e5465
+    api_key_env: alarm_0f4ca5f79c6ac4bcdbdb1bf061996006
+    api_key: alarm_0f4ca5f79c6ac4bcdbdb1bf061996006
+    verify_tls: false
+    ca_cert_env: null
+    ca_cert: null
   transform:
     include_fields:
     - alerts
     - alerts.0
-    - alerts.0.status
-    - commonAnnotations
-    - commonAnnotations.summary
+    - alerts.0.annotations
+    - alerts.0.annotations.description
+    - alerts.0.fingerprint
+    - commonLabels
+    - commonLabels.alertname
+    - commonLabels.instance
+    - commonLabels.job
+    - commonLabels.namespace
+    - commonLabels.severity
     - groupLabels
     - groupLabels.alertname
+    - groupLabels.job
     drop_fields: null
     rename:
-      groupLabels.alertname: title
-      commonAnnotations.summary: message
-      alerts.0.status: timestamp
+      alerts.0.fingerprint: trace_id
+      commonLabels.alertname: data
+      groupLabels.job: data.origin
+      groupLabels.alertname: data.origin.cluster
+      commonLabels.instance: data.origin.cluster.id
+      commonLabels.namespace: data.origin.cluster.region
+      commonLabels.job: data.origin.source
+      alerts.0.annotations.description: data.alert_details
+      commonLabels: data.alert_details.0.meta
+      commonLabels.severity: data.alert_details.0.time
     enrich_static: null
     map_values: null
     output_template:
       type: flat
       fields:
-        title: $.title
-        message: $.message
-        timestamp: $.timestamp
+        trace_id: $.trace_id
+        data: $.data
+        data.origin: $.data.origin
+        data.origin.cluster: $.data.origin.cluster
+        data.origin.cluster.id: $.data.origin.cluster.id
+        data.origin.cluster.region: $.data.origin.cluster.region
+        data.origin.source: $.data.origin.source
+        data.alert_details: $.data.alert_details
+        data.alert_details.0.meta: $.data.alert_details.0.meta
+        data.alert_details.0.meta.severity: $.data.alert_details.0.meta.severity
+        data.alert_details.0.meta.event: $.data.alert_details.0.meta.event
+        data.alert_details.0.time: $.data.alert_details.0.time
   verify_hmac: null
+  unroll_alerts: true
 - name: confluent-alerts
   match:
     source: confluent
@@ -47,6 +73,9 @@ routes:
     api_key_header: null
     api_key_env: null
     api_key: null
+    verify_tls: null
+    ca_cert_env: null
+    ca_cert: null
   transform:
     include_fields:
     - alertId
@@ -63,11 +92,13 @@ routes:
         message: $.description
         severity: $.severity
   verify_hmac: null
+  unroll_alerts: false
 auth:
   basic: null
   api_keys:
     keys:
-    - name: ocp-test
-      key: c81ca9d3be38258dd5b0a064d7c217cf77176b637d6a0e65a4854384661c0ebb
-      created_at: '2026-02-07T04:25:33.647'
+    - name: ocp-prod
+      key: d33ba849e5771e802c116db63788ecc415c81667de2d31b3b946f66952105164
+      created_at: '2026-02-07T11:52:37.562'
     required: true
+patterns: []

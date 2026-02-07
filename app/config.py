@@ -19,15 +19,24 @@ _rules_cache: Optional[RuleSet] = None
 _rules_loaded = False
 
 
+def _rules_dict_with_patterns(rules: RuleSet) -> dict:
+    """Merge patterns into rules dict for persistence."""
+    from app.patterns import list_patterns
+
+    data = rules.model_dump()
+    data["patterns"] = list_patterns()
+    return data
+
+
 def persist_rules(rules: RuleSet) -> None:
     """
     Save rules permanently: patch ConfigMap when ALERTBRIDGE_CONFIGMAP_NAME is set (OCP),
-    otherwise write to file.
+    otherwise write to file. Includes saved patterns so they survive pod restart.
     Raises PermissionError if both methods fail.
     """
     from app.k8s_configmap import persist_rules_to_configmap
 
-    rules_yaml = yaml.safe_dump(rules.model_dump(), sort_keys=False)
+    rules_yaml = yaml.safe_dump(_rules_dict_with_patterns(rules), sort_keys=False)
 
     if persist_rules_to_configmap(rules_yaml):
         return
@@ -42,17 +51,22 @@ def persist_rules(rules: RuleSet) -> None:
 
 
 def load_rules_from_file(path: Path = RULES_PATH) -> RuleSet:
+    from app.patterns import init_patterns
+
     if not path.exists():
         return RuleSet(version=1, defaults=Defaults(), routes=[])
     with path.open("r", encoding="utf-8") as handle:
         data = yaml.safe_load(handle) or {}
+    patterns = data.pop("patterns", None)
+    init_patterns(patterns)
     return RuleSet.model_validate(data)
 
 
 def save_rules_to_file(rules: RuleSet, path: Path = RULES_PATH) -> None:
+    """Save rules and patterns to file. Use _rules_dict_with_patterns for full persistence."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
-        yaml.safe_dump(rules.model_dump(), handle, sort_keys=False)
+        yaml.safe_dump(_rules_dict_with_patterns(rules), handle, sort_keys=False)
 
 
 def set_rules(rules: RuleSet) -> None:

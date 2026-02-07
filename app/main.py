@@ -6,7 +6,10 @@ import os
 import time
 import uuid
 from collections import deque
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+
+# Bangkok (GMT+7) for all displayed timestamps
+BANGKOK = timezone(timedelta(hours=7))
 from pathlib import Path
 from typing import Any, Optional
 
@@ -55,7 +58,7 @@ from app.rules import ApiKeyConfig, Defaults, RuleSet, sanitize_payload, select_
 
 configure_logging()
 logger = logging.getLogger("alertbridge")
-app = FastAPI(title="alertbridge-lite", version="1.1.0")
+app = FastAPI(title="alertbridge-lite", version="1.2.0")
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_FILE = BASE_DIR / "templates" / "index.html"
@@ -70,6 +73,8 @@ RECENT_WEBHOOKS: deque = deque(maxlen=20)
 RECENT_PAYLOADS: deque = deque(maxlen=30)
 # Failed forward events (limited, stateless - lost on restart)
 RECENT_FAILED: deque = deque(maxlen=200)
+# Successfully forwarded (transformed) payloads - only last event for UI
+RECENT_SENT: deque = deque(maxlen=1)
 
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
@@ -314,7 +319,15 @@ async def webhook(source: str, request: Request) -> Response:
     for i, output in enumerate(outputs_to_forward):
         rid = f"{request_id}-{i}" if len(outputs_to_forward) > 1 else request_id
         ok, status_code, err = await forward_payload(output, route, rid, rules.defaults)
-        if not ok:
+        if ok:
+            RECENT_SENT.append({
+                "ts": datetime.now(BANGKOK).isoformat()[:23],
+                "request_id": rid,
+                "source": source,
+                "route": route.name,
+                "transformed": sanitize_payload(output),
+            })
+        else:
             all_success = False
             last_status_code = status_code
             last_error = err
@@ -349,7 +362,7 @@ async def webhook(source: str, request: Request) -> Response:
             },
         )
         RECENT_FAILED.append({
-            "ts": datetime.now(timezone.utc).isoformat()[:23],
+            "ts": datetime.now(BANGKOK).isoformat()[:23],
             "request_id": request_id,
             "source": source,
             "route": route.name,
@@ -361,7 +374,7 @@ async def webhook(source: str, request: Request) -> Response:
     # Append to live feed for UI (newest at end; API returns reversed)
     alert_summary = extract_alert_summary(payload)
     RECENT_WEBHOOKS.append({
-        "ts": datetime.now(timezone.utc).isoformat()[:23],
+        "ts": datetime.now(BANGKOK).isoformat()[:23],
         "request_id": request_id,
         "source": source,
         "route": route.name,
@@ -371,7 +384,7 @@ async def webhook(source: str, request: Request) -> Response:
     })
     # Store sanitized incoming payload so UI can use as source pattern (real traffic shape)
     RECENT_PAYLOADS.append({
-        "ts": datetime.now(timezone.utc).isoformat()[:23],
+        "ts": datetime.now(BANGKOK).isoformat()[:23],
         "source": source,
         "route": route.name,
         "request_id": request_id,
@@ -394,7 +407,7 @@ async def version() -> Response:
     """Return app version and git commit (for deploy verification)."""
     git_sha = os.getenv("GIT_SHA", "unknown")
     return JSONResponse({
-        "version": "1.1.0",
+        "version": "1.2.0",
         "git_sha": git_sha,
     })
 
@@ -430,6 +443,13 @@ async def api_recent_failed() -> Response:
     snapshot = list(RECENT_FAILED)
     snapshot.reverse()
     return JSONResponse(snapshot)
+
+
+@app.get("/api/recent-sent")
+async def api_recent_sent() -> Response:
+    """Return last successfully forwarded (transformed) payload for UI verification."""
+    snapshot = list(RECENT_SENT)
+    return JSONResponse(list(reversed(snapshot))[:1])
 
 
 @app.get("/api/recent-payloads")
@@ -521,6 +541,10 @@ async def api_save_pattern(
         saved = save_pattern_data(name=name, source_type=source_type, mappings=mappings, pattern_id=pattern_id)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        persist_rules(get_rules())
+    except PermissionError:
+        pass  # patterns in memory only; config read-only
     return JSONResponse(saved)
 
 
@@ -532,6 +556,10 @@ async def api_delete_pattern(
     """Delete a saved pattern."""
     if not delete_pattern_data(pattern_id):
         raise HTTPException(status_code=404, detail="Pattern not found")
+    try:
+        persist_rules(get_rules())
+    except PermissionError:
+        pass
     return JSONResponse({"deleted": True})
 
 
@@ -541,7 +569,8 @@ async def api_apply_pattern(
     _: Optional[str] = Depends(require_basic_auth),
 ) -> Response:
     """
-    Apply a pattern to a route. Body: { route_name, pattern_id? } or { route_name, source_type, mappings }.
+    Apply a pattern to a route. Body: { route_name, pattern_id? } or { route_name, source_type, mappings[, pattern_name] }.
+    When applying from form (mappings), optional pattern_name will save the pattern so it appears in Saved Patterns.
     Updates the route's transform and saves config if writable.
     """
     body = await request.json()
@@ -555,6 +584,8 @@ async def api_apply_pattern(
         raise HTTPException(status_code=404, detail=f"Route '{route_name}' not found")
 
     pattern_id = body.get("pattern_id")
+    source_type = body.get("source_type") or ""
+    saved_pattern: Optional[dict] = None
     if pattern_id:
         pattern = get_pattern(pattern_id)
         if not pattern:
@@ -564,6 +595,9 @@ async def api_apply_pattern(
         mappings = body.get("mappings") or []
         if not mappings:
             raise HTTPException(status_code=400, detail="Provide pattern_id or mappings")
+        # Auto-save pattern when applying from form, so it appears in Saved Patterns
+        pattern_name = (body.get("pattern_name") or "").strip() or f"Applied to {route_name}"
+        saved_pattern = save_pattern_data(name=pattern_name, source_type=source_type, mappings=mappings)
 
     new_transform = build_transform_from_mapping(mappings)
     new_route = route.model_copy(update={"transform": new_transform})
@@ -577,7 +611,10 @@ async def api_apply_pattern(
         CONFIG_RELOAD_TOTAL.labels(result="fail").inc()
         pass  # in-memory updated; ConfigMap/file read-only
 
-    return JSONResponse({"applied": True, "route_name": route_name})
+    out = {"applied": True, "route_name": route_name}
+    if saved_pattern:
+        out["pattern_saved"] = saved_pattern.get("name", "")
+    return JSONResponse(out)
 
 
 @app.get("/metrics")

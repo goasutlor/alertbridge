@@ -2,7 +2,9 @@
 import secrets
 import hmac
 from typing import Optional
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+
+BANGKOK = timezone(timedelta(hours=7))
 
 from fastapi import HTTPException, Request, status
 
@@ -58,7 +60,7 @@ def create_api_key(name: str) -> ApiKey:
     return ApiKey(
         name=name,
         key=generate_api_key(),
-        created_at=datetime.now(timezone.utc).isoformat()[:23],
+        created_at=datetime.now(BANGKOK).isoformat()[:23],
     )
 
 

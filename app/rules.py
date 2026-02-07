@@ -29,6 +29,14 @@ class TargetConfig(BaseModel):
     api_key: Optional[str] = None
     """Optional outbound API key value (use env where possible)."""
 
+    # TLS for HTTPS targets
+    verify_tls: Optional[bool] = None
+    """If False, skip TLS cert verification (for self-signed). Default True. Use only for internal targets."""
+    ca_cert_env: Optional[str] = None
+    """Env var with path to CA cert file to trust (for private CA). Overrides system CA bundle."""
+    ca_cert: Optional[str] = None
+    """Direct path to CA cert file (for private CA). Use ca_cert_env for ConfigMap/Secret mounts."""
+
 
 class VerifyHmac(BaseModel):
     """Optional HMAC verification for webhook. Default: disabled."""
@@ -132,8 +140,8 @@ def transform_payload(payload: Any, route: RouteConfig) -> Any:
 
     if config.enrich_static:
         if isinstance(working, dict):
-            for key, value in config.enrich_static.items():
-                working[key] = value
+            for path, value in config.enrich_static.items():
+                _set_by_path(working, path, value)
 
     if config.map_values:
         for path, mapping in config.map_values.items():
@@ -176,8 +184,9 @@ def _apply_include_fields(payload: Any, paths: List[str]) -> Any:
 
 def _apply_output_template(payload: Any, template: OutputTemplate) -> Dict[str, Any]:
     output: Dict[str, Any] = {}
-    for key, selector in template.fields.items():
-        output[key] = _select_jsonpath(payload, selector)
+    for target_path, selector in template.fields.items():
+        value = _select_jsonpath(payload, selector)
+        _set_by_path(output, target_path, value)
     return output
 
 
@@ -211,6 +220,12 @@ def _get_by_path(data: Any, path: str) -> Tuple[bool, Any]:
     for key, idx in _parse_path(path):
         if isinstance(current, dict) and key in current:
             current = current[key]
+        elif isinstance(current, list) and key.isdigit():
+            i = int(key)
+            if 0 <= i < len(current):
+                current = current[i]
+            else:
+                return False, None
         else:
             return False, None
         if idx is not None:
@@ -230,11 +245,30 @@ def _set_by_path(data: Any, path: str, value: Any) -> None:
         is_last = i == len(segments) - 1
         if idx is None:
             if is_last:
-                current[key] = value
+                if isinstance(current, list) and key.isdigit():
+                    i_key = int(key)
+                    while len(current) <= i_key:
+                        current.append({})
+                    current[i_key] = value
+                elif isinstance(current, dict):
+                    current[key] = value
                 return
-            if key not in current or not isinstance(current[key], (dict, list)):
-                current[key] = {}
-            current = current[key]
+            # Traverse: resolve next level
+            if isinstance(current, dict):
+                next_key = segments[i + 1][0] if i + 1 < len(segments) else None
+                if key not in current or not isinstance(current[key], (dict, list)):
+                    # Path like alert_details.0 → create list, not dict
+                    current[key] = [] if (next_key and next_key.isdigit()) else {}
+                current = current[key]
+            elif isinstance(current, list) and key.isdigit():
+                i_key = int(key)
+                while len(current) <= i_key:
+                    current.append({})
+                if not isinstance(current[i_key], (dict, list)):
+                    current[i_key] = {}
+                current = current[i_key]
+            else:
+                return
             continue
 
         if key not in current or not isinstance(current[key], list):

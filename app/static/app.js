@@ -49,6 +49,8 @@ const targetFwdStatus = document.getElementById("targetFwdStatus");
 const targetFwdStatusText = document.getElementById("targetFwdStatusText");
 const recentPayloadsList = document.getElementById("recentPayloadsList");
 const recentPayloadsStatus = document.getElementById("recentPayloadsStatus");
+const recentSentList = document.getElementById("recentSentList");
+const recentSentStatus = document.getElementById("recentSentStatus");
 const apiKeyNameInput = document.getElementById("apiKeyNameInput");
 const genApiKeyBtn = document.getElementById("genApiKeyBtn");
 const apiKeysStatus = document.getElementById("apiKeysStatus");
@@ -136,7 +138,8 @@ function renderTargetUrlsEffective(targets, statusByRoute) {
     let badge = "";
     if (st && r.target_url !== "(not set)") {
       const ok = st.phase1_ok && st.phase2_ok;
-      badge = ` <span class="target-status-badge ${ok ? "target-ok" : "target-fail"}" title="${escapeHtml(st.error || "")}">${ok ? tr("targetOk") : tr("targetFail")}</span>`;
+      const errText = st.error ? ` <span class="target-status-err">${escapeHtml(st.error)}</span>` : "";
+      badge = ` <span class="target-status-badge ${ok ? "target-ok" : "target-fail"}" title="${escapeHtml(st.error || "")}">${ok ? tr("targetOk") : tr("targetFail")}</span>${errText}`;
     }
     return `<span class="effective-row">${escapeHtml(r.route)} → <span class="${cls}">${escapeHtml(r.target_url)}</span>${badge}</span>`;
   }).join("<br>");
@@ -213,12 +216,27 @@ function renderTargetUrls(routes) {
     apiKeyValueRow.style.display = route.target?.api_key_header ? "flex" : "none";
     const apiKeyValueLabel = document.createElement("label");
     apiKeyValueLabel.textContent = tr("apiKeyValue");
+    const apiKeyValueWrap = document.createElement("div");
+    apiKeyValueWrap.className = "target-api-key-value-wrap";
     const apiKeyValueInput = document.createElement("input");
-    apiKeyValueInput.type = "text";
+    apiKeyValueInput.type = "password";
     apiKeyValueInput.placeholder = tr("apiKeyPlaceholder");
     apiKeyValueInput.value = route.target?.api_key || "";
     apiKeyValueInput.setAttribute("data-route-name", routeName);
     apiKeyValueInput.setAttribute("data-field", "api_key");
+    apiKeyValueInput.autocomplete = "off";
+    const apiKeyToggleBtn = document.createElement("button");
+    apiKeyToggleBtn.type = "button";
+    apiKeyToggleBtn.className = "btn btn-secondary target-api-key-toggle";
+    apiKeyToggleBtn.title = "Show / Hide";
+    apiKeyToggleBtn.textContent = "Show";
+    apiKeyToggleBtn.addEventListener("click", () => {
+      const isPass = apiKeyValueInput.type === "password";
+      apiKeyValueInput.type = isPass ? "text" : "password";
+      apiKeyToggleBtn.textContent = isPass ? "Hide" : "Show";
+    });
+    apiKeyValueWrap.appendChild(apiKeyValueInput);
+    apiKeyValueWrap.appendChild(apiKeyToggleBtn);
     const apiKeyEnvLabel = document.createElement("label");
     apiKeyEnvLabel.className = "target-api-key-env-label";
     apiKeyEnvLabel.textContent = tr("orEnvVar");
@@ -229,7 +247,7 @@ function renderTargetUrls(routes) {
     apiKeyEnvInput.setAttribute("data-route-name", routeName);
     apiKeyEnvInput.setAttribute("data-field", "api_key_env");
     apiKeyValueRow.appendChild(apiKeyValueLabel);
-    apiKeyValueRow.appendChild(apiKeyValueInput);
+    apiKeyValueRow.appendChild(apiKeyValueWrap);
     apiKeyValueRow.appendChild(apiKeyEnvLabel);
     apiKeyValueRow.appendChild(apiKeyEnvInput);
     routeContainer.appendChild(apiKeyValueRow);
@@ -238,6 +256,49 @@ function renderTargetUrls(routes) {
     headerSelect.addEventListener("change", () => {
       apiKeyValueRow.style.display = headerSelect.value ? "flex" : "none";
     });
+
+    // TLS row (for HTTPS targets)
+    const tlsRow = document.createElement("div");
+    tlsRow.className = "target-tls-row";
+    const tlsLabel = document.createElement("label");
+    tlsLabel.textContent = "TLS (HTTPS):";
+    const tlsVerifyWrap = document.createElement("div");
+    tlsVerifyWrap.className = "target-tls-verify-wrap";
+    const tlsVerifySelect = document.createElement("select");
+    tlsVerifySelect.className = "select target-tls-verify-select";
+    tlsVerifySelect.setAttribute("data-route-name", routeName);
+    tlsVerifySelect.setAttribute("data-field", "verify_tls");
+    const verifyTls = route.target?.verify_tls;
+    tlsVerifySelect.innerHTML = `
+      <option value="" ${verifyTls === undefined || verifyTls === null || verifyTls === true ? "selected" : ""}>Verify (default)</option>
+      <option value="false" ${verifyTls === false ? "selected" : ""}>Skip (self-signed)</option>
+    `;
+    const tlsCaLabel = document.createElement("label");
+    tlsCaLabel.className = "target-tls-ca-label";
+    tlsCaLabel.textContent = "CA cert path:";
+    const tlsCaInput = document.createElement("input");
+    tlsCaInput.type = "text";
+    tlsCaInput.placeholder = "/path/to/ca.pem";
+    tlsCaInput.value = route.target?.ca_cert || "";
+    tlsCaInput.setAttribute("data-route-name", routeName);
+    tlsCaInput.setAttribute("data-field", "ca_cert");
+    const tlsCaEnvLabel = document.createElement("label");
+    tlsCaEnvLabel.className = "target-tls-ca-env-label";
+    tlsCaEnvLabel.textContent = "Or env var:";
+    const tlsCaEnvInput = document.createElement("input");
+    tlsCaEnvInput.type = "text";
+    tlsCaEnvInput.placeholder = "TARGET_CA_CERT";
+    tlsCaEnvInput.value = route.target?.ca_cert_env || "";
+    tlsCaEnvInput.setAttribute("data-route-name", routeName);
+    tlsCaEnvInput.setAttribute("data-field", "ca_cert_env");
+    tlsVerifyWrap.appendChild(tlsVerifySelect);
+    tlsRow.appendChild(tlsLabel);
+    tlsRow.appendChild(tlsVerifyWrap);
+    tlsRow.appendChild(tlsCaLabel);
+    tlsRow.appendChild(tlsCaInput);
+    tlsRow.appendChild(tlsCaEnvLabel);
+    tlsRow.appendChild(tlsCaEnvInput);
+    routeContainer.appendChild(tlsRow);
     
     targetUrlsPanel.appendChild(routeContainer);
   });
@@ -439,6 +500,14 @@ saveTargetUrlsBtn.addEventListener("click", async () => {
       // API Key Env Var
       const apiKeyEnvInput = targetUrlsPanel.querySelector(`input[data-route-name="${routeName}"][data-field="api_key_env"]`);
       route.target.api_key_env = apiKeyEnvInput && apiKeyEnvInput.value.trim() ? apiKeyEnvInput.value.trim() : null;
+
+      // TLS
+      const verifySelect = targetUrlsPanel.querySelector(`select[data-route-name="${routeName}"][data-field="verify_tls"]`);
+      route.target.verify_tls = verifySelect && verifySelect.value === "false" ? false : null;
+      const caCertInput = targetUrlsPanel.querySelector(`input[data-route-name="${routeName}"][data-field="ca_cert"]`);
+      route.target.ca_cert = caCertInput && caCertInput.value.trim() ? caCertInput.value.trim() : null;
+      const caCertEnvInput = targetUrlsPanel.querySelector(`input[data-route-name="${routeName}"][data-field="ca_cert_env"]`);
+      route.target.ca_cert_env = caCertEnvInput && caCertEnvInput.value.trim() ? caCertEnvInput.value.trim() : null;
     });
     const response = await fetch("/api/config", {
       method: "PUT",
@@ -867,24 +936,52 @@ async function loadSavedPatterns() {
         list.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("");
     }
     savedPatternsList.innerHTML = list.length === 0
-      ? "<li class=\"text-muted\">No saved patterns. Map fields above and click Save as pattern.</li>"
+      ? "<li class=\"text-muted\">No saved patterns. Map fields above, enter a name, and click Save as pattern.</li>"
       : list.map((p) => `
         <li>
           <span class="pattern-name">${escapeHtml(p.name)}</span>
           <span class="pattern-meta">${escapeHtml(p.source_type)}</span>
           <span class="pattern-actions">
+            <button type="button" class="btn btn-secondary btn-display-pattern" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}" title="Show mapping">Display</button>
+            <button type="button" class="btn btn-secondary btn-download-pattern" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}" title="Download as JSON">Download</button>
             <button type="button" class="btn btn-secondary btn-load-pattern" data-id="${escapeHtml(p.id)}">Load</button>
-            <button type="button" class="btn btn-primary btn-apply-pattern" data-id="${escapeHtml(p.id)}">Apply to route</button>
+            <button type="button" class="btn btn-primary btn-apply-pattern" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}">Apply to route</button>
+            <button type="button" class="btn btn-danger btn-delete-pattern" data-id="${escapeHtml(p.id)}" title="Delete pattern">Delete</button>
           </span>
         </li>
       `).join("");
+    savedPatternsList.querySelectorAll(".btn-display-pattern").forEach((btn) => {
+      btn.addEventListener("click", () => showPatternModal(btn.getAttribute("data-id"), btn.getAttribute("data-name")));
+    });
+    savedPatternsList.querySelectorAll(".btn-download-pattern").forEach((btn) => {
+      btn.addEventListener("click", () => downloadPattern(btn.getAttribute("data-id"), btn.getAttribute("data-name")));
+    });
     savedPatternsList.querySelectorAll(".btn-load-pattern").forEach((btn) => {
       btn.addEventListener("click", () => loadOnePattern(btn.getAttribute("data-id")));
     });
     savedPatternsList.querySelectorAll(".btn-apply-pattern").forEach((btn) => {
-      btn.addEventListener("click", () => applyPatternById(btn.getAttribute("data-id")));
+      btn.addEventListener("click", () => applyPatternById(btn.getAttribute("data-id"), btn.getAttribute("data-name")));
+    });
+    savedPatternsList.querySelectorAll(".btn-delete-pattern").forEach((btn) => {
+      btn.addEventListener("click", () => deletePatternById(btn.getAttribute("data-id")));
     });
   } catch (err) {}
+}
+
+async function deletePatternById(patternId) {
+  if (!patternId) return;
+  if (!confirm("Delete this pattern?")) return;
+  try {
+    const res = await fetch(`/api/patterns/${patternId}`, { method: "DELETE", credentials: "include" });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || "Delete failed");
+    }
+    await loadSavedPatterns();
+    if (mapperStatus) mapperStatus.textContent = "Pattern deleted.";
+  } catch (e) {
+    if (mapperStatus) mapperStatus.textContent = `Error: ${e.message}`;
+  }
 }
 
 async function loadOnePattern(patternId) {
@@ -907,7 +1004,62 @@ async function loadOnePattern(patternId) {
   }
 }
 
-async function applyPatternById(patternId) {
+let currentDisplayPattern = null;
+
+async function showPatternModal(patternId, patternName) {
+  if (!patternId) return;
+  try {
+    const res = await fetch(`/api/patterns/${patternId}`, { credentials: "include" });
+    if (!res.ok) return;
+    const p = await res.json();
+    currentDisplayPattern = p;
+    const modal = document.getElementById("patternModal");
+    const title = document.getElementById("patternModalTitle");
+    const meta = document.getElementById("patternModalMeta");
+    const body = document.getElementById("patternModalBody");
+    title.textContent = escapeHtml(p.name || "Pattern Mapping");
+    meta.textContent = `Source: ${escapeHtml(p.source_type || "—")}`;
+    const mappings = p.mappings || [];
+    body.innerHTML = mappings.length === 0
+      ? "<tr><td colspan=\"3\" class=\"text-muted\">No mappings.</td></tr>"
+      : mappings.map((m) => {
+          const target = escapeHtml(m.target_field_id || "—");
+          const src = m.source_field_id ? `<code>${escapeHtml(m.source_field_id)}</code>` : "—";
+          const stat = m.static_value ? `<code>${escapeHtml(m.static_value)}</code>` : "—";
+          return `<tr><td><code>${target}</code></td><td>${src}</td><td>${stat}</td></tr>`;
+        }).join("");
+    modal.style.display = "flex";
+  } catch (err) {
+    if (mapperStatus) mapperStatus.textContent = "Failed to load pattern.";
+  }
+}
+
+function closePatternModal() {
+  const modal = document.getElementById("patternModal");
+  if (modal) modal.style.display = "none";
+  currentDisplayPattern = null;
+}
+
+async function downloadPattern(patternId, patternName) {
+  if (!patternId) return;
+  try {
+    const res = await fetch(`/api/patterns/${patternId}`, { credentials: "include" });
+    if (!res.ok) throw new Error("Failed to fetch");
+    const p = await res.json();
+    const name = (patternName || p.name || "pattern").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const blob = new Blob([JSON.stringify(p, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${name}_mapping.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    if (mapperStatus) mapperStatus.textContent = "Downloaded.";
+  } catch (err) {
+    if (mapperStatus) mapperStatus.textContent = "Failed to download.";
+  }
+}
+
+async function applyPatternById(patternId, patternName) {
   const routeName = mapperApplyRoute && mapperApplyRoute.value;
   if (!routeName) {
     if (mapperStatus) mapperStatus.textContent = "Select a route first.";
@@ -924,7 +1076,8 @@ async function applyPatternById(patternId) {
       const err = await res.json();
       throw new Error(err.detail || "Apply failed");
     }
-    if (mapperStatus) mapperStatus.textContent = `Applied to ${routeName}. Reload config to see YAML.`;
+    const pName = patternName || "Pattern";
+    if (mapperStatus) mapperStatus.textContent = `${pName} applied to ${routeName} route. Reload config to see YAML.`;
     await loadConfig();
   } catch (e) {
     if (mapperStatus) mapperStatus.textContent = `Error: ${e.message}`;
@@ -940,7 +1093,11 @@ function renderMapperApplyRoutes(routes) {
 
 if (mapperSavePatternBtn) {
   mapperSavePatternBtn.addEventListener("click", async () => {
-    const name = (mapperPatternName && mapperPatternName.value.trim()) || "Unnamed pattern";
+    const name = (mapperPatternName && mapperPatternName.value.trim()) || "";
+    if (!name) {
+      if (mapperStatus) mapperStatus.textContent = "Enter a pattern name before saving.";
+      return;
+    }
     const sourceType = mapperSourceType && mapperSourceType.value;
     if (!sourceType) {
       if (mapperStatus) mapperStatus.textContent = "Select an alert source first.";
@@ -1099,6 +1256,35 @@ async function loadRecentPayloads() {
   }
 }
 
+async function loadRecentSent() {
+  if (!recentSentList) return;
+  try {
+    const res = await fetch("/api/recent-sent", { credentials: "include" });
+    if (!res.ok) return;
+    const list = await res.json();
+    const items = Array.isArray(list) ? list : [];
+    if (items.length === 0) {
+      recentSentList.innerHTML = "<li class=\"text-muted\">No successfully forwarded payloads yet. Send webhooks and they will appear here after transform + forward.</li>";
+    } else {
+      recentSentList.innerHTML = items.map((item) =>
+        `<li>
+          <div class="payload-header">
+            <span class="payload-ts">${escapeHtml(item.ts || "")}</span>
+            <span class="payload-source">Source: <code>${escapeHtml(item.source || "")}</code></span>
+            <span class="payload-route">Route: <strong>${escapeHtml(item.route || "")}</strong></span>
+          </div>
+          <div class="payload-preview">
+            <code class="payload-preview-code">${escapeHtml(JSON.stringify(item.transformed || {}, null, 2))}</code>
+          </div>
+        </li>`
+      ).join("");
+    }
+    if (recentSentStatus) recentSentStatus.textContent = "";
+  } catch (err) {
+    if (recentSentStatus) recentSentStatus.textContent = "Could not load recent sent.";
+  }
+}
+
 function usePayloadAsSource(idx) {
   // idx is now the index in deduplicated list (recentPayloadsCache)
   const item = recentPayloadsCache[idx];
@@ -1126,19 +1312,26 @@ if (mapperApplyBtn) {
       return;
     }
     const mappings = getMappingsFromForm();
+    const pName = (mapperPatternName && mapperPatternName.value.trim()) || "Current mapping";
     try {
       const res = await fetch("/api/patterns/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ route_name: routeName, source_type: mapperSourceType?.value || "", mappings }),
+        body: JSON.stringify({
+          route_name: routeName,
+          source_type: mapperSourceType?.value || "",
+          mappings,
+          pattern_name: pName,
+        }),
       });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.detail || "Apply failed");
       }
-      if (mapperStatus) mapperStatus.textContent = `Applied to ${routeName}. Reload config to see YAML.`;
+      if (mapperStatus) mapperStatus.textContent = `${pName} applied to ${routeName} route. Pattern saved. Reload config to see YAML.`;
       await loadConfig();
+      await loadSavedPatterns();
     } catch (e) {
       if (mapperStatus) mapperStatus.textContent = `Error: ${e.message}`;
     }
@@ -1150,6 +1343,7 @@ function onVisibilityChange() {
   if (document.visibilityState === "visible") {
     loadStatsAndChart();
     loadLiveRequests();
+    loadRecentSent();
     loadFailedEvents();
     loadEffectiveTargets();
     loadTargetFwdStatus();
@@ -1291,11 +1485,28 @@ loadFailedEvents();
 loadTargetFwdStatus();
 setInterval(loadLiveRequests, 1500);
 setInterval(loadFailedEvents, 1500);
+loadRecentSent();
+setInterval(loadRecentSent, 1500);
 setInterval(loadEffectiveTargets, 3000);
 setInterval(loadTargetFwdStatus, 5000);
 
 if (failedEventsSearch) {
   failedEventsSearch.addEventListener("input", () => renderFailedEvents(failedEventsCache));
+}
+
+const patternModal = document.getElementById("patternModal");
+if (patternModal) {
+  patternModal.querySelector(".pattern-modal-backdrop")?.addEventListener("click", closePatternModal);
+  patternModal.querySelector(".pattern-modal-close")?.addEventListener("click", closePatternModal);
+  patternModal.querySelector(".pattern-modal-close-btn")?.addEventListener("click", closePatternModal);
+  const modalDownloadBtn = document.getElementById("patternModalDownloadBtn");
+  if (modalDownloadBtn) {
+    modalDownloadBtn.addEventListener("click", () => {
+      if (currentDisplayPattern) {
+        downloadPattern(currentDisplayPattern.id, currentDisplayPattern.name);
+      }
+    });
+  }
 }
 
 if (window.applyI18n) window.applyI18n();

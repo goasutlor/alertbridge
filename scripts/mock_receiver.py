@@ -27,7 +27,9 @@ import ssl
 import sys
 import time
 from collections import deque
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+
+BANGKOK = timezone(timedelta(hours=7))
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from threading import Thread
 from urllib.parse import urlparse
@@ -53,7 +55,7 @@ class Handler(BaseHTTPRequestHandler):
             data = {"_raw": body[:500].decode("utf-8", errors="replace")}
 
         request_id = self.headers.get("X-Request-ID", "")
-        ts = datetime.now(timezone.utc).isoformat()[:23]
+        ts = datetime.now(BANGKOK).isoformat()[:23]
         RECEIVED.append({
             "ts": ts,
             "request_id": request_id,
@@ -100,7 +102,7 @@ class Handler(BaseHTTPRequestHandler):
 </style></head><body>
 <h1>Mock receiver (forward target)</h1>
 <p>Received: <span class="count">{len(RECEIVED)}</span> requests (last 200). Refresh to update.</p>
-<table><thead><tr><th>Time (UTC)</th><th>Request ID</th><th>Body</th></tr></thead>
+<table><thead><tr><th>Time (GMT+7)</th><th>Request ID</th><th>Body</th></tr></thead>
 <tbody>{table_rows}</tbody></table>
 <p><a href="/received" style="color:#58a6ff">/received</a> — JSON</p>
 </body></html>"""

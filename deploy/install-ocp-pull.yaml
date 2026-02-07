@@ -1,4 +1,4 @@
-# alertbridge-lite - OCP Deployment via Pre-built Image (v1.1.0)
+# alertbridge-lite - OCP Deployment via Pre-built Image (v1.2.0)
 #
 # Use this when OCP BuildConfig fails (e.g. proxy blocks pip). Image is built by GitHub Actions
 # and pushed to ghcr.io on every push to main.
@@ -138,7 +138,7 @@ spec:
       #   - name: ghcr-pull-secret
       containers:
         - name: alertbridge-lite
-          image: ghcr.io/goasutlor/alertbridge-lite:latest
+          image: ghcr.io/goasutlor/alertbridge-lite:v1.2.0
           imagePullPolicy: Always
           ports:
             - containerPort: 8080

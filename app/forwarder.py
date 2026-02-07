@@ -1,7 +1,9 @@
 import asyncio
 import os
+import ssl
 import time
-from typing import Any, Dict, Optional, Tuple
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple, Union
 from urllib.parse import urlparse, urlunparse
 
 import httpx
@@ -35,11 +37,37 @@ def _is_safe_forward_url(url: str) -> bool:
         return False
 
 
+def _build_verify(route: RouteConfig) -> Union[bool, ssl.SSLContext]:
+    """
+    Build verify param for httpx: True (default), False (skip), or SSLContext (custom CA).
+    """
+    target = route.target
+    if getattr(target, "verify_tls", None) is False:
+        return False
+    ca_path = getattr(target, "ca_cert", None)
+    if not ca_path and getattr(target, "ca_cert_env", None):
+        ca_path = os.getenv(target.ca_cert_env, "").strip() or None
+    if ca_path and Path(ca_path).exists():
+        ctx = ssl.create_default_context(cafile=str(ca_path))
+        return ctx
+    return True
+
+
 def get_client() -> httpx.AsyncClient:
     global _client
     if _client is None:
         _client = httpx.AsyncClient(follow_redirects=False)
     return _client
+
+
+def _client_for_verify(verify: Union[bool, ssl.SSLContext]) -> Tuple[httpx.AsyncClient, bool]:
+    """
+    Return (client, should_close). Use global client when verify is True.
+    For custom verify (False or SSLContext), create a transient client that must be closed.
+    """
+    if verify is True:
+        return get_client(), False
+    return httpx.AsyncClient(verify=verify, follow_redirects=False), True
 
 
 async def close_client() -> None:
@@ -108,6 +136,9 @@ async def forward_payload(
         if not api_key_value and route.target.api_key:
             api_key_value = route.target.api_key
         if api_key_value:
+            # Authorization header needs "Bearer " prefix for Bearer token auth
+            if route.target.api_key_header.lower() == "authorization" and not api_key_value.lower().startswith("bearer "):
+                api_key_value = f"Bearer {api_key_value}"
             headers[route.target.api_key_header] = api_key_value
 
     # httpx requires either a default or all four (connect, read, write, pool)
@@ -116,40 +147,45 @@ async def forward_payload(
         connect=defaults.target_timeout_connect_sec,
     )
 
-    client = get_client()
+    verify: Union[bool, ssl.SSLContext] = _build_verify(route)
+    client, should_close = _client_for_verify(verify)
     last_error: Optional[Exception] = None
-    for attempt, delay in enumerate(BACKOFF_SCHEDULE, start=1):
-        if delay > 0:
-            await asyncio.sleep(delay)
-        try:
-            response = await client.post(
-                url,
-                json=payload,
-                headers=headers,
-                timeout=timeout,
-            )
-            if response.status_code >= 500:
-                last_error = httpx.HTTPStatusError(
-                    "Target returned 5xx", request=response.request, response=response
+    try:
+        for attempt, delay in enumerate(BACKOFF_SCHEDULE, start=1):
+            if delay > 0:
+                await asyncio.sleep(delay)
+            try:
+                response = await client.post(
+                    url,
+                    json=payload,
+                    headers=headers,
+                    timeout=timeout,
                 )
+                if response.status_code >= 500:
+                    last_error = httpx.HTTPStatusError(
+                        "Target returned 5xx", request=response.request, response=response
+                    )
+                    if attempt < len(BACKOFF_SCHEDULE):
+                        continue
+                    _circuit_record(route.name, False)
+                    return False, response.status_code, last_error
+                _circuit_record(route.name, True)
+                return response.is_success, response.status_code, None
+            except httpx.ConnectTimeout as exc:
+                last_error = exc
                 if attempt < len(BACKOFF_SCHEDULE):
                     continue
                 _circuit_record(route.name, False)
-                return False, response.status_code, last_error
-            _circuit_record(route.name, True)
-            return response.is_success, response.status_code, None
-        except httpx.ConnectTimeout as exc:
-            last_error = exc
-            if attempt < len(BACKOFF_SCHEDULE):
-                continue
-            _circuit_record(route.name, False)
-            return False, None, last_error
-        except Exception as exc:
-            _circuit_record(route.name, False)
-            return False, None, exc
+                return False, None, last_error
+            except Exception as exc:
+                _circuit_record(route.name, False)
+                return False, None, exc
 
-    _circuit_record(route.name, False)
-    return False, None, last_error
+        _circuit_record(route.name, False)
+        return False, None, last_error
+    finally:
+        if should_close:
+            await client.aclose()
 
 
 def _build_forward_headers(route: RouteConfig) -> Dict[str, str]:
@@ -166,6 +202,8 @@ def _build_forward_headers(route: RouteConfig) -> Dict[str, str]:
         if not api_key_value and route.target.api_key:
             api_key_value = route.target.api_key
         if api_key_value:
+            if route.target.api_key_header.lower() == "authorization" and not api_key_value.lower().startswith("bearer "):
+                api_key_value = f"Bearer {api_key_value}"
             headers[route.target.api_key_header] = api_key_value
     return headers
 
@@ -190,7 +228,8 @@ async def check_target_status(route: RouteConfig, defaults: Defaults) -> Dict[st
         return {"route": route.name, "target_url": None, "phase1_ok": False, "phase2_ok": False, "error": "No target URL"}
     if not _is_safe_forward_url(url):
         return {"route": route.name, "target_url": url, "phase1_ok": False, "phase2_ok": False, "error": "Invalid URL scheme"}
-    client = get_client()
+    verify = _build_verify(route)
+    client, should_close = _client_for_verify(verify)
     base = _base_url(url)
     phase1_ok = False
     phase2_ok = False
@@ -201,8 +240,7 @@ async def check_target_status(route: RouteConfig, defaults: Defaults) -> Dict[st
             r = await client.get(f"{base.rstrip('/')}/", timeout=CHECK_TIMEOUT)
             phase1_ok = True
         except (httpx.ConnectError, httpx.TimeoutException, httpx.RequestError) as e:
-            error_msg = f"Phase1: {type(e).__name__}"
-            return {"route": route.name, "target_url": url, "phase1_ok": False, "phase2_ok": False, "error": str(e)}
+            return {"route": route.name, "target_url": url, "phase1_ok": False, "phase2_ok": False, "error": f"Phase1: {type(e).__name__} — {str(e)}"}
         # Phase 2: API handshake (POST with auth)
         headers = _build_forward_headers(route)
         timeout = httpx.Timeout(defaults.target_timeout_read_sec, connect=defaults.target_timeout_connect_sec)
@@ -212,9 +250,12 @@ async def check_target_status(route: RouteConfig, defaults: Defaults) -> Dict[st
             if not phase2_ok:
                 error_msg = f"Phase2: HTTP {r.status_code}"
         except (httpx.ConnectError, httpx.TimeoutException, httpx.RequestError) as e:
-            error_msg = f"Phase2: {type(e).__name__}"
+            error_msg = f"Phase2: {type(e).__name__} — {str(e)}"
     except Exception as e:
         error_msg = str(e)
+    finally:
+        if should_close:
+            await client.aclose()
     return {
         "route": route.name,
         "target_url": url,

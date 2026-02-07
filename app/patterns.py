@@ -14,24 +14,42 @@ from app.rules import (
 
 # Built-in source schemas: source_type_id -> { name, description, fields }
 # Each field: { id: json_path, label: display_name }
+# Paths must match actual payload structure for nested tiers to resolve.
 SOURCE_SCHEMAS: Dict[str, Dict[str, Any]] = {
     "ocp-alertmanager-4.20": {
         "name": "Red Hat OpenShift Alertmanager 4.20.10",
         "description": "Alerts from OpenShift 4.20 Alertmanager (Prometheus/Alertmanager format)",
         "fields": [
+            # Top-level
             {"id": "status", "label": "status"},
-            {"id": "labels.alertname", "label": "labels.alertname"},
-            {"id": "labels.severity", "label": "labels.severity"},
-            {"id": "labels.instance", "label": "labels.instance"},
-            {"id": "labels.job", "label": "labels.job"},
-            {"id": "labels.namespace", "label": "labels.namespace"},
-            {"id": "labels.pod", "label": "labels.pod"},
-            {"id": "annotations.summary", "label": "annotations.summary"},
-            {"id": "annotations.description", "label": "annotations.description"},
-            {"id": "annotations.runbook_url", "label": "annotations.runbook_url"},
-            {"id": "startsAt", "label": "startsAt"},
-            {"id": "endsAt", "label": "endsAt"},
-            {"id": "generatorURL", "label": "generatorURL"},
+            {"id": "receiver", "label": "receiver"},
+            # groupLabels (Tier 1)
+            {"id": "groupLabels.alertname", "label": "groupLabels.alertname"},
+            {"id": "groupLabels.job", "label": "groupLabels.job"},
+            # commonLabels (Tier 1–2)
+            {"id": "commonLabels.alertname", "label": "commonLabels.alertname"},
+            {"id": "commonLabels.severity", "label": "commonLabels.severity"},
+            {"id": "commonLabels.instance", "label": "commonLabels.instance"},
+            {"id": "commonLabels.job", "label": "commonLabels.job"},
+            {"id": "commonLabels.namespace", "label": "commonLabels.namespace"},
+            {"id": "commonLabels.pod", "label": "commonLabels.pod"},
+            # commonAnnotations (Tier 1–2)
+            {"id": "commonAnnotations.summary", "label": "commonAnnotations.summary"},
+            {"id": "commonAnnotations.description", "label": "commonAnnotations.description"},
+            {"id": "commonAnnotations.runbook_url", "label": "commonAnnotations.runbook_url"},
+            # alerts[0] (Tier 1–3+)
+            {"id": "alerts.0.labels.alertname", "label": "alerts[0].labels.alertname"},
+            {"id": "alerts.0.labels.severity", "label": "alerts[0].labels.severity"},
+            {"id": "alerts.0.labels.instance", "label": "alerts[0].labels.instance"},
+            {"id": "alerts.0.labels.job", "label": "alerts[0].labels.job"},
+            {"id": "alerts.0.labels.namespace", "label": "alerts[0].labels.namespace"},
+            {"id": "alerts.0.labels.pod", "label": "alerts[0].labels.pod"},
+            {"id": "alerts.0.annotations.summary", "label": "alerts[0].annotations.summary"},
+            {"id": "alerts.0.annotations.description", "label": "alerts[0].annotations.description"},
+            {"id": "alerts.0.annotations.runbook_url", "label": "alerts[0].annotations.runbook_url"},
+            {"id": "alerts.0.startsAt", "label": "alerts[0].startsAt"},
+            {"id": "alerts.0.endsAt", "label": "alerts[0].endsAt"},
+            {"id": "alerts.0.generatorURL", "label": "alerts[0].generatorURL"},
         ],
     },
     "confluent-8.10": {
@@ -48,14 +66,26 @@ SOURCE_SCHEMAS: Dict[str, Dict[str, Any]] = {
 }
 
 # Standard target fields for forwarding (right column)
+# Supports nested paths (e.g. labels.alertname) – output will preserve structure
 TARGET_FIELDS: List[Dict[str, str]] = [
-    {"id": "severity", "label": "Severity"},
-    {"id": "title", "label": "Title"},
-    {"id": "message", "label": "Message"},
-    {"id": "env", "label": "Environment"},
-    {"id": "site", "label": "Site"},
-    {"id": "source_id", "label": "Source ID"},
-    {"id": "timestamp", "label": "Timestamp"},
+    # Prometheus/Alertmanager-style nested format
+    {"id": "status", "label": "status"},
+    {"id": "labels.alertname", "label": "labels.alertname"},
+    {"id": "labels.severity", "label": "labels.severity"},
+    {"id": "labels.namespace", "label": "labels.namespace"},
+    {"id": "labels.pod", "label": "labels.pod"},
+    {"id": "annotations.summary", "label": "annotations.summary"},
+    {"id": "annotations.description", "label": "annotations.description"},
+    {"id": "startsAt", "label": "startsAt"},
+    {"id": "generatorURL", "label": "generatorURL"},
+    # Flat format (alternative)
+    {"id": "severity", "label": "Severity (flat)"},
+    {"id": "title", "label": "Title (flat)"},
+    {"id": "message", "label": "Message (flat)"},
+    {"id": "env", "label": "Environment (flat)"},
+    {"id": "site", "label": "Site (flat)"},
+    {"id": "source_id", "label": "Source ID (flat)"},
+    {"id": "timestamp", "label": "Timestamp (flat)"},
 ]
 
 # In-memory saved patterns: id -> { id, name, source_type, mappings }
@@ -107,6 +137,20 @@ def delete_pattern(pattern_id: str) -> bool:
         del _saved_patterns[pattern_id]
         return True
     return False
+
+
+def init_patterns(patterns: List[Dict[str, Any]]) -> None:
+    """Load patterns from storage (called on startup / config reload)."""
+    _saved_patterns.clear()
+    for p in patterns or []:
+        pid = p.get("id")
+        if pid and isinstance(p.get("mappings"), list):
+            _saved_patterns[pid] = {
+                "id": pid,
+                "name": p.get("name") or "Unnamed",
+                "source_type": p.get("source_type") or "",
+                "mappings": p["mappings"],
+            }
 
 
 def build_transform_from_mapping(

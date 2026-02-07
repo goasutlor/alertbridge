@@ -88,7 +88,14 @@ Open UI at `https://127.0.0.1:8443` (browser will warn about self-signed cert; a
    python scripts/load_test_webhook.py
    ```
 4. **Check**: alertbridge-lite UI (http://127.0.0.1:8081) shows request count and live feed; **mock receiver** (http://127.0.0.1:9999/) shows the **transformed payloads** that were forwarded.
-   - **HTTPS** mock: generate cert with `openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj /CN=localhost`, then `python scripts/mock_receiver.py --https --cert cert.pem --key key.pem --port 8443` and set `TARGET_URL_OCP=https://127.0.0.1:8443/webhook` (alertbridge-lite allows HTTP/HTTPS targets).
+   - **HTTPS** mock: generate cert with `openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj /CN=localhost`, then `python scripts/mock_receiver.py --https --cert cert.pem --key key.pem --port 8443`. Set `TARGET_URL_OCP=https://127.0.0.1:8443/webhook` and add `verify_tls: false` to the target in Config (YAML) to accept self-signed cert.
+
+### HTTPS target (forward to)
+
+- **Public CA cert** (Let's Encrypt, DigiCert, etc.): Works by default; no config needed.
+- **Self-signed or private CA**: Two options:
+  1. **Skip verification** (internal targets only): Add `verify_tls: false` to the target in Config (YAML).
+  2. **Trust custom CA**: Add `ca_cert: /path/to/ca.pem` or `ca_cert_env: TARGET_CA_CERT` (env var with path). Mount the CA file via ConfigMap/Secret in OCP.
 
 ## Build Container
 ```bash
@@ -145,6 +152,7 @@ routes:
     target:
       url_env: "TARGET_URL_OCP"
       auth_header_env: "TARGET_AUTH_OCP"
+      # Optional TLS for HTTPS targets: verify_tls: false (self-signed), ca_cert: /path/to/ca.pem, or ca_cert_env: TARGET_CA_CERT
     transform:
       include_fields: ["status","labels","annotations"]
       drop_fields: ["annotations.runbook_url"]

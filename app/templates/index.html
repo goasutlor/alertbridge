@@ -72,7 +72,7 @@
           <table class="live-table">
             <thead>
               <tr>
-                <th>Time (UTC)</th>
+                <th>Time (GMT+7)</th>
                 <th>Source</th>
                 <th>Route</th>
                 <th>Alert</th>
@@ -97,7 +97,7 @@
           <table class="live-table">
             <thead>
               <tr>
-                <th>Time (UTC)</th>
+                <th>Time (GMT+7)</th>
                 <th>Source</th>
                 <th>Route</th>
                 <th>Status</th>
@@ -109,6 +109,13 @@
           </table>
           <p id="failedEventsEmpty" class="live-empty" data-i18n="failedEmpty">No failed events. Forward failures will appear here.</p>
         </div>
+      </section>
+
+      <section class="card card-sent">
+        <h2 class="card-title">Last Transformed Alert Sent</h2>
+        <p class="card-subtitle">Payloads that were successfully forwarded (after transform). Use to verify transformation output.</p>
+        <ul id="recentSentList" class="recent-payloads-list"></ul>
+        <div id="recentSentStatus" class="status"></div>
       </section>
 
       <section class="card card-routes">
@@ -174,8 +181,6 @@
             <textarea id="mapperSourceExample" class="textarea mapper-paste-json-small" placeholder="Paste example incoming log JSON"></textarea>
             <button id="mapperParseSourceBtn" class="btn btn-secondary">Use as source fields</button>
           </div>
-          <label for="mapperPatternName" class="mapper-name-label">Pattern name</label>
-          <input type="text" id="mapperPatternName" class="input-inline" placeholder="e.g. OCP to standard" />
           <select id="mapperLoadPatternSelect" class="select"><option value="">— Select pattern —</option></select>
           <button id="mapperLoadPatternBtn" class="btn btn-secondary">Load</button>
         </div>
@@ -203,7 +208,10 @@
           </div>
         </div>
         <div class="mapper-actions actions">
+          <label for="mapperPatternName">Pattern name</label>
+          <input type="text" id="mapperPatternName" class="input-inline" placeholder="e.g. OCP to standard (required)" style="min-width: 200px;" />
           <button id="mapperSavePatternBtn" class="btn btn-primary">Save as pattern</button>
+          <span class="mapper-actions-sep">|</span>
           <label for="mapperApplyRoute">Apply to route</label>
           <select id="mapperApplyRoute" class="select"></select>
           <button id="mapperApplyBtn" class="btn btn-primary">Apply to route</button>
@@ -251,7 +259,35 @@
       </section>
     </main>
 
+    <!-- Pattern display modal -->
+    <div id="patternModal" class="pattern-modal" role="dialog" aria-modal="true" aria-labelledby="patternModalTitle" style="display:none;">
+      <div class="pattern-modal-backdrop"></div>
+      <div class="pattern-modal-content">
+        <div class="pattern-modal-header">
+          <h3 id="patternModalTitle" class="pattern-modal-title">Pattern Mapping</h3>
+          <button type="button" class="pattern-modal-close" aria-label="Close">&times;</button>
+        </div>
+        <div class="pattern-modal-body">
+          <p id="patternModalMeta" class="pattern-modal-meta"></p>
+          <table class="pattern-modal-table">
+            <thead>
+              <tr>
+                <th>Target</th>
+                <th>Map from source</th>
+                <th>Static value</th>
+              </tr>
+            </thead>
+            <tbody id="patternModalBody"></tbody>
+          </table>
+        </div>
+        <div class="pattern-modal-footer">
+          <button type="button" id="patternModalDownloadBtn" class="btn btn-secondary">Download JSON</button>
+          <button type="button" class="pattern-modal-close-btn btn btn-primary">Close</button>
+        </div>
+      </div>
+    </div>
+
     <script src="/static/i18n.js"></script>
-    <script src="/static/app.js?v=16"></script>
+    <script src="/static/app.js?v=17"></script>
   </body>
 </html>

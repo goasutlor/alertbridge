@@ -1,4 +1,4 @@
-# alertbridge-lite - OCP Deployment (v1.1.0)
+# alertbridge-lite - OCP Deployment (v1.2.0)
 #
 # Deploy steps:
 # 1. Edit Secret (TARGET_URL_OCP, TARGET_URL_CONFLUENT, API keys) below
