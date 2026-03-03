@@ -1,0 +1,55 @@
+{
+  "_comment": "ตัวอย่าง Target Pattern (JSON ที่ AlertBridge ส่งไปยัง Target URL). ใช้เป็น reference หรือทดสอบ Alarm Receiver ได้.",
+  "ocp_style": {
+    "description": "รูปแบบจาก route ocp-alertmanager (transform ปัจจุบันใน rules)",
+    "example": {
+      "title": "HighCPUUsage",
+      "message": "CPU usage is above 80% for pod myapp-7d8f9 in namespace production",
+      "status": "firing"
+    }
+  },
+  "ocp_style_alternate": {
+    "description": "ตัวอย่าง OCP อีกชุด (random values)",
+    "example": {
+      "title": "PodCrashLooping",
+      "message": "Pod alertbridge-lite-568998965d-2kk8b restarted 5 times in 10 minutes",
+      "status": "firing"
+    }
+  },
+  "confluent_style": {
+    "description": "รูปแบบจาก route confluent-alerts (transform ปัจจุบันใน rules)",
+    "example": {
+      "alert_id": "alert-9f3a2b1c-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
+      "message": "Under-replicated partitions detected on topic orders",
+      "severity": "critical"
+    }
+  },
+  "confluent_style_alternate": {
+    "description": "ตัวอย่าง Confluent อีกชุด (random values)",
+    "example": {
+      "alert_id": "connector-fail-20260303-001",
+      "message": "Kafka Connect connector sink-elastic failed with exception",
+      "severity": "warning"
+    }
+  },
+  "generic_alarm_receiver": {
+    "description": "รูปแบบ flat ทั่วไป (ถ้า target รับแบบนี้ สามารถ map ใน rules ให้ตรงได้)",
+    "example": {
+      "severity": "P2",
+      "title": "OCP Node NotReady",
+      "message": "Node worker-01 is NotReady for more than 5m",
+      "env": "production",
+      "site": "dc1",
+      "source_id": "alertbridge-ocp",
+      "timestamp": "2026-03-03T04:22:00.000Z"
+    }
+  },
+  "minimal": {
+    "description": "ตัวอย่างสั้นสุด (ใช้ทดสอบ endpoint)",
+    "example": {
+      "title": "Test",
+      "message": "Sample alert from AlertBridge",
+      "severity": "info"
+    }
+  }
+}

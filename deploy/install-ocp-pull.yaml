@@ -6,7 +6,7 @@
 # Deploy steps:
 # 1. Image is at ghcr.io/goasutlor/alertbridge-lite:latest (auto-built on push to main)
 #
-# 2. Edit Secret (TARGET_URL_*, API keys, BASIC_AUTH_*). Default UI login: admin/change-me
+# 2. Edit Secret (TARGET_URL_*, API keys, BASIC_AUTH_*). Default UI login: admin/P@ssw0rd2026
 #
 # 3. If 403 Forbidden when pulling: create GHCR pull secret (uncomment imagePullSecrets below):
 #    oc create secret docker-registry ghcr-pull-secret \
@@ -115,7 +115,7 @@ stringData:
   TARGET_API_KEY_CONFLUENT: "change-me"
   # Basic Auth for UI (enabled by default). CHANGE password before production!
   BASIC_AUTH_USER: "admin"
-  BASIC_AUTH_PASSWORD: "change-me"
+  BASIC_AUTH_PASSWORD: "P@ssw0rd2026"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -138,7 +138,7 @@ spec:
       #   - name: ghcr-pull-secret
       containers:
         - name: alertbridge-lite
-          image: ghcr.io/goasutlor/alertbridge-lite:v1.0.07022026
+          image: ghcr.io/goasutlor/alertbridge-lite:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
@@ -213,6 +213,8 @@ kind: Service
 metadata:
   name: alertbridge-lite
   namespace: alertbridge
+  labels:
+    app: alertbridge-lite
 spec:
   selector:
     app: alertbridge-lite
@@ -220,6 +222,21 @@ spec:
     - name: http
       port: 80
       targetPort: 8080
+---
+# ServiceMonitor: so OCP Observe can scrape /metrics (requires user-workload monitoring)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: alertbridge-lite
+  namespace: alertbridge
+spec:
+  selector:
+    matchLabels:
+      app: alertbridge-lite
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
 ---
 apiVersion: route.openshift.io/v1
 kind: Route

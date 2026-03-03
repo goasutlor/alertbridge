@@ -1074,8 +1074,15 @@ async function applyPatternById(patternId, patternName) {
       body: JSON.stringify({ route_name: routeName, pattern_id: patternId }),
     });
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || "Apply failed");
+      let errMsg = "Apply failed";
+      try {
+        const err = await res.json();
+        errMsg = err.detail || errMsg;
+      } catch {
+        const text = await res.text();
+        errMsg = text || res.statusText || errMsg;
+      }
+      throw new Error(errMsg);
     }
     const pName = patternName || "Pattern";
     if (mapperStatus) mapperStatus.textContent = `${pName} applied to ${routeName} route. Reload config to see YAML.`;
@@ -1135,6 +1142,8 @@ if (mapperParseTargetBtn && mapperTargetExample && mapperTargetPatternStatus) {
         mapperTargetPatternStatus.textContent = "No fields found in JSON.";
         return;
       }
+      // If we already have live payload as source, keep it so new table dropdowns get those options
+      if (customSourceFields.length > 0 && mapperSourceType) mapperSourceType.value = "custom-paste";
       mapperTargetPatternStatus.textContent = `Parsed ${targetFieldsFromUpload.length} target field(s). You can map source → target below.`;
       renderMapperMappingTable();
     } catch (e) {
@@ -1243,11 +1252,18 @@ async function loadRecentPayloads() {
             <div class="payload-preview">
               <code class="payload-preview-code">${escapeHtml(JSON.stringify(item.payload || {}, null, 2))}</code>
             </div>
-            <button type="button" class="btn btn-primary btn-use-payload" data-idx="${idx}">Use as source fields</button>
+            <div class="payload-actions">
+              <button type="button" class="btn btn-primary btn-use-payload" data-idx="${idx}">Use as source fields</button>
+              <button type="button" class="btn btn-secondary btn-copy-payload-json" data-idx="${idx}" title="Copy JSON to clipboard">Copy JSON</button>
+              <span class="payload-copy-feedback" data-idx="${idx}" style="display:none; margin-left: 6px; color: var(--accent); font-size: 12px;">Copied!</span>
+            </div>
           </li>`
         ).join("") + (dedupNote ? `<li class="text-muted" style="padding: 8px; font-size: 12px; border: none;">${dedupNote}</li>` : "");
         recentPayloadsList.querySelectorAll(".btn-use-payload").forEach((btn) => {
           btn.addEventListener("click", () => usePayloadAsSource(parseInt(btn.getAttribute("data-idx"), 10)));
+        });
+        recentPayloadsList.querySelectorAll(".btn-copy-payload-json").forEach((btn) => {
+          btn.addEventListener("click", () => copyPayloadJson(parseInt(btn.getAttribute("data-idx"), 10)));
         });
       }
     }
@@ -1286,6 +1302,22 @@ async function loadRecentSent() {
   }
 }
 
+function copyPayloadJson(idx) {
+  const item = recentPayloadsCache[idx];
+  if (!item || item.payload === undefined) return;
+  const text = JSON.stringify(item.payload, null, 2);
+  navigator.clipboard.writeText(text).then(() => {
+    const feedback = recentPayloadsList && recentPayloadsList.querySelector(`.payload-copy-feedback[data-idx="${idx}"]`);
+    if (feedback) {
+      feedback.style.display = "inline";
+      feedback.textContent = "Copied!";
+      setTimeout(() => { feedback.style.display = "none"; }, 2000);
+    }
+  }).catch(() => {
+    if (mapperStatus) mapperStatus.textContent = "Copy failed. Try selecting the JSON manually.";
+  });
+}
+
 function usePayloadAsSource(idx) {
   // idx is now the index in deduplicated list (recentPayloadsCache)
   const item = recentPayloadsCache[idx];
@@ -1294,7 +1326,9 @@ function usePayloadAsSource(idx) {
   if (mapperSourceType) mapperSourceType.value = "custom-paste";
   if (mapperSourceExample) mapperSourceExample.value = JSON.stringify(item.payload, null, 2);
   onMapperSourceTypeChange();
-  fillMapperSourceDropdowns();
+  // If user already parsed a target, re-render table so dropdowns get live payload options
+  if (targetFieldsFromUpload.length > 0) renderMapperMappingTable();
+  else fillMapperSourceDropdowns();
   if (mapperStatus) mapperStatus.textContent = `Using ${customSourceFields.length} fields from live payload (${item.ts}, ${item.route}).`;
 }
 
@@ -1327,8 +1361,15 @@ if (mapperApplyBtn) {
         }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || "Apply failed");
+        let errMsg = "Apply failed";
+        try {
+          const err = await res.json();
+          errMsg = err.detail || errMsg;
+        } catch {
+          const text = await res.text();
+          errMsg = text || res.statusText || errMsg;
+        }
+        throw new Error(errMsg);
       }
       if (mapperStatus) mapperStatus.textContent = `${pName} applied to ${routeName} route. Pattern saved. Reload config to see YAML.`;
       await loadConfig();

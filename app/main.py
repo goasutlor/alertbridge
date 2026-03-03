@@ -582,15 +582,19 @@ async def api_apply_pattern(
     When applying from form (mappings), optional pattern_name will save the pattern so it appears in Saved Patterns.
     Updates the route's transform and saves config if writable.
     """
-    body = await _read_json_with_limit(request)
+    try:
+        body = await _read_json_with_limit(request)
+    except Exception as e:
+        return JSONResponse({"detail": str(e)}, status_code=400)
+
     route_name = body.get("route_name")
     if not route_name:
-        raise HTTPException(status_code=400, detail="route_name required")
+        return JSONResponse({"detail": "route_name required"}, status_code=400)
 
     rules = get_rules()
     route = next((r for r in rules.routes if r.name == route_name), None)
     if not route:
-        raise HTTPException(status_code=404, detail="Route not found")
+        return JSONResponse({"detail": "Route not found"}, status_code=404)
 
     pattern_id = body.get("pattern_id")
     source_type = body.get("source_type") or ""
@@ -598,34 +602,38 @@ async def api_apply_pattern(
     if pattern_id:
         pattern = get_pattern(pattern_id)
         if not pattern:
-            raise HTTPException(status_code=404, detail="Pattern not found")
+            return JSONResponse({"detail": "Pattern not found"}, status_code=404)
         mappings = pattern["mappings"]
     else:
         mappings = body.get("mappings") or []
         if not mappings:
-            raise HTTPException(status_code=400, detail="Provide pattern_id or mappings")
+            return JSONResponse({"detail": "Provide pattern_id or mappings"}, status_code=400)
         if len(mappings) > 500:
-            raise HTTPException(status_code=400, detail="Too many mappings")
+            return JSONResponse({"detail": "Too many mappings"}, status_code=400)
         # Auto-save pattern when applying from form, so it appears in Saved Patterns
         pattern_name = (body.get("pattern_name") or "").strip() or f"Applied to {route_name}"
         saved_pattern = save_pattern_data(name=pattern_name, source_type=source_type, mappings=mappings)
 
-    new_transform = build_transform_from_mapping(mappings)
-    new_route = route.model_copy(update={"transform": new_transform})
-    updated_routes = [new_route if r.name == route_name else r for r in rules.routes]
-    new_rules = rules.model_copy(update={"routes": updated_routes})
-    set_rules(new_rules)
     try:
-        persist_rules(new_rules)
-        CONFIG_RELOAD_TOTAL.labels(result="success").inc()
-    except PermissionError:
-        CONFIG_RELOAD_TOTAL.labels(result="fail").inc()
-        pass  # in-memory updated; ConfigMap/file read-only
+        new_transform = build_transform_from_mapping(mappings)
+        new_route = route.model_copy(update={"transform": new_transform})
+        updated_routes = [new_route if r.name == route_name else r for r in rules.routes]
+        new_rules = rules.model_copy(update={"routes": updated_routes})
+        set_rules(new_rules)
+        try:
+            persist_rules(new_rules)
+            CONFIG_RELOAD_TOTAL.labels(result="success").inc()
+        except PermissionError:
+            CONFIG_RELOAD_TOTAL.labels(result="fail").inc()
+            pass  # in-memory updated; ConfigMap/file read-only
 
-    out = {"applied": True, "route_name": route_name}
-    if saved_pattern:
-        out["pattern_saved"] = saved_pattern.get("name", "")
-    return JSONResponse(out)
+        out = {"applied": True, "route_name": route_name}
+        if saved_pattern:
+            out["pattern_saved"] = saved_pattern.get("name", "")
+        return JSONResponse(out)
+    except Exception as e:
+        logger.exception("patterns_apply_failed")
+        return JSONResponse({"detail": str(e)}, status_code=500)
 
 
 @app.get("/metrics")

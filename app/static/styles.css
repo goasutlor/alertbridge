@@ -815,7 +815,9 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   line-height: 1.4;
   font-family: ui-monospace, Monaco, monospace;
 }
-.recent-payloads-list .btn-use-payload { align-self: flex-start; margin-top: 4px; }
+.recent-payloads-list .payload-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.recent-payloads-list .btn-use-payload { margin-top: 0; }
+.recent-payloads-list .btn-copy-payload-json { margin-top: 0; }
 
 .mapper-columns {
   display: grid;

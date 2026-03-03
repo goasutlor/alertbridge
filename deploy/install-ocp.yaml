@@ -229,6 +229,8 @@ kind: Service
 metadata:
   name: alertbridge-lite
   namespace: alertbridge
+  labels:
+    app: alertbridge-lite
 spec:
   selector:
     app: alertbridge-lite
@@ -236,6 +238,21 @@ spec:
     - name: http
       port: 80
       targetPort: 8080
+---
+# ServiceMonitor: so OCP Observe can scrape /metrics (requires user-workload monitoring)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: alertbridge-lite
+  namespace: alertbridge
+spec:
+  selector:
+    matchLabels:
+      app: alertbridge-lite
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
 ---
 # Route: omit host for auto-generated OCP host, or set to match *.apps.domain
 apiVersion: route.openshift.io/v1
