@@ -95,6 +95,18 @@ function parseJsonToPaths(obj, prefix = "") {
   return out;
 }
 
+async function loadHeaderVersion() {
+  const el = document.getElementById("headerVersion");
+  if (!el) return;
+  try {
+    const res = await fetch("/version", { credentials: "include" });
+    if (!res.ok) return;
+    const data = await res.json();
+    const v = data.version;
+    if (v) el.textContent = `v${v}`;
+  } catch (_) {}
+}
+
 async function loadConfig() {
   configStatus.textContent = "Loading...";
   try {
@@ -1519,6 +1531,7 @@ loadPatternSchemas();
 loadSavedPatterns();
 loadRecentPayloads();
 loadApiKeys();
+loadHeaderVersion();
 setInterval(loadRecentPayloads, 5000);
 loadStatsAndChart();
 setInterval(loadStatsAndChart, 1000);
