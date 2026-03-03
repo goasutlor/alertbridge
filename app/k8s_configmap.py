@@ -43,11 +43,18 @@ def patch_configmap_rules(configmap_name: str, namespace: str, rules_yaml: str) 
     try:
         v1 = client.CoreV1Api()
         body = {"data": {"rules.yaml": rules_yaml}}
-        v1.patch_namespaced_config_map(configmap_name, namespace, body)
+        v1.patch_namespaced_config_map(
+            configmap_name, namespace, body,
+            _content_type="application/merge-patch+json",
+        )
         logger.info("ConfigMap %s/%s patched successfully", namespace, configmap_name)
         return True
     except Exception as e:
-        logger.warning("Failed to patch ConfigMap %s/%s: %s", namespace, configmap_name, e)
+        logger.warning(
+            "Failed to patch ConfigMap %s/%s: %s (%s)",
+            namespace, configmap_name, type(e).__name__, e,
+            exc_info=True,
+        )
         return False
 
 

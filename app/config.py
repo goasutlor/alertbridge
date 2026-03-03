@@ -37,17 +37,30 @@ def persist_rules(rules: RuleSet) -> None:
     from app.k8s_configmap import persist_rules_to_configmap
 
     rules_yaml = yaml.safe_dump(_rules_dict_with_patterns(rules), sort_keys=False)
+    configmap_name = os.getenv("ALERTBRIDGE_CONFIGMAP_NAME", "").strip()
 
     if persist_rules_to_configmap(rules_yaml):
         return
 
+    # ConfigMap patch failed or not configured. If we're in OCP (configmap name set) or
+    # rules path is read-only (e.g. /etc/alertbridge mounted from ConfigMap), don't try file write.
+    if configmap_name or str(RULES_PATH).startswith("/etc/"):
+        raise PermissionError(
+            "ConfigMap patch failed or not available. Check pod logs for 'Failed to patch ConfigMap'. "
+            "Ensure the pod's ServiceAccount has RBAC (get/patch/update) on the ConfigMap, "
+            "or update the ConfigMap manually and call /admin/reload."
+        )
+
     try:
         save_rules_to_file(rules)
-    except PermissionError:
-        raise PermissionError(
-            "Config is read-only. Set ALERTBRIDGE_CONFIGMAP_NAME and RBAC for ConfigMap patch, "
-            "or update ConfigMap manually and call /admin/reload."
-        )
+    except (PermissionError, OSError) as e:
+        if getattr(e, "errno", None) in (30, 13):  # Read-only file system or Permission denied
+            raise PermissionError(
+                "Config is read-only (rules mounted from ConfigMap). "
+                "Ensure ALERTBRIDGE_CONFIGMAP_NAME is set and the pod's ServiceAccount has RBAC to patch the ConfigMap, "
+                "or update the ConfigMap manually and call /admin/reload."
+            ) from e
+        raise
 
 
 def load_rules_from_file(path: Path = RULES_PATH) -> RuleSet:
