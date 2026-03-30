@@ -43,10 +43,12 @@ const mapperTargetPatternStatus = document.getElementById("mapperTargetPatternSt
 const mapperSourceCustomWrap = document.getElementById("mapperSourceCustomWrap");
 const mapperSourceExample = document.getElementById("mapperSourceExample");
 const mapperParseSourceBtn = document.getElementById("mapperParseSourceBtn");
-const portalStatus = document.getElementById("portalStatus");
-const portalStatusText = document.getElementById("portalStatusText");
-const targetFwdStatus = document.getElementById("targetFwdStatus");
-const targetFwdStatusText = document.getElementById("targetFwdStatusText");
+const statusIncoming = document.getElementById("statusIncoming");
+const statusIncomingText = document.getElementById("statusIncomingText");
+const statusForward = document.getElementById("statusForward");
+const statusForwardText = document.getElementById("statusForwardText");
+const statusLogArchive = document.getElementById("statusLogArchive");
+const statusLogArchiveText = document.getElementById("statusLogArchiveText");
 const recentPayloadsList = document.getElementById("recentPayloadsList");
 const recentPayloadsStatus = document.getElementById("recentPayloadsStatus");
 const recentSentList = document.getElementById("recentSentList");
@@ -645,47 +647,40 @@ function drawHeartbeatChart(data) {
   ctx.stroke();
 }
 
-function setPortalStatus(online) {
-  if (!portalStatus || !portalStatusText) return;
-  portalStatus.classList.remove("online", "offline");
-  portalStatus.classList.add(online ? "online" : "offline");
-  portalStatusText.textContent = online ? "Portal online" : "Portal offline";
+function setHeaderBadge(container, textEl, state, labelKey, detail) {
+  if (!container || !textEl) return;
+  container.classList.remove("state-ok", "state-partial", "state-down", "state-disabled", "state-checking");
+  container.classList.add(`state-${state}`);
+  const prefix = tr(labelKey);
+  textEl.textContent = `${prefix}: ${detail}`;
 }
 
-function setTargetFwdStatus(hasTarget, online, okCount, totalCount) {
-  if (!targetFwdStatus || !targetFwdStatusText) return;
-  if (!hasTarget) {
-    targetFwdStatus.style.display = "none";
-    return;
-  }
-  targetFwdStatus.style.display = "";
-  targetFwdStatus.classList.remove("online", "offline", "partial");
-  if (online) {
-    targetFwdStatus.classList.add("online");
-  } else if (okCount != null && totalCount != null && okCount > 0) {
-    targetFwdStatus.classList.add("partial");
-  } else {
-    targetFwdStatus.classList.add("offline");
-  }
-  let text = online ? tr("targetFwdOnline") : tr("targetFwdOffline");
-  if (totalCount != null && totalCount > 1) {
-    text = `Target Fwd: ${okCount}/${totalCount} OK`;
-  }
-  targetFwdStatusText.textContent = text;
-}
-
-async function loadTargetFwdStatus() {
+async function loadPortalStatus() {
   try {
-    const response = await fetch("/api/target-status", { credentials: "include" });
+    const response = await fetch("/api/portal-status", { credentials: "include" });
     if (!response.ok) return;
     const data = await response.json();
-    targetStatusCache = { routes: data.routes || [], has_any_target: data.has_any_target, all_ok: data.all_ok };
-    const configured = (data.routes || []).filter((r) => r.target_url && r.target_url !== "(not set)");
-    const okCount = configured.filter((r) => r.phase1_ok && r.phase2_ok).length;
-    setTargetFwdStatus(data.has_any_target || false, data.all_ok || false, okCount, configured.length);
+    if (data.routes) {
+      targetStatusCache = {
+        routes: data.routes || [],
+        has_any_target: data.has_any_target,
+        all_ok: data.all_ok,
+      };
+    }
     if (targetsCache.length) renderTargetUrlsEffective(targetsCache, targetStatusCache.routes);
-  } catch (err) {
-    if (targetFwdStatus) targetFwdStatus.style.display = "none";
+
+    const inc = data.incoming || {};
+    setHeaderBadge(statusIncoming, statusIncomingText, inc.state || "down", "statusIncomingShort", inc.detail || "");
+
+    const fwd = data.forward || {};
+    setHeaderBadge(statusForward, statusForwardText, fwd.state || "down", "statusForwardShort", fwd.detail || "");
+
+    const log = data.log_archive || {};
+    setHeaderBadge(statusLogArchive, statusLogArchiveText, log.state || "down", "statusLogShort", log.detail || "");
+  } catch {
+    setHeaderBadge(statusIncoming, statusIncomingText, "down", "statusIncomingShort", tr("statusUnknown"));
+    setHeaderBadge(statusForward, statusForwardText, "down", "statusForwardShort", tr("statusUnknown"));
+    setHeaderBadge(statusLogArchive, statusLogArchiveText, "down", "statusLogShort", tr("statusUnknown"));
   }
 }
 
@@ -693,11 +688,9 @@ async function loadStatsAndChart() {
   try {
     const response = await fetch("/api/stats", { credentials: "include" });
     if (!response.ok) {
-      setPortalStatus(false);
       if (statsStatus) statsStatus.textContent = "Could not load count";
       return;
     }
-    setPortalStatus(true);
     const data = await response.json();
     const total = data.total_requests ?? 0;
 
@@ -723,7 +716,6 @@ async function loadStatsAndChart() {
     if (statsForwardFail) statsForwardFail.textContent = String(data.forward_fail ?? 0);
     if (statsStatus) statsStatus.textContent = "Last updated";
   } catch (err) {
-    setPortalStatus(false);
     if (statsStatus) statsStatus.textContent = "Failed to load count";
   }
 }
@@ -1400,7 +1392,7 @@ function onVisibilityChange() {
     loadRecentSent();
     loadFailedEvents();
     loadEffectiveTargets();
-    loadTargetFwdStatus();
+    loadPortalStatus();
   }
 }
 document.addEventListener("visibilitychange", onVisibilityChange);
@@ -1517,7 +1509,101 @@ window.onLangChange = () => {
     renderRoutes(configJson.routes || []);
     renderTargetUrls(configJson.routes || []);
   }
+  loadLogSearchConfig();
+  loadPortalStatus();
 };
+
+async function loadLogSearchConfig() {
+  const disabled = document.getElementById("logSearchDisabled");
+  const disabledMsg = document.getElementById("logSearchDisabledMsg");
+  const form = document.getElementById("logSearchForm");
+  const hint = document.getElementById("logSearchHint");
+  if (!disabled || !form) return;
+  try {
+    const res = await fetch("/api/logs/config", { credentials: "include" });
+    if (res.status === 401) {
+      disabled.style.display = "block";
+      form.style.display = "none";
+      if (disabledMsg) disabledMsg.textContent = tr("logSearchLogin");
+      return;
+    }
+    const data = await res.json();
+    if (!data.enabled) {
+      disabled.style.display = "block";
+      form.style.display = "none";
+      if (disabledMsg) disabledMsg.textContent = tr("logSearchOff");
+      return;
+    }
+    disabled.style.display = "none";
+    form.style.display = "block";
+    if (hint) {
+      hint.textContent = `${tr("logSearchHintStream")}: ${data.stream_selector || ""}`;
+    }
+  } catch {
+    disabled.style.display = "block";
+    form.style.display = "none";
+    if (disabledMsg) disabledMsg.textContent = tr("logSearchOff");
+  }
+}
+
+async function runLogSearch() {
+  const hoursEl = document.getElementById("logSearchHours");
+  const eventEl = document.getElementById("logSearchEvent");
+  const limitEl = document.getElementById("logSearchLimit");
+  const qEl = document.getElementById("logSearchQ");
+  const statusEl = document.getElementById("logSearchStatus");
+  const outEl = document.getElementById("logSearchOutput");
+  if (!hoursEl || !eventEl || !limitEl || !statusEl || !outEl) return;
+  const hours = hoursEl.value || "24";
+  const event = eventEl.value || "all";
+  const limit = limitEl.value || "100";
+  const q = (qEl && qEl.value) ? qEl.value.trim() : "";
+  statusEl.textContent = tr("logSearchLoading");
+  outEl.textContent = "";
+  const params = new URLSearchParams({ hours, limit, event, q });
+  try {
+    const res = await fetch(`/api/logs/search?${params.toString()}`, { credentials: "include" });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      statusEl.textContent = tr("logSearchLogin");
+      return;
+    }
+    if (res.status === 503) {
+      statusEl.textContent = data.detail || tr("logSearchOff");
+      return;
+    }
+    if (res.status === 400) {
+      statusEl.textContent = data.detail || "Bad request";
+      return;
+    }
+    if (res.status === 502) {
+      statusEl.textContent = data.detail || "Loki error";
+      if (data.logql) outEl.textContent = `LogQL: ${data.logql}\n\n${data.detail || ""}`;
+      return;
+    }
+    if (!res.ok) {
+      statusEl.textContent = data.detail || `HTTP ${res.status}`;
+      return;
+    }
+    const entries = data.entries || [];
+    statusEl.textContent = `${tr("logSearchDone")} ${entries.length}`;
+    if (entries.length === 0) {
+      outEl.textContent = tr("logSearchNoResults");
+      if (data.logql) outEl.textContent += `\n\nLogQL:\n${data.logql}`;
+      return;
+    }
+    const lines = entries.map((row) => {
+      const t = row.ts_iso || row.ts_ns || "";
+      return `[${t}] ${row.line || ""}`;
+    });
+    outEl.textContent = lines.join("\n");
+    if (data.logql) {
+      outEl.textContent += `\n\n--- LogQL ---\n${data.logql}`;
+    }
+  } catch (e) {
+    statusEl.textContent = String(e);
+  }
+}
 
 document.querySelector(".lang-toggle")?.addEventListener("click", (e) => {
   const btn = e.target.closest("button.lang-btn");
@@ -1537,13 +1623,14 @@ loadStatsAndChart();
 setInterval(loadStatsAndChart, 1000);
 loadLiveRequests();
 loadFailedEvents();
-loadTargetFwdStatus();
 setInterval(loadLiveRequests, 1500);
 setInterval(loadFailedEvents, 1500);
 loadRecentSent();
 setInterval(loadRecentSent, 1500);
 setInterval(loadEffectiveTargets, 3000);
-setInterval(loadTargetFwdStatus, 5000);
+setInterval(loadPortalStatus, 5000);
+
+document.getElementById("logSearchBtn")?.addEventListener("click", () => { runLogSearch(); });
 
 if (failedEventsSearch) {
   failedEventsSearch.addEventListener("input", () => renderFailedEvents(failedEventsCache));
@@ -1565,3 +1652,5 @@ if (patternModal) {
 }
 
 if (window.applyI18n) window.applyI18n();
+loadPortalStatus();
+loadLogSearchConfig();

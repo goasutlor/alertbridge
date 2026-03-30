@@ -24,13 +24,19 @@
             <button type="button" id="langEn" class="lang-btn" aria-pressed="true">EN</button>
             <button type="button" id="langTh" class="lang-btn" aria-pressed="false">TH</button>
           </div>
-          <div id="portalStatus" class="portal-status" aria-live="polite">
-            <span id="portalStatusDot" class="portal-status-dot"></span>
-            <span id="portalStatusText">Checking…</span>
-          </div>
-          <div id="targetFwdStatus" class="portal-status target-fwd-status" aria-live="polite" style="display:none;">
-            <span id="targetFwdStatusDot" class="portal-status-dot"></span>
-            <span id="targetFwdStatusText" data-i18n="targetFwdChecking">Target Fwd: Checking…</span>
+          <div class="header-statuses" aria-live="polite">
+            <div id="statusIncoming" class="portal-status state-checking" title="">
+              <span class="portal-status-dot"></span>
+              <span id="statusIncomingText" class="portal-status-text" data-i18n="statusIncomingChecking">Incoming: …</span>
+            </div>
+            <div id="statusForward" class="portal-status state-checking" title="">
+              <span class="portal-status-dot"></span>
+              <span id="statusForwardText" class="portal-status-text" data-i18n="statusForwardChecking">Forward: …</span>
+            </div>
+            <div id="statusLogArchive" class="portal-status state-checking" title="">
+              <span class="portal-status-dot"></span>
+              <span id="statusLogArchiveText" class="portal-status-text" data-i18n="statusLogChecking">Log archive: …</span>
+            </div>
           </div>
         </div>
       </header>
@@ -108,6 +114,46 @@
             <tbody id="failedEventsBody"></tbody>
           </table>
           <p id="failedEventsEmpty" class="live-empty" data-i18n="failedEmpty">No failed events. Forward failures will appear here.</p>
+        </div>
+      </section>
+
+      <section class="card card-log-search" id="logSearchCard">
+        <h2 class="card-title" data-i18n="logSearchTitle">Log archive search</h2>
+        <p class="card-subtitle" data-i18n="logSearchSub">Search application logs when a log store is connected — stays inside this portal.</p>
+        <div id="logSearchDisabled" class="log-search-disabled" style="display:none;">
+          <p class="text-muted" id="logSearchDisabledMsg" data-i18n="logSearchOff">Log search is not configured. Set ALERTBRIDGE_LOKI_URL and label selectors on the Deployment.</p>
+        </div>
+        <div id="logSearchForm" class="log-search-form" style="display:none;">
+          <div class="form-row log-search-row">
+            <label for="logSearchHours" data-i18n="logSearchHours">Range</label>
+            <select id="logSearchHours" class="select" aria-label="Time range">
+              <option value="1">1 h</option>
+              <option value="6">6 h</option>
+              <option value="24" selected>24 h</option>
+              <option value="72">72 h</option>
+              <option value="168">7 d</option>
+            </select>
+            <label for="logSearchEvent" data-i18n="logSearchEvent">Filter</label>
+            <select id="logSearchEvent" class="select">
+              <option value="all" data-i18n="logSearchEvAll">All lines</option>
+              <option value="errors" data-i18n="logSearchEvErr">Forward errors</option>
+              <option value="requests" data-i18n="logSearchEvReq">HTTP requests</option>
+            </select>
+            <label for="logSearchLimit" data-i18n="logSearchLimit">Max lines</label>
+            <select id="logSearchLimit" class="select">
+              <option value="50">50</option>
+              <option value="100" selected>100</option>
+              <option value="200">200</option>
+              <option value="500">500</option>
+            </select>
+          </div>
+          <div class="form-row log-search-q-row">
+            <input type="text" id="logSearchQ" class="input-inline log-search-q" placeholder="Optional: request_id, route, text…" data-i18n-placeholder="logSearchPlaceholder" />
+            <button type="button" id="logSearchBtn" class="btn btn-primary" data-i18n="logSearchBtn">Search</button>
+            <span id="logSearchStatus" class="status"></span>
+          </div>
+          <p class="text-muted log-search-hint" id="logSearchHint"></p>
+          <pre id="logSearchOutput" class="output log-search-output" aria-live="polite"></pre>
         </div>
       </section>
 
@@ -288,6 +334,6 @@
     </div>
 
     <script src="/static/i18n.js"></script>
-    <script src="/static/app.js?v=17"></script>
+    <script src="/static/app.js?v=19"></script>
   </body>
 </html>

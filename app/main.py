@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 # Bangkok (GMT+7) for all displayed timestamps
 BANGKOK = timezone(timedelta(hours=7))
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 import yaml
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
@@ -52,6 +52,13 @@ from app.patterns import (
     list_schemas,
     save_pattern as save_pattern_data,
     delete_pattern as delete_pattern_data,
+)
+from app.loki_search import (
+    build_logql,
+    logs_enabled,
+    loki_ready,
+    query_loki,
+    stream_selector_preview,
 )
 from app.rules import ApiKeyConfig, Defaults, RuleSet, sanitize_payload, select_route, transform_payload
 
@@ -466,6 +473,76 @@ async def api_recent_payloads() -> Response:
     return JSONResponse(snapshot)
 
 
+@app.get("/api/logs/config")
+async def api_logs_config(_: Optional[str] = Depends(require_basic_auth)) -> Response:
+    """Whether Loki-backed log search is available (requires Basic Auth)."""
+    return JSONResponse(
+        {
+            "enabled": logs_enabled(),
+            "stream_selector": stream_selector_preview(),
+        }
+    )
+
+
+@app.get("/api/logs/search")
+async def api_logs_search(
+    _: Optional[str] = Depends(require_basic_auth),
+    hours: int = 24,
+    limit: int = 100,
+    event: str = "all",
+    q: str = "",
+) -> Response:
+    """
+    Search pod logs via Loki (query_range). UI-only; does not replace ConfigMap persistence.
+    """
+    hours_clamped = max(1, min(int(hours), 168))
+    limit_clamped = max(1, min(int(limit), 500))
+    if not logs_enabled():
+        return JSONResponse(
+            {"detail": "Log search not configured. Set ALERTBRIDGE_LOKI_URL on the Deployment."},
+            status_code=503,
+        )
+    try:
+        logql = build_logql(event, q)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    entries, err = await query_loki(logql, hours_clamped, limit_clamped)
+    if err:
+        return JSONResponse(
+            {"detail": err, "logql": logql, "entries": [], "hours": hours_clamped, "limit": limit_clamped},
+            status_code=502,
+        )
+
+    # Add readable UTC timestamp for UI
+    out_rows = []
+    for row in entries:
+        ts_ns = row.get("ts")
+        ts_iso = ""
+        try:
+            sec = int(str(ts_ns)) / 1_000_000_000.0
+            ts_iso = datetime.fromtimestamp(sec, tz=timezone.utc).isoformat()
+        except (TypeError, ValueError, OSError):
+            ts_iso = str(ts_ns)
+        out_rows.append(
+            {
+                "ts_ns": ts_ns,
+                "ts_iso": ts_iso,
+                "line": row.get("line"),
+                "labels": row.get("labels") or {},
+            }
+        )
+
+    return JSONResponse(
+        {
+            "entries": out_rows,
+            "logql": logql,
+            "hours": hours_clamped,
+            "limit": limit_clamped,
+        }
+    )
+
+
 @app.get("/api/config/targets")
 async def api_config_targets() -> Response:
     """Return effective target URL per route (what forward uses). No auth."""
@@ -477,33 +554,95 @@ async def api_config_targets() -> Response:
     return JSONResponse(out)
 
 
+async def _compute_target_status() -> Dict[str, Any]:
+    """Two-phase check per route; same shape as /api/target-status response."""
+    rules = get_rules()
+    defaults = rules.defaults if rules.defaults is not None else Defaults()
+    tasks = [check_target_status(r, defaults) for r in rules.routes]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    out = []
+    for i, r in enumerate(results):
+        if isinstance(r, Exception):
+            route_name = rules.routes[i].name if i < len(rules.routes) else "?"
+            out.append({"route": route_name, "phase1_ok": False, "phase2_ok": False, "error": str(r)})
+        else:
+            out.append(r)
+    configured = [x for x in out if x.get("target_url") and x.get("target_url") != "(not set)"]
+    has_any_target = len(configured) > 0
+    all_ok = has_any_target and all(
+        x.get("phase1_ok") and x.get("phase2_ok") for x in configured
+    )
+    return {"routes": out, "has_any_target": has_any_target, "all_ok": all_ok}
+
+
 @app.get("/api/target-status")
 async def api_target_status() -> Response:
     """Two-phase check: Phase1 server reachable, Phase2 API handshake OK. No auth."""
     try:
-        rules = get_rules()
-        defaults = rules.defaults if rules.defaults is not None else Defaults()
-        tasks = [check_target_status(r, defaults) for r in rules.routes]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        out = []
-        for i, r in enumerate(results):
-            if isinstance(r, Exception):
-                route_name = rules.routes[i].name if i < len(rules.routes) else "?"
-                out.append({"route": route_name, "phase1_ok": False, "phase2_ok": False, "error": str(r)})
-            else:
-                out.append(r)
-        configured = [x for x in out if x.get("target_url") and x.get("target_url") != "(not set)"]
-        has_any_target = len(configured) > 0
-        all_ok = has_any_target and all(
-            x.get("phase1_ok") and x.get("phase2_ok") for x in configured
-        )
-        return JSONResponse({"routes": out, "has_any_target": has_any_target, "all_ok": all_ok})
+        return JSONResponse(await _compute_target_status())
     except Exception as exc:
         logger.exception("target_status_failed")
         return JSONResponse(
             {"routes": [], "has_any_target": False, "all_ok": False, "error": str(exc)},
             status_code=200,
         )
+
+
+@app.get("/api/portal-status")
+async def api_portal_status() -> Response:
+    """Aggregated header badges: incoming (receive), forward (targets), log archive (Loki). No auth."""
+    rules = get_rules()
+    rl = rules_loaded()
+    n_routes = len(rules.routes) if rules else 0
+    if not rl:
+        incoming = {"state": "down", "detail": "starting"}
+    elif n_routes == 0:
+        incoming = {"state": "partial", "detail": "no routes"}
+    else:
+        incoming = {"state": "ok", "detail": f"{n_routes} route(s)"}
+
+    try:
+        ts = await _compute_target_status()
+        routes_out = ts["routes"]
+        has_any = ts["has_any_target"]
+        all_ok = ts["all_ok"]
+        configured = [x for x in routes_out if x.get("target_url") and x.get("target_url") != "(not set)"]
+        ok_cnt = sum(1 for x in configured if x.get("phase1_ok") and x.get("phase2_ok"))
+        tot = len(configured)
+        if not has_any:
+            forward = {"state": "disabled", "detail": "no targets", "ok_count": 0, "total": 0}
+        elif all_ok:
+            forward = {"state": "ok", "detail": f"{ok_cnt}/{tot} OK", "ok_count": ok_cnt, "total": tot}
+        elif ok_cnt > 0:
+            forward = {"state": "partial", "detail": f"{ok_cnt}/{tot} OK", "ok_count": ok_cnt, "total": tot}
+        else:
+            forward = {"state": "down", "detail": f"{ok_cnt}/{tot} OK", "ok_count": ok_cnt, "total": tot}
+    except Exception as exc:
+        logger.warning("portal_status_forward: %s", exc)
+        routes_out = []
+        has_any = False
+        all_ok = False
+        forward = {"state": "down", "detail": str(exc), "ok_count": 0, "total": 0}
+
+    if not logs_enabled():
+        log_archive = {"state": "disabled", "detail": "not configured"}
+    else:
+        ok_l, err_l = await loki_ready()
+        if ok_l:
+            log_archive = {"state": "ok", "detail": "archive ready"}
+        else:
+            log_archive = {"state": "down", "detail": err_l or "unreachable"}
+
+    return JSONResponse(
+        {
+            "incoming": incoming,
+            "forward": forward,
+            "log_archive": log_archive,
+            "routes": routes_out,
+            "has_any_target": has_any,
+            "all_ok": all_ok,
+        }
+    )
 
 
 # ---------- Field mapper / patterns (optional Basic Auth) ----------
@@ -545,6 +684,7 @@ async def api_save_pattern(
     if len(mappings) > 500:
         raise HTTPException(status_code=400, detail="Too many mappings")
     pattern_id = body.get("id")
+    old = copy.deepcopy(get_pattern(pattern_id)) if pattern_id else None
     try:
         saved = save_pattern_data(name=name, source_type=source_type, mappings=mappings, pattern_id=pattern_id)
     except Exception as exc:
@@ -552,8 +692,17 @@ async def api_save_pattern(
         raise HTTPException(status_code=400, detail="Invalid pattern") from exc
     try:
         persist_rules(get_rules())
-    except PermissionError:
-        pass  # patterns in memory only; config read-only
+    except PermissionError as exc:
+        if old:
+            save_pattern_data(
+                name=old["name"],
+                source_type=old["source_type"],
+                mappings=old["mappings"],
+                pattern_id=old["id"],
+            )
+        else:
+            delete_pattern_data(saved["id"])
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return JSONResponse(saved)
 
 
@@ -563,12 +712,20 @@ async def api_delete_pattern(
     _: Optional[str] = Depends(require_basic_auth),
 ) -> Response:
     """Delete a saved pattern."""
-    if not delete_pattern_data(pattern_id):
+    old = copy.deepcopy(get_pattern(pattern_id))
+    if not old:
         raise HTTPException(status_code=404, detail="Pattern not found")
+    delete_pattern_data(pattern_id)
     try:
         persist_rules(get_rules())
-    except PermissionError:
-        pass
+    except PermissionError as exc:
+        save_pattern_data(
+            name=old["name"],
+            source_type=old["source_type"],
+            mappings=old["mappings"],
+            pattern_id=old["id"],
+        )
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return JSONResponse({"deleted": True})
 
 
@@ -619,18 +776,22 @@ async def api_apply_pattern(
         new_route = route.model_copy(update={"transform": new_transform})
         updated_routes = [new_route if r.name == route_name else r for r in rules.routes]
         new_rules = rules.model_copy(update={"routes": updated_routes})
-        set_rules(new_rules)
         try:
             persist_rules(new_rules)
-            CONFIG_RELOAD_TOTAL.labels(result="success").inc()
-        except PermissionError:
+        except PermissionError as exc:
             CONFIG_RELOAD_TOTAL.labels(result="fail").inc()
-            pass  # in-memory updated; ConfigMap/file read-only
+            if saved_pattern:
+                delete_pattern_data(saved_pattern["id"])
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        set_rules(new_rules)
+        CONFIG_RELOAD_TOTAL.labels(result="success").inc()
 
         out = {"applied": True, "route_name": route_name}
         if saved_pattern:
             out["pattern_saved"] = saved_pattern.get("name", "")
         return JSONResponse(out)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("patterns_apply_failed")
         return JSONResponse({"detail": str(e)}, status_code=500)

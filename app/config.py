@@ -39,17 +39,21 @@ def persist_rules(rules: RuleSet) -> None:
     rules_yaml = yaml.safe_dump(_rules_dict_with_patterns(rules), sort_keys=False)
     configmap_name = os.getenv("ALERTBRIDGE_CONFIGMAP_NAME", "").strip()
 
-    if persist_rules_to_configmap(rules_yaml):
+    patched, patch_err = persist_rules_to_configmap(rules_yaml)
+    if patched:
         return
 
     # ConfigMap patch failed or not configured. If we're in OCP (configmap name set) or
     # rules path is read-only (e.g. /etc/alertbridge mounted from ConfigMap), don't try file write.
     if configmap_name or str(RULES_PATH).startswith("/etc/"):
-        raise PermissionError(
+        msg = (
             "ConfigMap patch failed or not available. Check pod logs for 'Failed to patch ConfigMap'. "
             "Ensure the pod's ServiceAccount has RBAC (get/patch/update) on the ConfigMap, "
             "or update the ConfigMap manually and call /admin/reload."
         )
+        if patch_err:
+            msg = f"{msg} Underlying error: {patch_err}"
+        raise PermissionError(msg)
 
     try:
         save_rules_to_file(rules)

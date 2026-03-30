@@ -1,6 +1,6 @@
 # Features & Functions Reference
 
-> AlertBridge features. Author: Sontas Jiamsripong · Version: 1.0.07022026
+> AlertBridge features. Author: Sontas Jiamsripong · Version: 1.0.08022026
 
 ---
 

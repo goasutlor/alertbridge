@@ -90,7 +90,9 @@ Add `verify_tls: false` to target in Config (YAML) for internal self-signed cert
 oc apply -f deploy/install-ocp-pull.yaml
 ```
 
-Image: `ghcr.io/goasutlor/alertbridge-lite:latest` (or `:v1.0.07022026`)
+This file now includes Loki + Promtail (PVC `50Gi`, default StorageClass) for Log archive/search in Portal.
+
+Image: `ghcr.io/goasutlor/alertbridge-lite:latest` (or `:v1.0.08022026`)
 
 **Option B – Build from Git**
 

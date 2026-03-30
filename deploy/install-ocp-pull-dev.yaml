@@ -1,4 +1,4 @@
-# alertbridge-lite - OCP Deployment via Pre-built Image (v1.0.08022026)
+# alertbridge-lite - OCP DEV Deployment via Pre-built Image (v1.0.08022026)
 #
 # Use this when OCP BuildConfig fails (e.g. proxy blocks pip). Image is built by GitHub Actions
 # and pushed to ghcr.io on every push to main.
@@ -6,63 +6,63 @@
 # Deploy steps:
 # 1. Image is at ghcr.io/goasutlor/alertbridge-lite:latest (auto-built on push to main)
 #
-# 2. Edit Secret (TARGET_URL_*, API keys, BASIC_AUTH_*). Default UI login: admin/P@ssw0rd2026
+# 2. Edit Secret (TARGET_URL_*, API keys, BASIC_AUTH_*).
 #
 # 3. If 403 Forbidden when pulling: create GHCR pull secret (uncomment imagePullSecrets below):
 #    oc create secret docker-registry ghcr-pull-secret \
 #      --docker-server=ghcr.io --docker-username=goasutlor --docker-password=YOUR_GITHUB_PAT \
-#      -n alertbridge
+#      -n alertbridge-dev
 #
-# 4. oc apply -f deploy/install-ocp-pull.yaml
-# 5. oc get route -n alertbridge   # get webhook URL
+# 4. oc apply -f deploy/install-ocp-pull-dev.yaml
+# 5. oc get route -n alertbridge-dev   # get webhook URL
 # 6. Test: curl -k https://<route>/healthz
 #
 # Includes in-cluster Loki + Promtail (PVC 50Gi, default StorageClass) for Log archive.
 # If Promtail cannot start due to SCC on OpenShift:
-#   oc adm policy add-scc-to-user privileged -z promtail -n alertbridge
+#   oc adm policy add-scc-to-user privileged -z promtail -n alertbridge-dev
 
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: alertbridge
+  name: alertbridge-dev
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: alertbridge-lite
-  namespace: alertbridge
+  name: alertbridge-lite-dev
+  namespace: alertbridge-dev
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: alertbridge-configmap-editor
-  namespace: alertbridge
+  name: alertbridge-configmap-editor-dev
+  namespace: alertbridge-dev
 rules:
   - apiGroups: [""]
     resources: ["configmaps"]
-    resourceNames: ["alertbridge-rules"]
+    resourceNames: ["alertbridge-rules-dev"]
     verbs: ["get", "patch", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: alertbridge-configmap-editor
-  namespace: alertbridge
+  name: alertbridge-configmap-editor-dev
+  namespace: alertbridge-dev
 subjects:
   - kind: ServiceAccount
-    name: alertbridge-lite
-    namespace: alertbridge
+    name: alertbridge-lite-dev
+    namespace: alertbridge-dev
 roleRef:
   kind: Role
-  name: alertbridge-configmap-editor
+  name: alertbridge-configmap-editor-dev
   apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: alertbridge-rules
-  namespace: alertbridge
+  name: alertbridge-rules-dev
+  namespace: alertbridge-dev
 data:
   rules.yaml: |
     version: 1
@@ -109,8 +109,8 @@ data:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: alertbridge-secrets
-  namespace: alertbridge
+  name: alertbridge-secrets-dev
+  namespace: alertbridge-dev
 type: Opaque
 stringData:
   TARGET_URL_OCP: "https://example.ocp.target/webhook"
@@ -119,36 +119,36 @@ stringData:
   TARGET_API_KEY_CONFLUENT: "change-me"
   # Basic Auth for UI (enabled by default). CHANGE password before production!
   BASIC_AUTH_USER: "admin"
-  BASIC_AUTH_PASSWORD: "P@ssw0rd2026"
+  BASIC_AUTH_PASSWORD: "change-me"
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: alertbridge-lite
-  namespace: alertbridge
+  name: alertbridge-lite-dev
+  namespace: alertbridge-dev
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: alertbridge-lite
+      app: alertbridge-lite-dev
   template:
     metadata:
       labels:
-        app: alertbridge-lite
+        app: alertbridge-lite-dev
     spec:
-      serviceAccountName: alertbridge-lite
+      serviceAccountName: alertbridge-lite-dev
       # Uncomment if package is private or cluster gets 403 when pulling from ghcr.io:
       # imagePullSecrets:
       #   - name: ghcr-pull-secret
       containers:
-        - name: alertbridge-lite
+        - name: alertbridge-lite-dev
           image: ghcr.io/goasutlor/alertbridge-lite:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
             - name: ALERTBRIDGE_CONFIGMAP_NAME
-              value: "alertbridge-rules"
+              value: "alertbridge-rules-dev"
             - name: ALERTBRIDGE_CONFIG_WATCH_INTERVAL
               value: "30"
             # In-cluster Loki (same namespace: Service loki:3100). Log search in Portal uses this URL.
@@ -159,36 +159,36 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: ALERTBRIDGE_K8S_APP_LABEL
-              value: "alertbridge-lite"
+              value: "alertbridge-lite-dev"
             - name: TARGET_URL_OCP
               valueFrom:
                 secretKeyRef:
-                  name: alertbridge-secrets
+                  name: alertbridge-secrets-dev
                   key: TARGET_URL_OCP
             - name: TARGET_API_KEY_OCP
               valueFrom:
                 secretKeyRef:
-                  name: alertbridge-secrets
+                  name: alertbridge-secrets-dev
                   key: TARGET_API_KEY_OCP
             - name: TARGET_URL_CONFLUENT
               valueFrom:
                 secretKeyRef:
-                  name: alertbridge-secrets
+                  name: alertbridge-secrets-dev
                   key: TARGET_URL_CONFLUENT
             - name: TARGET_API_KEY_CONFLUENT
               valueFrom:
                 secretKeyRef:
-                  name: alertbridge-secrets
+                  name: alertbridge-secrets-dev
                   key: TARGET_API_KEY_CONFLUENT
             - name: BASIC_AUTH_USER
               valueFrom:
                 secretKeyRef:
-                  name: alertbridge-secrets
+                  name: alertbridge-secrets-dev
                   key: BASIC_AUTH_USER
             - name: BASIC_AUTH_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: alertbridge-secrets
+                  name: alertbridge-secrets-dev
                   key: BASIC_AUTH_PASSWORD
           volumeMounts:
             - name: rules
@@ -216,7 +216,7 @@ spec:
       volumes:
         - name: rules
           configMap:
-            name: alertbridge-rules
+            name: alertbridge-rules-dev
             items:
               - key: rules.yaml
                 path: rules.yaml
@@ -224,13 +224,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: alertbridge-lite
-  namespace: alertbridge
+  name: alertbridge-lite-dev
+  namespace: alertbridge-dev
   labels:
-    app: alertbridge-lite
+    app: alertbridge-lite-dev
 spec:
   selector:
-    app: alertbridge-lite
+    app: alertbridge-lite-dev
   ports:
     - name: http
       port: 80
@@ -240,12 +240,12 @@ spec:
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: alertbridge-lite
-  namespace: alertbridge
+  name: alertbridge-lite-dev
+  namespace: alertbridge-dev
 spec:
   selector:
     matchLabels:
-      app: alertbridge-lite
+      app: alertbridge-lite-dev
   endpoints:
     - port: http
       path: /metrics
@@ -254,13 +254,13 @@ spec:
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
-  name: alertbridge-lite
-  namespace: alertbridge
+  name: alertbridge-lite-dev
+  namespace: alertbridge-dev
 spec:
-  host: alertbridge-lite.apps.cwdc.esb-kafka-prod.intra.ais  # EDIT: match your cluster apps domain
+  host: alertbridge-lite-dev.apps.cwdc.esb-kafka-dev.intra.ais
   to:
     kind: Service
-    name: alertbridge-lite
+    name: alertbridge-lite-dev
   port:
     targetPort: http
   tls:
@@ -271,7 +271,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: loki-data
-  namespace: alertbridge
+  namespace: alertbridge-dev
 spec:
   accessModes:
     - ReadWriteOnce
@@ -283,7 +283,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: loki-config
-  namespace: alertbridge
+  namespace: alertbridge-dev
 data:
   loki.yaml: |
     auth_enabled: false
@@ -339,7 +339,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: loki
-  namespace: alertbridge
+  namespace: alertbridge-dev
   labels:
     app: loki
 spec:
@@ -406,7 +406,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: loki
-  namespace: alertbridge
+  namespace: alertbridge-dev
   labels:
     app: loki
 spec:
@@ -421,12 +421,12 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: promtail
-  namespace: alertbridge
+  namespace: alertbridge-dev
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: alertbridge-promtail
+  name: alertbridge-promtail-dev
 rules:
   - apiGroups: [""]
     resources:
@@ -440,21 +440,21 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: alertbridge-promtail
+  name: alertbridge-promtail-dev
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: alertbridge-promtail
+  name: alertbridge-promtail-dev
 subjects:
   - kind: ServiceAccount
     name: promtail
-    namespace: alertbridge
+    namespace: alertbridge-dev
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: promtail-config
-  namespace: alertbridge
+  namespace: alertbridge-dev
 data:
   promtail.yaml: |
     server:
@@ -465,7 +465,7 @@ data:
       filename: /run/promtail/positions.yaml
 
     clients:
-      - url: http://loki.alertbridge.svc:3100/loki/api/v1/push
+      - url: http://loki.alertbridge-dev.svc:3100/loki/api/v1/push
 
     scrape_configs:
       - job_name: kubernetes-pods
@@ -473,7 +473,7 @@ data:
           - role: pod
             namespaces:
               names:
-                - alertbridge
+                - alertbridge-dev
         pipeline_stages:
           - cri: {}
         relabel_configs:
@@ -500,7 +500,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: promtail
-  namespace: alertbridge
+  namespace: alertbridge-dev
   labels:
     app: promtail
 spec:

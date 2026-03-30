@@ -1,6 +1,6 @@
 # Vulnerability Assessment (VA) Test Report
 
-**Reference Version:** v1.1.0  
+**Reference Version:** v1.0.08022026  
 **Test Date:** 2026-02-07 (post-dev: Alert unrolling, Circuit breaker, Config auto-reload)  
 **Standards/References:**
 - OWASP Top 10 (2021)

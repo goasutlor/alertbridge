@@ -145,6 +145,14 @@ body {
   color: #fff;
 }
 
+.header-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .portal-status {
   display: inline-flex;
   align-items: center;
@@ -165,27 +173,39 @@ body {
   transition: all var(--transition);
 }
 
-.portal-status.online .portal-status-dot {
+.portal-status.state-checking .portal-status-dot {
+  background: var(--text-muted);
+}
+
+.portal-status.state-ok .portal-status-dot {
   background: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
-.portal-status.offline .portal-status-dot {
+.portal-status.state-partial .portal-status-dot {
+  background: var(--warn);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
+}
+
+.portal-status.state-down .portal-status-dot {
   background: var(--danger);
 }
 
-.portal-status.online #portalStatusText { color: var(--accent); }
-.portal-status.offline #portalStatusText { color: var(--danger); }
+.portal-status.state-disabled .portal-status-dot {
+  background: var(--text-muted);
+}
 
-.target-fwd-status { margin-left: 12px; }
+.portal-status.state-ok .portal-status-text { color: var(--accent); }
+.portal-status.state-partial .portal-status-text { color: var(--warn); }
+.portal-status.state-down .portal-status-text { color: var(--danger); }
+.portal-status.state-disabled .portal-status-text,
+.portal-status.state-checking .portal-status-text { color: var(--text-muted); }
+
+.target-fwd-status { margin-left: 0; }
 .target-status-badge { margin-left: 6px; font-size: 10px; }
 .target-status-badge.target-ok { color: var(--accent); }
 .target-status-badge.target-fail { color: var(--danger); }
 .target-status-err { margin-left: 8px; font-size: 11px; color: var(--text-muted); font-weight: normal; }
-.target-fwd-status.online #targetFwdStatusText { color: var(--accent); }
-.target-fwd-status.partial #targetFwdStatusText { color: var(--warn); }
-.target-fwd-status.offline #targetFwdStatusText { color: var(--danger); }
-.target-fwd-status.partial .portal-status-dot { background: var(--warn); }
 
 /* Cards */
 .card {
@@ -998,4 +1018,37 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   justify-content: flex-end;
   padding: 16px 20px;
   border-top: 1px solid var(--border);
+}
+
+/* Log archive search (Loki proxy) */
+.log-search-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-bottom: 12px;
+}
+.log-search-q-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.log-search-q {
+  flex: 1;
+  min-width: 220px;
+}
+.log-search-hint {
+  font-size: 12px;
+  margin: 0 0 8px;
+  word-break: break-all;
+}
+.log-search-output {
+  max-height: 420px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
