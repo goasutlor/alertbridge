@@ -150,6 +150,8 @@ async def diagnose_loki(hours: int = 24) -> Dict[str, Any]:
         "probe_logql_forward_failed": None,
         "probe_lines_forward_failed": None,
         "errors": [],
+        "diagnose_hints": [],
+        "loki_labels_note": None,
     }
     base = _loki_url()
     if not base:
@@ -168,7 +170,16 @@ async def diagnose_loki(hours: int = 24) -> Dict[str, Any]:
             resp = await client.get(f"{base}/loki/api/v1/labels", headers=_loki_headers())
         if resp.status_code == 200:
             j = resp.json()
-            out["loki_label_names"] = j.get("data") if isinstance(j, dict) else None
+            if isinstance(j, dict):
+                raw_data = j.get("data")
+                out["loki_label_names"] = raw_data if raw_data is not None else []
+                if raw_data is None and j.get("status") == "success":
+                    out["loki_labels_note"] = (
+                        "Loki returned 200 with no 'data' key — often an empty store / "
+                        "no ingested streams yet (same as earlier curl showing only {\"status\":\"success\"})."
+                    )
+            else:
+                out["loki_label_names"] = None
         else:
             out["loki_label_names_error"] = f"HTTP {resp.status_code}: {resp.text[:300]}"
     except Exception as exc:
@@ -208,6 +219,22 @@ async def diagnose_loki(hours: int = 24) -> Dict[str, Any]:
         out["probe_lines_forward_failed"] = None
     else:
         out["probe_lines_forward_failed"] = len(ent_ff)
+
+    if out.get("probe_lines_all_lines") == 0:
+        hints = out.setdefault("diagnose_hints", [])
+        hints.append(
+            "No log lines matched this stream in Loki for the selected hours. "
+            "Promtail may not be shipping, or labels differ (check container name vs ALERTBRIDGE_K8S_APP_LABEL)."
+        )
+        hints.append(
+            'If forward_failed is also 0: either no lines exist, or no line contains the text "forward_failed" '
+            "(JSON log message field)."
+        )
+    elif out.get("probe_lines_forward_failed") == 0 and (out.get("probe_lines_all_lines") or 0) > 0:
+        out.setdefault("diagnose_hints", []).append(
+            "Logs exist for the stream but none contain the substring forward_failed in that window; "
+            "try Filter « All lines » or widen the time range."
+        )
 
     return out
 
