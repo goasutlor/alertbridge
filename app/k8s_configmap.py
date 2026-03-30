@@ -1,4 +1,4 @@
-"""Patch Kubernetes ConfigMap for persistent config storage (OCP)."""
+"""Update Kubernetes ConfigMap for persistent config storage (OCP)."""
 import logging
 import os
 from typing import Optional, Tuple
@@ -25,13 +25,13 @@ def _get_namespace() -> str:
 
 def patch_configmap_rules(configmap_name: str, namespace: str, rules_yaml: str) -> Tuple[bool, Optional[str]]:
     """
-    Patch the ConfigMap with new rules.yaml content.
+    Persist rules.yaml into the ConfigMap (GET + replace).
     Returns True on success, False on failure.
     """
     try:
         from kubernetes import client, config
     except ImportError:
-        logger.warning("kubernetes package not installed, cannot patch ConfigMap")
+        logger.warning("kubernetes package not installed, cannot update ConfigMap")
         return False, "kubernetes package not installed"
 
     # Try in-cluster first (typical in OCP/K8s). Fallback to local kubeconfig for dev tools.
@@ -59,17 +59,20 @@ def patch_configmap_rules(configmap_name: str, namespace: str, rules_yaml: str) 
             )
 
     try:
+        # kubernetes>=28: patch_namespaced_config_map no longer accepts _content_type;
+        # default PATCH headers are ambiguous. read + replace (PUT) uses plain JSON and
+        # matches RBAC verbs: get + update (see deploy Role for configmaps).
         v1 = client.CoreV1Api()
-        body = {"data": {"rules.yaml": rules_yaml}}
-        v1.patch_namespaced_config_map(
-            configmap_name, namespace, body,
-            _content_type="application/merge-patch+json",
-        )
-        logger.info("ConfigMap %s/%s patched successfully", namespace, configmap_name)
+        cm = v1.read_namespaced_config_map(configmap_name, namespace)
+        if cm.data is None:
+            cm.data = {}
+        cm.data["rules.yaml"] = rules_yaml
+        v1.replace_namespaced_config_map(configmap_name, namespace, cm)
+        logger.info("ConfigMap %s/%s updated successfully", namespace, configmap_name)
         return True, None
     except Exception as e:
         logger.warning(
-            "Failed to patch ConfigMap %s/%s: %s (%s)",
+            "Failed to update ConfigMap %s/%s: %s (%s)",
             namespace, configmap_name, type(e).__name__, e,
             exc_info=True,
         )
@@ -80,7 +83,7 @@ def persist_rules_to_configmap(rules_yaml: str) -> Tuple[bool, Optional[str]]:
     """
     Persist rules to ConfigMap when running in OCP.
     Requires ALERTBRIDGE_CONFIGMAP_NAME env.
-    Returns True if patched, False if not applicable or failed.
+    Returns True if updated, False if not applicable or failed.
     """
     configmap_name = os.getenv("ALERTBRIDGE_CONFIGMAP_NAME", "").strip()
     if not configmap_name:

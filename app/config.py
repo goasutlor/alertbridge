@@ -30,7 +30,7 @@ def _rules_dict_with_patterns(rules: RuleSet) -> dict:
 
 def persist_rules(rules: RuleSet) -> None:
     """
-    Save rules permanently: patch ConfigMap when ALERTBRIDGE_CONFIGMAP_NAME is set (OCP),
+    Save rules permanently: update ConfigMap when ALERTBRIDGE_CONFIGMAP_NAME is set (OCP),
     otherwise write to file. Includes saved patterns so they survive pod restart.
     Raises PermissionError if both methods fail.
     """
@@ -43,12 +43,12 @@ def persist_rules(rules: RuleSet) -> None:
     if patched:
         return
 
-    # ConfigMap patch failed or not configured. If we're in OCP (configmap name set) or
+    # ConfigMap update failed or not configured. If we're in OCP (configmap name set) or
     # rules path is read-only (e.g. /etc/alertbridge mounted from ConfigMap), don't try file write.
     if configmap_name or str(RULES_PATH).startswith("/etc/"):
         msg = (
-            "ConfigMap patch failed or not available. Check pod logs for 'Failed to patch ConfigMap'. "
-            "Ensure the pod's ServiceAccount has RBAC (get/patch/update) on the ConfigMap, "
+            "ConfigMap update failed or not available. Check pod logs for 'Failed to update ConfigMap'. "
+            "Ensure the pod's ServiceAccount has RBAC (get/update) on the ConfigMap, "
             "or update the ConfigMap manually and call /admin/reload."
         )
         if patch_err:
@@ -61,7 +61,7 @@ def persist_rules(rules: RuleSet) -> None:
         if getattr(e, "errno", None) in (30, 13):  # Read-only file system or Permission denied
             raise PermissionError(
                 "Config is read-only (rules mounted from ConfigMap). "
-                "Ensure ALERTBRIDGE_CONFIGMAP_NAME is set and the pod's ServiceAccount has RBAC to patch the ConfigMap, "
+                "Ensure ALERTBRIDGE_CONFIGMAP_NAME is set and the pod's ServiceAccount has RBAC to update the ConfigMap, "
                 "or update the ConfigMap manually and call /admin/reload."
             ) from e
         raise
