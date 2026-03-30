@@ -129,6 +129,89 @@ async def loki_ready() -> Tuple[bool, Optional[str]]:
         return False, str(exc)
 
 
+async def diagnose_loki(hours: int = 24) -> Dict[str, Any]:
+    """
+    Run checks against Loki for operators: label names, sample values, and line counts
+    for the configured stream (all lines vs |= "forward_failed").
+    """
+    hours_clamped = max(1, min(int(hours), 168))
+    out: Dict[str, Any] = {
+        "app_version": os.getenv("APP_VERSION", "unknown"),
+        "git_sha": os.getenv("GIT_SHA", "unknown"),
+        "loki_url_configured": bool(_loki_url()),
+        "stream_selector": stream_selector(),
+        "stream_selector_preview": stream_selector_preview(),
+        "loki_label_names": None,
+        "loki_label_names_error": None,
+        "label_values_sample": {},
+        "probe_hours": hours_clamped,
+        "probe_logql_all_lines": None,
+        "probe_lines_all_lines": None,
+        "probe_logql_forward_failed": None,
+        "probe_lines_forward_failed": None,
+        "errors": [],
+    }
+    base = _loki_url()
+    if not base:
+        out["errors"].append("ALERTBRIDGE_LOKI_URL not set")
+        return out
+    sel = stream_selector()
+    if not sel:
+        out["errors"].append(
+            "Stream selector empty: set ALERTBRIDGE_K8S_NAMESPACE + ALERTBRIDGE_K8S_APP_LABEL "
+            "or ALERTBRIDGE_LOKI_STREAM_SELECTOR"
+        )
+        return out
+
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(15.0)) as client:
+            resp = await client.get(f"{base}/loki/api/v1/labels", headers=_loki_headers())
+        if resp.status_code == 200:
+            j = resp.json()
+            out["loki_label_names"] = j.get("data") if isinstance(j, dict) else None
+        else:
+            out["loki_label_names_error"] = f"HTTP {resp.status_code}: {resp.text[:300]}"
+    except Exception as exc:
+        out["loki_label_names_error"] = str(exc)
+
+    names = out.get("loki_label_names") or []
+    for lbl in ("namespace", "container", "pod", "app"):
+        if lbl in names:
+            try:
+                async with httpx.AsyncClient(timeout=httpx.Timeout(15.0)) as client:
+                    resp = await client.get(
+                        f"{base}/loki/api/v1/label/{lbl}/values",
+                        headers=_loki_headers(),
+                    )
+                if resp.status_code == 200:
+                    j = resp.json()
+                    vals = j.get("data") or []
+                    out["label_values_sample"][lbl] = vals[:40]
+                else:
+                    out["label_values_sample"][lbl] = f"HTTP {resp.status_code}"
+            except Exception as exc:
+                out["label_values_sample"][lbl] = f"error: {exc}"
+
+    out["probe_logql_all_lines"] = sel
+    ent_all, err_all = await query_loki(sel, hours_clamped, 50)
+    if err_all:
+        out["errors"].append(f"query_range (all lines): {err_all}")
+        out["probe_lines_all_lines"] = None
+    else:
+        out["probe_lines_all_lines"] = len(ent_all)
+
+    q_ff = sel + ' |= "forward_failed"'
+    out["probe_logql_forward_failed"] = q_ff
+    ent_ff, err_ff = await query_loki(q_ff, hours_clamped, 50)
+    if err_ff:
+        out["errors"].append(f'query_range (forward_failed): {err_ff}')
+        out["probe_lines_forward_failed"] = None
+    else:
+        out["probe_lines_forward_failed"] = len(ent_ff)
+
+    return out
+
+
 async def query_loki(logql: str, hours: int, limit: int) -> Tuple[List[Dict[str, Any]], Optional[str]]:
     """
     Call Loki query_range. Returns (entries, error_message).

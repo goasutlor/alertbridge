@@ -1560,6 +1560,11 @@ async function runLogSearch() {
   const q = (qEl && qEl.value) ? qEl.value.trim() : "";
   statusEl.textContent = tr("logSearchLoading");
   outEl.textContent = "";
+  const diagEl = document.getElementById("logSearchDiagnose");
+  if (diagEl) {
+    diagEl.style.display = "none";
+    diagEl.textContent = "";
+  }
   const params = new URLSearchParams({ hours, limit, event, q });
   try {
     const res = await fetch(`/api/logs/search?${params.toString()}`, { credentials: "include" });
@@ -1605,6 +1610,45 @@ async function runLogSearch() {
   }
 }
 
+async function runLogSearchDiagnose() {
+  const hoursEl = document.getElementById("logSearchHours");
+  const statusEl = document.getElementById("logSearchStatus");
+  const diagEl = document.getElementById("logSearchDiagnose");
+  const outEl = document.getElementById("logSearchOutput");
+  if (!hoursEl || !statusEl || !diagEl) return;
+  const hours = hoursEl.value || "24";
+  statusEl.textContent = tr("logSearchLoading");
+  diagEl.style.display = "block";
+  diagEl.textContent = "";
+  try {
+    const res = await fetch(`/api/logs/diagnose?hours=${encodeURIComponent(hours)}`, {
+      credentials: "include",
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      statusEl.textContent = tr("logSearchLogin");
+      diagEl.textContent = tr("logSearchLogin");
+      return;
+    }
+    if (res.status === 503) {
+      statusEl.textContent = data.detail || tr("logSearchOff");
+      diagEl.textContent = data.detail || "";
+      return;
+    }
+    if (!res.ok) {
+      statusEl.textContent = `HTTP ${res.status}`;
+      diagEl.textContent = JSON.stringify(data, null, 2);
+      return;
+    }
+    statusEl.textContent = tr("logSearchVerifyDone");
+    diagEl.textContent = JSON.stringify(data, null, 2);
+    if (outEl) outEl.textContent = "";
+  } catch (e) {
+    statusEl.textContent = String(e);
+    diagEl.textContent = String(e);
+  }
+}
+
 document.querySelector(".lang-toggle")?.addEventListener("click", (e) => {
   const btn = e.target.closest("button.lang-btn");
   if (!btn || !window.setLang) return;
@@ -1631,6 +1675,7 @@ setInterval(loadEffectiveTargets, 3000);
 setInterval(loadPortalStatus, 5000);
 
 document.getElementById("logSearchBtn")?.addEventListener("click", () => { runLogSearch(); });
+document.getElementById("logSearchVerifyBtn")?.addEventListener("click", () => { runLogSearchDiagnose(); });
 
 if (failedEventsSearch) {
   failedEventsSearch.addEventListener("input", () => renderFailedEvents(failedEventsCache));

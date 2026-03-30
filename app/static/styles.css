@@ -1044,6 +1044,19 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   margin: 0 0 8px;
   word-break: break-all;
 }
+.log-search-diagnose {
+  max-height: 320px;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  background: rgba(6, 182, 212, 0.08);
+  border: 1px solid rgba(6, 182, 212, 0.25);
+  border-radius: var(--radius-sm);
+}
 .log-search-output {
   max-height: 420px;
   overflow: auto;

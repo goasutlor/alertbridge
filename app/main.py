@@ -55,6 +55,7 @@ from app.patterns import (
 )
 from app.loki_search import (
     build_logql,
+    diagnose_loki,
     logs_enabled,
     loki_ready,
     query_loki,
@@ -483,6 +484,25 @@ async def api_logs_config(_: Optional[str] = Depends(require_basic_auth)) -> Res
             "stream_selector": stream_selector_preview(),
         }
     )
+
+
+@app.get("/api/logs/diagnose")
+async def api_logs_diagnose(
+    _: Optional[str] = Depends(require_basic_auth),
+    hours: int = 24,
+) -> Response:
+    """
+    Deep check: Loki label API + query_range counts for this app's stream vs forward_failed filter.
+    Use when log search returns 0 lines but Loki looks healthy.
+    """
+    if not logs_enabled():
+        return JSONResponse(
+            {"detail": "Log search not configured. Set ALERTBRIDGE_LOKI_URL on the Deployment."},
+            status_code=503,
+        )
+    hours_clamped = max(1, min(int(hours), 168))
+    payload = await diagnose_loki(hours_clamped)
+    return JSONResponse(payload)
 
 
 @app.get("/api/logs/search")

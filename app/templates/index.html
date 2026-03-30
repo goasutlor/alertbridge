@@ -150,9 +150,11 @@
           <div class="form-row log-search-q-row">
             <input type="text" id="logSearchQ" class="input-inline log-search-q" placeholder="Optional: request_id, route, text…" data-i18n-placeholder="logSearchPlaceholder" />
             <button type="button" id="logSearchBtn" class="btn btn-primary" data-i18n="logSearchBtn">Search</button>
+            <button type="button" id="logSearchVerifyBtn" class="btn btn-secondary" data-i18n="logSearchVerify">Verify stream</button>
             <span id="logSearchStatus" class="status"></span>
           </div>
           <p class="text-muted log-search-hint" id="logSearchHint"></p>
+          <pre id="logSearchDiagnose" class="output log-search-diagnose" style="display:none;" aria-live="polite"></pre>
           <pre id="logSearchOutput" class="output log-search-output" aria-live="polite"></pre>
         </div>
       </section>
@@ -334,6 +336,6 @@
     </div>
 
     <script src="/static/i18n.js"></script>
-    <script src="/static/app.js?v=19"></script>
+    <script src="/static/app.js?v=20"></script>
   </body>
 </html>

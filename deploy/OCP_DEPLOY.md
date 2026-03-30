@@ -89,7 +89,9 @@ oc rollout restart daemonset/promtail -n alertbridge
 
 **PVC `loki-data` Pending with `WaitForFirstConsumer`:** normal until the Loki Pod is scheduled; ensure your default StorageClass can provision `50Gi`.
 
-**Log search in the Portal:** needs labels in Loki such as `namespace` and `app`; they appear after Promtail ships container logs. If you maintain a local copy of the manifest (e.g. `alertbridgev2.yaml`), re-sync the `promtail-config` section from `deploy/install-ocp-pull.yaml` when updating—stale `__path__` relabel rules prevent logs from reaching Loki.
+**Log search in the Portal:** uses stream `{namespace="…",container="…"}` (container name must match `ALERTBRIDGE_K8S_APP_LABEL`). After deploy, use **Verify stream** in the Log archive card or call `GET /api/logs/diagnose?hours=24` (Basic Auth) to see Loki label names, sample values, and line counts for “all lines” vs `forward_failed`.
+
+If you maintain a local copy of the manifest (e.g. `alertbridgev2.yaml`), re-sync the `promtail-config` section from `deploy/install-ocp-pull.yaml` when updating—stale `__path__` relabel rules prevent logs from reaching Loki.
 
 ## Config OCP Alertmanager
 
