@@ -266,6 +266,7 @@ spec:
   tls:
     termination: edge
     insecureEdgeTerminationPolicy: None
+# PVC + px-* SC บ่อยครั้งใช้ volumeBindingMode: WaitForFirstConsumer → Pending จนกว่า Pod loki จะถูก schedule
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -354,15 +355,17 @@ spec:
       labels:
         app: loki
     spec:
-      securityContext:
-        fsGroup: 10001
-        runAsUser: 10001
-        runAsGroup: 10001
-        runAsNonRoot: true
+      # OCP restricted-v2: ไม่ตั้ง runAsUser/fsGroup — ใช้ UID range ของโปรเจกต์
       containers:
         - name: loki
           image: grafana/loki:2.9.8
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
           args:
             - -config.file=/etc/loki/loki.yaml
           ports:

@@ -6,9 +6,12 @@ from typing import Optional, Tuple
 logger = logging.getLogger("alertbridge")
 
 
-def _load_incluster_config() -> bool:
-    """Check if we're running inside a K8s cluster (in-cluster config available)."""
-    return os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+def _incluster_hint() -> bool:
+    """Best-effort hint that we are in-cluster (not required for loading)."""
+    return (
+        os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount/token")
+        or "KUBERNETES_SERVICE_HOST" in os.environ
+    )
 
 
 def _get_namespace() -> str:
@@ -31,14 +34,29 @@ def patch_configmap_rules(configmap_name: str, namespace: str, rules_yaml: str) 
         logger.warning("kubernetes package not installed, cannot patch ConfigMap")
         return False, "kubernetes package not installed"
 
+    # Try in-cluster first (typical in OCP/K8s). Fallback to local kubeconfig for dev tools.
+    # Do not rely only on filesystem markers; some hardened runtimes can differ.
+    incluster_err: Optional[Exception] = None
+    kubeconfig_err: Optional[Exception] = None
     try:
-        if _load_incluster_config():
-            config.load_incluster_config()
-        else:
-            config.load_kube_config()
+        config.load_incluster_config()
     except Exception as e:
-        logger.warning("Failed to load K8s config: %s", e)
-        return False, f"load K8s config: {e}"
+        incluster_err = e
+        try:
+            config.load_kube_config()
+        except Exception as e2:
+            kubeconfig_err = e2
+            logger.warning(
+                "Failed to load K8s config (in-cluster then kubeconfig). "
+                "in-cluster=%s; kubeconfig=%s; incluster_hint=%s",
+                incluster_err,
+                kubeconfig_err,
+                _incluster_hint(),
+            )
+            return False, (
+                "load K8s config: "
+                f"in-cluster={incluster_err}; kubeconfig={kubeconfig_err}"
+            )
 
     try:
         v1 = client.CoreV1Api()

@@ -266,6 +266,8 @@ spec:
   tls:
     termination: edge
     insecureEdgeTerminationPolicy: None
+# PVC + px-* SC บ่อยครั้งใช้ volumeBindingMode: WaitForFirstConsumer → Status Pending จนกว่า
+# Scheduler จะกำหนด node ให้ Pod ที่ mount claim นี้ (เช่น loki) แล้วค่อย Bound — ไม่ใช่ error
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -354,15 +356,18 @@ spec:
       labels:
         app: loki
     spec:
-      securityContext:
-        fsGroup: 10001
-        runAsUser: 10001
-        runAsGroup: 10001
-        runAsNonRoot: true
+      # OCP restricted-v2: ห้ามกำหนด runAsUser/fsGroup เอง (เช่น 10001) ต้องอยู่ใน range ของโปรเจกต์ —
+      # ปล่อยให้คลัสเตอร์กำหนด UID/supplemental group ให้กับ Pod + PVC mount แทน
       containers:
         - name: loki
           image: grafana/loki:2.9.8
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
           args:
             - -config.file=/etc/loki/loki.yaml
           ports:
