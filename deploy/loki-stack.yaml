@@ -2,7 +2,7 @@
 #
 # Integrates with Portal log search:
 #   ALERTBRIDGE_LOKI_URL=http://loki:3100
-#   ALERTBRIDGE_K8S_NAMESPACE + ALERTBRIDGE_K8S_APP_LABEL → stream {namespace="...",app="..."}
+#   ALERTBRIDGE_K8S_NAMESPACE + ALERTBRIDGE_K8S_APP_LABEL (container name) → {namespace="...",container="..."}
 #
 # Deploy (after namespace exists, e.g. oc apply -f install-ocp-pull.yaml):
 #   oc apply -f deploy/loki-stack.yaml

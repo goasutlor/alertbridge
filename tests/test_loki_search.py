@@ -7,7 +7,7 @@ def test_build_logql_with_namespace_and_app(monkeypatch):
     monkeypatch.setenv("ALERTBRIDGE_K8S_NAMESPACE", "ns1")
     monkeypatch.setenv("ALERTBRIDGE_K8S_APP_LABEL", "myapp")
     q = build_logql("all", "abc123")
-    assert '{namespace="ns1",app="myapp"}' in q
+    assert '{namespace="ns1",container="myapp"}' in q
     assert ' |~ "abc123"' in q
 
 

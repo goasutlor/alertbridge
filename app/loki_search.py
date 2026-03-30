@@ -50,13 +50,15 @@ def stream_selector() -> str:
         return s
     ns = _k8s_namespace()
     app = _k8s_app_label()
+    # Promtail sets `container` from the pod's container name; `app` as a Loki label is optional
+    # and may be missing. ALERTBRIDGE_K8S_APP_LABEL must match the main container name (e.g. alertbridge-lite).
     if ns and app:
         return (
             f'{{namespace="{_escape_label_value(ns)}",'
-            f'app="{_escape_label_value(app)}"}}'
+            f'container="{_escape_label_value(app)}"}}'
         )
     if app:
-        return f'{{app="{_escape_label_value(app)}"}}'
+        return f'{{container="{_escape_label_value(app)}"}}'
     return ""
 
 
@@ -75,7 +77,7 @@ def build_logql(event: str, q: str) -> str:
     if not sel:
         raise ValueError(
             "Configure log stream labels: set ALERTBRIDGE_LOKI_STREAM_SELECTOR "
-            "or ALERTBRIDGE_K8S_NAMESPACE + ALERTBRIDGE_K8S_APP_LABEL"
+            "or ALERTBRIDGE_K8S_NAMESPACE + ALERTBRIDGE_K8S_APP_LABEL (container name)"
         )
     parts: List[str] = [sel]
     ev = (event or "all").lower().strip()

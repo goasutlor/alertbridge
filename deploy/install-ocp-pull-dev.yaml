@@ -158,6 +158,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            # Must match Pod container name for Loki {container="..."} selector.
             - name: ALERTBRIDGE_K8S_APP_LABEL
               value: "alertbridge-lite-dev"
             - name: TARGET_URL_OCP
