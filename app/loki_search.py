@@ -149,6 +149,8 @@ async def diagnose_loki(hours: int = 24) -> Dict[str, Any]:
         "probe_lines_all_lines": None,
         "probe_logql_forward_failed": None,
         "probe_lines_forward_failed": None,
+        "probe_logql_namespace_only": None,
+        "probe_lines_namespace_only": None,
         "errors": [],
         "diagnose_hints": [],
         "loki_labels_note": None,
@@ -220,6 +222,17 @@ async def diagnose_loki(hours: int = 24) -> Dict[str, Any]:
     else:
         out["probe_lines_forward_failed"] = len(ent_ff)
 
+    ns = _k8s_namespace()
+    if ns and out.get("probe_lines_all_lines") == 0:
+        ns_sel = f'{{namespace="{_escape_label_value(ns)}"}}'
+        out["probe_logql_namespace_only"] = ns_sel
+        ent_ns, err_ns = await query_loki(ns_sel, hours_clamped, 50)
+        if err_ns:
+            out["errors"].append(f"query_range (namespace only): {err_ns}")
+            out["probe_lines_namespace_only"] = None
+        else:
+            out["probe_lines_namespace_only"] = len(ent_ns)
+
     if out.get("probe_lines_all_lines") == 0:
         hints = out.setdefault("diagnose_hints", [])
         hints.append(
@@ -230,6 +243,19 @@ async def diagnose_loki(hours: int = 24) -> Dict[str, Any]:
             'If forward_failed is also 0: either no lines exist, or no line contains the text "forward_failed" '
             "(JSON log message field)."
         )
+        n_only = out.get("probe_lines_namespace_only")
+        if n_only is not None:
+            if n_only > 0:
+                hints.append(
+                    f"Namespace-only probe found {n_only} line(s) in «{ns}» but not for container="
+                    f"«{_k8s_app_label() or '?'}». Set ALERTBRIDGE_K8S_APP_LABEL to the real container name "
+                    "or set ALERTBRIDGE_LOKI_STREAM_SELECTOR to match Promtail labels (Verify stream / Loki labels)."
+                )
+            elif ns:
+                hints.append(
+                    f"No lines for {{namespace=\"{ns}\"}} either — Loki is empty for this namespace or Promtail "
+                    "is not pushing (oc logs -n … ds/promtail; SCC privileged for promtail; client URL → Loki push)."
+                )
     elif out.get("probe_lines_forward_failed") == 0 and (out.get("probe_lines_all_lines") or 0) > 0:
         out.setdefault("diagnose_hints", []).append(
             "Logs exist for the stream but none contain the substring forward_failed in that window; "
