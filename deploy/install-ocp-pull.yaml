@@ -6,7 +6,7 @@
 # Deploy steps:
 # 1. Image is at ghcr.io/goasutlor/alertbridge-lite:latest (auto-built on push to main)
 #
-# 2. Edit Secret (TARGET_URL_*, API keys, BASIC_AUTH_*). Default UI login: admin/P@ssw0rd2026
+# 2. Edit Secret (TARGET_URL_*, API keys, BASIC_AUTH_*). Default BASIC_AUTH placeholders: admin / change-me
 #
 # 3. If 403 Forbidden when pulling: create GHCR pull secret (uncomment imagePullSecrets below):
 #    oc create secret docker-registry ghcr-pull-secret \
@@ -20,7 +20,7 @@
 #    oc rollout restart daemonset/promtail -n alertbridge
 # 7. alertbridge-lite has automountServiceAccountToken: true so ConfigMap save / patterns work (in-cluster API).
 # 8. PVC loki-data may stay Pending until the Loki pod schedules (WaitForFirstConsumer + default StorageClass).
-# 9. oc get route -n alertbridge   # webhook URL
+# 9. oc get route -n alertbridge   # external URL (hostname auto-assigned if spec.host omitted)
 # 10. Test: curl -k https://<route>/healthz
 #
 # Includes in-cluster Loki + Promtail (PVC 50Gi, default StorageClass) for Log archive.
@@ -122,9 +122,9 @@ stringData:
   TARGET_API_KEY_OCP: "change-me"
   TARGET_URL_CONFLUENT: "https://example.confluent.target/webhook"
   TARGET_API_KEY_CONFLUENT: "change-me"
-  # Basic Auth for UI (enabled by default). CHANGE password before production!
+  # Basic Auth for UI (enabled by default). Replace before production.
   BASIC_AUTH_USER: "admin"
-  BASIC_AUTH_PASSWORD: "P@ssw0rd2026"
+  BASIC_AUTH_PASSWORD: "change-me"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -264,7 +264,8 @@ metadata:
   name: alertbridge-lite
   namespace: alertbridge
 spec:
-  host: alertbridge-lite.apps.cwdc.esb-kafka-prod.intra.ais  # EDIT: match your cluster apps domain
+  # Omit host to let the OpenShift router assign a hostname (see `oc get route -n alertbridge`).
+  # To pin a name: set host: alertbridge-lite.apps.<your-cluster-apps-domain>
   to:
     kind: Service
     name: alertbridge-lite
@@ -284,6 +285,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
+  # storageClassName: your-storage-class   # uncomment if default StorageClass is not OK
   resources:
     requests:
       storage: 50Gi
@@ -296,6 +298,9 @@ metadata:
 data:
   loki.yaml: |
     auth_enabled: false
+
+    analytics:
+      reporting_enabled: false
 
     server:
       http_listen_address: 0.0.0.0

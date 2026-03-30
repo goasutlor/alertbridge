@@ -17,7 +17,7 @@
 # 5. oc adm policy add-scc-to-user privileged -z promtail -n alertbridge-dev
 # 6. oc rollout restart daemonset/promtail -n alertbridge-dev   # after promtail ConfigMap edits
 # 7. automountServiceAccountToken: true on alertbridge-lite for ConfigMap patch from UI.
-# 8. oc get route -n alertbridge-dev
+# 8. oc get route -n alertbridge-dev   # hostname from router if spec.host omitted
 # 9. Test: curl -k https://<route>/healthz
 
 ---
@@ -258,7 +258,7 @@ metadata:
   name: alertbridge-lite-dev
   namespace: alertbridge-dev
 spec:
-  host: alertbridge-lite-dev.apps.cwdc.esb-kafka-dev.intra.ais
+  # Omit host to let the OpenShift router assign (see `oc get route -n alertbridge-dev`).
   to:
     kind: Service
     name: alertbridge-lite-dev
@@ -277,6 +277,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
+  # storageClassName: your-storage-class   # uncomment if default StorageClass is not OK
   resources:
     requests:
       storage: 50Gi
@@ -289,6 +290,9 @@ metadata:
 data:
   loki.yaml: |
     auth_enabled: false
+
+    analytics:
+      reporting_enabled: false
 
     server:
       http_listen_address: 0.0.0.0
