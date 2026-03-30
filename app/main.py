@@ -65,9 +65,10 @@ from app.rules import ApiKeyConfig, Defaults, RuleSet, sanitize_payload, select_
 
 configure_logging()
 logger = logging.getLogger("alertbridge")
+APP_VERSION = os.getenv("APP_VERSION", "1.0.08022026")
 app = FastAPI(
     title="AlertBridge",
-    version="1.0.08022026",
+    version=APP_VERSION,
     description="Stateless webhook relay and transformer. Author: Sontas Jiamsripong",
 )
 
@@ -419,7 +420,7 @@ async def version() -> Response:
     """Return app version, author, and git commit (for deploy verification)."""
     git_sha = os.getenv("GIT_SHA", "unknown")
     return JSONResponse({
-        "version": "1.0.08022026",
+        "version": APP_VERSION,
         "author": "Sontas Jiamsripong",
         "git_sha": git_sha,
     })
