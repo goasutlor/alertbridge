@@ -65,6 +65,32 @@ oc apply -f deploy/k8s.yaml
 oc get route alertbridge-lite -n alertbridge
 ```
 
+### GHCR + Loki (single apply)
+
+For the pre-built image from GitHub Container Registry plus in-namespace Loki and Promtail, use:
+
+```bash
+oc apply -f deploy/install-ocp-pull.yaml
+```
+
+**OpenShift (required once per namespace):** Promtail reads host logs under `/var/log/pods`; bind the privileged SCC to its ServiceAccount:
+
+```bash
+oc adm policy add-scc-to-user privileged -z promtail -n alertbridge
+```
+
+**After editing only `promtail-config`:** restart the DaemonSet so Pods reload the ConfigMap:
+
+```bash
+oc rollout restart daemonset/promtail -n alertbridge
+```
+
+**ConfigMap save / Saved patterns from the UI:** the Deployment sets `automountServiceAccountToken: true` on `alertbridge-lite` so the Kubernetes API client can use the projected service-account token.
+
+**PVC `loki-data` Pending with `WaitForFirstConsumer`:** normal until the Loki Pod is scheduled; ensure your default StorageClass can provision `50Gi`.
+
+**Log search in the Portal:** needs labels in Loki such as `namespace` and `app`; they appear after Promtail ships container logs. If you maintain a local copy of the manifest (e.g. `alertbridgev2.yaml`), re-sync the `promtail-config` section from `deploy/install-ocp-pull.yaml` when updating—stale `__path__` relabel rules prevent logs from reaching Loki.
+
 ## Config OCP Alertmanager
 
 In Alertmanager config (Secret or ConfigMap):

@@ -15,6 +15,8 @@
 # Dev namespace (install-ocp-pull-dev): replace "alertbridge" with "alertbridge-dev" on metadata.namespace,
 #   and set promtail scrape namespace to match (ConfigMap promtail-config → kubernetes_sd_configs.namespaces).
 #
+# Keep promtail relabel __path__ in sync with install-ocp-pull.yaml (use /var/log/pods/$1/$2/*.log).
+#
 # StorageClass แบบ WaitForFirstConsumer: PVC จะ Pending จนกว่า Pod loki จะ schedule — พฤติกรรมปกติ
 ---
 apiVersion: v1

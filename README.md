@@ -88,11 +88,15 @@ Add `verify_tls: false` to target in Config (YAML) for internal self-signed cert
 
 ```bash
 oc apply -f deploy/install-ocp-pull.yaml
+# OpenShift: grant SCC so Promtail can read host logs (required once per namespace):
+# oc adm policy add-scc-to-user privileged -z promtail -n alertbridge
 ```
 
-This file now includes Loki + Promtail (PVC `50Gi`, default StorageClass) for Log archive/search in Portal.
+Single manifest: AlertBridge + Loki + Promtail + PVC (`50Gi`, default StorageClass).  
+Release version in the UI comes from each GHCR build (`APP_VERSION` = UTC build time).  
+Full checklist: comments at the top of `deploy/install-ocp-pull.yaml` and the section **GHCR + Loki (single apply)** in [deploy/OCP_DEPLOY.md](deploy/OCP_DEPLOY.md).
 
-Image: `ghcr.io/goasutlor/alertbridge-lite:latest` (or `:v1.0.08022026`)
+Image: `ghcr.io/goasutlor/alertbridge-lite:latest`
 
 **Option B – Build from Git**
 

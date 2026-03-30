@@ -14,12 +14,17 @@
 #      -n alertbridge
 #
 # 4. oc apply -f deploy/install-ocp-pull.yaml
-# 5. oc get route -n alertbridge   # get webhook URL
-# 6. Test: curl -k https://<route>/healthz
+# 5. Required on OpenShift (cluster admin): Promtail needs hostPath + privileged for /var/log/pods
+#    oc adm policy add-scc-to-user privileged -z promtail -n alertbridge
+# 6. If you change promtail-config only, reload DaemonSet:
+#    oc rollout restart daemonset/promtail -n alertbridge
+# 7. alertbridge-lite has automountServiceAccountToken: true so ConfigMap save / patterns work (in-cluster API).
+# 8. PVC loki-data may stay Pending until the Loki pod schedules (WaitForFirstConsumer + default StorageClass).
+# 9. oc get route -n alertbridge   # webhook URL
+# 10. Test: curl -k https://<route>/healthz
 #
 # Includes in-cluster Loki + Promtail (PVC 50Gi, default StorageClass) for Log archive.
-# If Promtail cannot start due to SCC on OpenShift:
-#   oc adm policy add-scc-to-user privileged -z promtail -n alertbridge
+# Use this file as the single source of truth (e.g. copy to alertbridgev2.yaml); avoid stale Promtail paths.
 
 ---
 apiVersion: v1
