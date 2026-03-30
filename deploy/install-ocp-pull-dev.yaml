@@ -481,8 +481,6 @@ data:
         pipeline_stages:
           - cri: {}
         relabel_configs:
-          - action: labelmap
-            regex: __meta_kubernetes_pod_label_(.+)
           - action: replace
             source_labels: [__meta_kubernetes_namespace]
             target_label: namespace
@@ -492,6 +490,9 @@ data:
           - action: replace
             source_labels: [__meta_kubernetes_pod_container_name]
             target_label: container
+          - action: replace
+            source_labels: [__meta_kubernetes_pod_label_app]
+            target_label: app
           - action: replace
             source_labels:
               - __meta_kubernetes_pod_uid

@@ -93,6 +93,8 @@ oc rollout restart daemonset/promtail -n alertbridge
 
 If you maintain a local copy of the manifest (e.g. `alertbridgev2.yaml`), re-sync the `promtail-config` section from `deploy/install-ocp-pull.yaml` when updating—stale `__path__` relabel rules prevent logs from reaching Loki.
 
+The bundled Promtail config **does not** copy every Pod label into Loki (`labelmap` was removed). Only `namespace`, `pod`, `container`, and `app` (from the Pod’s `app` label) are set, so the Portal’s default `{namespace,container}` selector matches scraped workloads. After changing this section, restart Promtail as above.
+
 ## Config OCP Alertmanager
 
 In Alertmanager config (Secret or ConfigMap):
