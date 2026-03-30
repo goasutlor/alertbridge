@@ -136,6 +136,7 @@ spec:
       labels:
         app: alertbridge-lite-dev
     spec:
+      automountServiceAccountToken: true
       serviceAccountName: alertbridge-lite-dev
       # Uncomment if package is private or cluster gets 403 when pulling from ghcr.io:
       # imagePullSecrets:

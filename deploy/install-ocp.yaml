@@ -161,6 +161,7 @@ spec:
       labels:
         app: alertbridge-lite
     spec:
+      automountServiceAccountToken: true
       serviceAccountName: alertbridge-lite
       containers:
         - name: alertbridge-lite
