@@ -2,7 +2,7 @@
 # Usage: .\scripts\test_webhook.ps1 [API_KEY]
 
 param(
-    [string]$ApiKey = "4727d4eea8f3396efc71487edc5e751820128d8e130da98b4b8e29a1f8f08bf3",
+    [string]$ApiKey = "REPLACE_WITH_TEST_API_KEY",
     [string]$BaseUrl = "http://127.0.0.1:8081"
 )
 

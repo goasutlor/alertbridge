@@ -2,7 +2,7 @@
 # Test webhook with API Key authentication
 # Usage: ./scripts/test_webhook.sh [API_KEY]
 
-API_KEY="${1:-4727d4eea8f3396efc71487edc5e751820128d8e130da98b4b8e29a1f8f08bf3}"
+API_KEY="${1:-REPLACE_WITH_TEST_API_KEY}"
 BASE_URL="${BASE_URL:-http://127.0.0.1:8081}"
 
 echo "Testing webhook with API Key..."
