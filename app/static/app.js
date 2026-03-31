@@ -155,6 +155,7 @@ async function loadConfig() {
     renderRoutes(jsonData.routes || []);
     renderTargetUrls(jsonData.routes || []);
     renderMapperApplyRoutes(jsonData.routes || []);
+    loadActiveRouteMappingIntoForm();
     await loadEffectiveTargets();
     configStatus.textContent = "Loaded";
   } catch (error) {
@@ -997,6 +998,68 @@ function setMappingsToForm(mappings) {
   });
 }
 
+function guessSourceTypeByRouteSource(source) {
+  const s = String(source || "").toLowerCase();
+  if (s === "ocp" || s.includes("alertmanager")) return "ocp-alertmanager-4.20";
+  if (s.includes("confluent")) return "confluent-8.10";
+  return "";
+}
+
+function mappingsFromRouteTransform(route) {
+  const t = (route && route.transform) || {};
+  const rename = t.rename || {};
+  const enrich = t.enrich_static || {};
+  const template = (t.output_template && t.output_template.fields) || {};
+  const reverseRename = {};
+  Object.keys(rename).forEach((src) => {
+    reverseRename[rename[src]] = src;
+  });
+
+  const targets = Object.keys(template);
+  const mappings = targets.map((targetId) => {
+    const selector = template[targetId];
+    const staticVal = Object.prototype.hasOwnProperty.call(enrich, targetId) ? enrich[targetId] : null;
+    let sourceId = reverseRename[targetId] || null;
+    if (!sourceId && typeof selector === "string" && selector.startsWith("$.")) {
+      const p = selector.slice(2);
+      if (p && p !== targetId) sourceId = p;
+    }
+    return {
+      target_field_id: targetId,
+      source_field_id: sourceId,
+      static_value: staticVal,
+    };
+  });
+  return mappings;
+}
+
+function loadActiveRouteMappingIntoForm() {
+  if (!configJson || !Array.isArray(configJson.routes)) return;
+  if (!mapperApplyRoute) return;
+  const routeName = mapperApplyRoute.value;
+  if (!routeName) return;
+  const route = configJson.routes.find((r) => r.name === routeName);
+  if (!route) return;
+  const mappings = mappingsFromRouteTransform(route);
+  if (!mappings.length) return;
+
+  const targets = [...new Set(mappings.map((m) => m.target_field_id).filter(Boolean))].map((id) => ({ id, label: id }));
+  if (targets.length) targetFieldsFromUpload = targets;
+
+  const guessedSourceType = guessSourceTypeByRouteSource(route.match?.source);
+  if (mapperSourceType && guessedSourceType) {
+    mapperSourceType.value = guessedSourceType;
+  }
+  if (mapperPatternName && !mapperPatternName.value) {
+    mapperPatternName.value = `active-${routeName}`;
+  }
+
+  renderMapperMappingTable();
+  fillMapperSourceDropdowns();
+  setMappingsToForm(mappings);
+  if (mapperStatus) mapperStatus.textContent = `Loaded active mapping from route: ${routeName}`;
+}
+
 async function loadSavedPatterns() {
   if (!savedPatternsList) return;
   try {
@@ -1168,8 +1231,10 @@ async function applyPatternById(patternId, patternName) {
 function renderMapperApplyRoutes(routes) {
   if (!mapperApplyRoute) return;
   const cur = mapperApplyRoute.value;
+  const list = routes || [];
+  const next = cur || (list.length ? list[0].name : "");
   mapperApplyRoute.innerHTML = "<option value=\"\">— Select route —</option>" +
-    (routes || []).map((r) => `<option value="${escapeHtml(r.name)}" ${r.name === cur ? "selected" : ""}>${escapeHtml(r.name)}</option>`).join("");
+    list.map((r) => `<option value="${escapeHtml(r.name)}" ${r.name === next ? "selected" : ""}>${escapeHtml(r.name)}</option>`).join("");
 }
 
 if (mapperSavePatternBtn) {
@@ -1450,6 +1515,12 @@ if (mapperApplyBtn) {
     } catch (e) {
       if (mapperStatus) mapperStatus.textContent = `Error: ${e.message}`;
     }
+  });
+}
+
+if (mapperApplyRoute) {
+  mapperApplyRoute.addEventListener("change", () => {
+    loadActiveRouteMappingIntoForm();
   });
 }
 
