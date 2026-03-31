@@ -91,7 +91,7 @@ oc rollout restart daemonset/promtail -n alertbridge
 
 **Log search in the Portal:** uses stream `{namespace="…",container="…"}` (container name must match `ALERTBRIDGE_K8S_APP_LABEL`). After deploy, use **Verify stream** in the Log archive card or call `GET /api/logs/diagnose?hours=24` (Basic Auth) to see Loki label names, sample values, and line counts for “all lines” vs `forward_failed`.
 
-If you maintain a local copy of the manifest (e.g. `alertbridgev2.yaml`), re-sync the `promtail-config` section from `deploy/install-ocp-pull.yaml` when updating—stale `__path__` relabel rules prevent logs from reaching Loki.
+If you maintain a local copy of the manifest (e.g. `alertbridgev2.yaml`), re-sync the `promtail-config` section from `deploy/install-ocp-pull.yaml` when updating. The log directory on the node is `/var/log/pods/<namespace>_<pod_name>_<uid>/<container>/*.log` (Kubernetes 1.14+ / CRI-O); an older `__path__` of `/var/log/pods/<uid>/<container>/` will tail nothing on OpenShift.
 
 The bundled Promtail config **does not** copy every Pod label into Loki (`labelmap` was removed). Only `namespace`, `pod`, `container`, and `app` (from the Pod’s `app` label) are set, so the Portal’s default `{namespace,container}` selector matches scraped workloads. After changing this section, restart Promtail as above.
 

@@ -24,7 +24,8 @@
 # 10. Test: curl -k https://<route>/healthz
 #
 # Includes in-cluster Loki + Promtail (PVC 50Gi, default StorageClass) for Log archive.
-# Use this file as the single source of truth (e.g. copy to alertbridgev2.yaml); avoid stale Promtail paths.
+# Use this file as the single source of truth (e.g. copy to alertbridgev2.yaml); Promtail __path__ must match
+# kubelet layout: /var/log/pods/<namespace>_<pod_name>_<uid>/<container>/*.log on OCP/CRI-O.
 
 ---
 apiVersion: v1
@@ -508,15 +509,17 @@ data:
           - action: replace
             source_labels: [__meta_kubernetes_pod_label_app]
             target_label: app
-          # Path must be /var/log/pods/<pod_uid>/<container>/*.log (not a single glob segment).
+          # K8s 1.14+ / CRI-O (incl. OpenShift): /var/log/pods/<ns>_<pod_name>_<uid>/<container>/*.log
           - action: replace
             source_labels:
+              - __meta_kubernetes_namespace
+              - __meta_kubernetes_pod_name
               - __meta_kubernetes_pod_uid
               - __meta_kubernetes_pod_container_name
-            separator: /
-            regex: "^([^/]+)/([^/]+)$"
+            separator: ;
+            regex: "^([^;]+);([^;]+);([^;]+);([^;]+)$"
             target_label: __path__
-            replacement: /var/log/pods/$1/$2/*.log
+            replacement: /var/log/pods/$1_$2_$3/$4/*.log
 ---
 apiVersion: apps/v1
 kind: DaemonSet

@@ -15,7 +15,7 @@
 # Dev namespace (install-ocp-pull-dev): replace "alertbridge" with "alertbridge-dev" on metadata.namespace,
 #   and set promtail scrape namespace to match (ConfigMap promtail-config → kubernetes_sd_configs.namespaces).
 #
-# Keep promtail relabel __path__ in sync with install-ocp-pull.yaml (use /var/log/pods/$1/$2/*.log).
+# Keep promtail relabel __path__ in sync with install-ocp-pull.yaml (ns_podname_uid/container glob).
 #
 # StorageClass แบบ WaitForFirstConsumer: PVC จะ Pending จนกว่า Pod loki จะ schedule — พฤติกรรมปกติ
 ---
@@ -248,12 +248,14 @@ data:
             target_label: app
           - action: replace
             source_labels:
+              - __meta_kubernetes_namespace
+              - __meta_kubernetes_pod_name
               - __meta_kubernetes_pod_uid
               - __meta_kubernetes_pod_container_name
-            separator: /
-            regex: "^([^/]+)/([^/]+)$"
+            separator: ;
+            regex: "^([^;]+);([^;]+);([^;]+);([^;]+)$"
             target_label: __path__
-            replacement: /var/log/pods/$1/$2/*.log
+            replacement: /var/log/pods/$1_$2_$3/$4/*.log
 ---
 apiVersion: apps/v1
 kind: DaemonSet
