@@ -198,6 +198,10 @@ spec:
                 secretKeyRef:
                   name: alertbridge-secrets
                   key: BASIC_AUTH_PASSWORD
+            # Optional: dead-letter file (JSONL, one row per failed forward — full sanitized transformed payload).
+            # Uncomment and add a volumeMount + volume for /var/dlq (PVC recommended so restarts keep history).
+            # - name: ALERTBRIDGE_DLQ_FILE
+            #   value: "/var/dlq/failed.jsonl"
           volumeMounts:
             - name: rules
               mountPath: /etc/alertbridge/rules.yaml

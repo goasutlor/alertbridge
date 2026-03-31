@@ -28,6 +28,7 @@ from app.config import (
     set_rules,
     watch_and_reload,
 )
+from app.dlq import record_failed_forward
 from app.forwarder import check_target_status, close_client, forward_payload, get_client
 from app.logging_conf import configure_logging
 from app.hmac_verify import verify_hmac as verify_hmac_signature
@@ -330,6 +331,7 @@ async def webhook(source: str, request: Request) -> Response:
     all_success = True
     last_status_code: Optional[int] = None
     last_error: Optional[Exception] = None
+    last_failed_output: Any = None
     for i, output in enumerate(outputs_to_forward):
         rid = f"{request_id}-{i}" if len(outputs_to_forward) > 1 else request_id
         ok, status_code, err = await forward_payload(output, route, rid, rules.defaults)
@@ -345,6 +347,19 @@ async def webhook(source: str, request: Request) -> Response:
             all_success = False
             last_status_code = status_code
             last_error = err
+            last_failed_output = output
+            record_failed_forward(
+                {
+                    "ts": datetime.now(BANGKOK).isoformat()[:23],
+                    "request_id": rid,
+                    "source": source,
+                    "route": route.name,
+                    "http_status": status_code,
+                    "error": str(err) if err else None,
+                    "error_type": type(err).__name__ if err else None,
+                    "transformed": sanitize_payload(output),
+                }
+            )
     success = all_success
     duration = time.monotonic() - start
 
@@ -360,7 +375,9 @@ async def webhook(source: str, request: Request) -> Response:
     ).inc()
 
     if not success:
-        failed_output = outputs_to_forward[-1] if outputs_to_forward else {}
+        failed_output = last_failed_output if last_failed_output is not None else (
+            outputs_to_forward[-1] if outputs_to_forward else {}
+        )
         logger.error(
             "forward_failed",
             extra={

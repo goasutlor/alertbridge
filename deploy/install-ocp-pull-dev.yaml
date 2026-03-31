@@ -191,6 +191,7 @@ spec:
                 secretKeyRef:
                   name: alertbridge-secrets-dev
                   key: BASIC_AUTH_PASSWORD
+            # Optional DLQ: see prod install-ocp-pull.yaml (ALERTBRIDGE_DLQ_FILE + PVC mount).
           volumeMounts:
             - name: rules
               mountPath: /etc/alertbridge/rules.yaml
