@@ -28,6 +28,7 @@ from app.config import (
     set_rules,
     watch_and_reload,
 )
+from app.daily_metrics import daily_metrics_file_path, increment_daily, read_daily
 from app.dlq import dlq_file_path, read_recent_dlq, record_failed_forward
 from app.forwarder import check_target_status, close_client, forward_payload, get_client
 from app.logging_conf import configure_logging
@@ -282,6 +283,7 @@ async def preview_transform(
 async def webhook(source: str, request: Request) -> Response:
     request_id = request.state.request_id
     request.state.source = source
+    increment_daily("incoming")
 
     rules = get_rules()
     
@@ -328,6 +330,7 @@ async def webhook(source: str, request: Request) -> Response:
         rid = f"{request_id}-{i}" if len(outputs_to_forward) > 1 else request_id
         ok, status_code, err = await forward_payload(output, route, rid, rules.defaults)
         if ok:
+            increment_daily("forward_success")
             RECENT_SENT.append({
                 "ts": datetime.now(BANGKOK).isoformat()[:23],
                 "request_id": rid,
@@ -336,6 +339,8 @@ async def webhook(source: str, request: Request) -> Response:
                 "transformed": sanitize_payload(output),
             })
         else:
+            increment_daily("forward_fail")
+            increment_daily("dlq")
             all_success = False
             last_status_code = status_code
             last_error = err
@@ -498,6 +503,22 @@ async def api_dlq_recent(
     lim = max(1, min(int(limit), 200))
     entries = read_recent_dlq(limit=lim)
     return JSONResponse({"configured": True, "entries": entries, "count": len(entries)})
+
+
+@app.get("/api/metrics/daily")
+async def api_metrics_daily(
+    _: Optional[str] = Depends(require_basic_auth),
+    days: int = 30,
+) -> Response:
+    """Persisted daily counters on PVC (counts only, no event detail)."""
+    p = daily_metrics_file_path()
+    if not p:
+        return JSONResponse(
+            {"configured": False, "entries": [], "detail": "DLQ path not configured"},
+            status_code=503,
+        )
+    lim = max(1, min(int(days), 365))
+    return JSONResponse({"configured": True, "entries": read_daily(lim)})
 
 
 def _internal_webhook_base() -> str:
