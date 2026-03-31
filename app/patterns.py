@@ -4,6 +4,7 @@ Initial patterns: Red Hat OpenShift Alertmanager 4.20.10, Confluent Platform 8.1
 User can map source fields (left) to target fields (right), save as pattern, apply to route.
 """
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from app.rules import (
@@ -92,6 +93,12 @@ TARGET_FIELDS: List[Dict[str, str]] = [
 # mappings: [ { target_field_id, source_field_id | null, static_value | null }, ... ]
 _saved_patterns: Dict[str, Dict[str, Any]] = {}
 
+BANGKOK = timezone(timedelta(hours=7))
+
+
+def _now_bangkok_iso() -> str:
+    return datetime.now(BANGKOK).isoformat(timespec="seconds")
+
 
 def list_schemas() -> Dict[str, Any]:
     """Return built-in source schemas and target fields for UI."""
@@ -122,11 +129,15 @@ def save_pattern(
     Returns the saved pattern { id, name, source_type, mappings }.
     """
     pid = pattern_id or str(uuid.uuid4())
+    old = _saved_patterns.get(pid) or {}
+    created_at = old.get("created_at") or _now_bangkok_iso()
     _saved_patterns[pid] = {
         "id": pid,
         "name": name,
         "source_type": source_type,
         "mappings": mappings,
+        "created_at": created_at,
+        "updated_at": _now_bangkok_iso(),
     }
     return _saved_patterns[pid]
 
@@ -150,6 +161,8 @@ def init_patterns(patterns: List[Dict[str, Any]]) -> None:
                 "name": p.get("name") or "Unnamed",
                 "source_type": p.get("source_type") or "",
                 "mappings": p["mappings"],
+                "created_at": p.get("created_at"),
+                "updated_at": p.get("updated_at"),
             }
 
 

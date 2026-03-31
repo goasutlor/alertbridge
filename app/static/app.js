@@ -72,6 +72,12 @@ function tr(key) {
   return fn(key);
 }
 
+function fmtPatternTime(ts) {
+  if (!ts) return "";
+  const s = String(ts);
+  return s.replace("T", " ").replace("+07:00", " GMT+7");
+}
+
 const RATE_HISTORY_MAX = 90;
 let patternSchemas = { source_schemas: {}, target_fields: [] };
 let targetFieldsFromUpload = [];
@@ -79,6 +85,8 @@ let customSourceFields = [];
 let rateHistory = [];
 let lastTotalRequests = null;
 let configJson = null;
+/** In-cluster webhook base from GET /api/in-cluster-webhook-base (HTTP Service URL). */
+let internalWebhookBase = null;
 
 /** Parse JSON into list of paths for mapping. Returns [ { id, label }, ... ]. Handles nested objects; for arrays uses first element. */
 function parseJsonToPaths(obj, prefix = "") {
@@ -114,13 +122,25 @@ async function loadHeaderVersion() {
 async function loadConfig() {
   configStatus.textContent = "Loading...";
   try {
-    const [yamlRes, jsonRes] = await Promise.all([
+    const [yamlRes, jsonRes, hintsRes] = await Promise.all([
       fetch("/api/config", { headers: { Accept: "text/yaml" }, credentials: "include" }),
       fetch("/api/config", { credentials: "include" }),
+      fetch("/api/in-cluster-webhook-base", { credentials: "include" }),
     ]);
 
     if (!yamlRes.ok || !jsonRes.ok) {
       throw new Error("Failed to load config");
+    }
+
+    try {
+      if (hintsRes.ok) {
+        const hints = await hintsRes.json();
+        internalWebhookBase = hints.internal_webhook_base || null;
+      } else {
+        internalWebhookBase = null;
+      }
+    } catch {
+      internalWebhookBase = null;
     }
 
     const yamlText = await yamlRes.text();
@@ -381,6 +401,7 @@ function renderRoutes(routes) {
       let html = `<div class="client-info-section">`;
       html += `<h4>Webhook URL</h4>`;
       html += `<p>${tr("clientSendTo")}</p>`;
+      html += `<p class="client-url-scope text-muted">${tr("clientWebExternal")}</p>`;
       routes.forEach((route) => {
         const source = route.match?.source || "";
         const endpoint = `/webhook/${source}`;
@@ -390,7 +411,19 @@ function renderRoutes(routes) {
         html += `<button type="button" class="btn btn-secondary btn-copy-url" data-url="${escapeHtml(fullUrl)}">Copy</button>`;
         html += `</div>`;
       });
-      
+      if (internalWebhookBase) {
+        const ib = String(internalWebhookBase).replace(/\/$/, "");
+        html += `<p class="client-url-scope text-muted" style="margin-top:14px;">${tr("clientWebCluster")}</p>`;
+        routes.forEach((route) => {
+          const source = route.match?.source || "";
+          const endpoint = `/webhook/${source}`;
+          const fullIn = `${ib}${endpoint}`;
+          html += `<div class="client-url-box">`;
+          html += `<code class="client-url">${escapeHtml(fullIn)}</code>`;
+          html += `<button type="button" class="btn btn-secondary btn-copy-url" data-url="${escapeHtml(fullIn)}">Copy</button>`;
+          html += `</div>`;
+        });
+      }
       html += `</div>`;
       
       html += `<div class="client-info-section">`;
@@ -947,7 +980,7 @@ async function loadSavedPatterns() {
       : list.map((p) => `
         <li>
           <span class="pattern-name">${escapeHtml(p.name)}</span>
-          <span class="pattern-meta">${escapeHtml(p.source_type)}</span>
+          <span class="pattern-meta">${escapeHtml(p.source_type)}${p.updated_at ? ` · ${escapeHtml(fmtPatternTime(p.updated_at))}` : ""}</span>
           <span class="pattern-actions">
             <button type="button" class="btn btn-secondary btn-display-pattern" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}" title="Show mapping">Display</button>
             <button type="button" class="btn btn-secondary btn-download-pattern" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}" title="Download as JSON">Download</button>
@@ -1025,7 +1058,9 @@ async function showPatternModal(patternId, patternName) {
     const meta = document.getElementById("patternModalMeta");
     const body = document.getElementById("patternModalBody");
     title.textContent = escapeHtml(p.name || "Pattern Mapping");
-    meta.textContent = `Source: ${escapeHtml(p.source_type || "—")}`;
+    const tCreated = fmtPatternTime(p.created_at);
+    const tUpdated = fmtPatternTime(p.updated_at);
+    meta.textContent = `Source: ${escapeHtml(p.source_type || "—")}${tCreated ? ` | Created: ${tCreated}` : ""}${tUpdated ? ` | Updated: ${tUpdated}` : ""}`;
     const mappings = p.mappings || [];
     body.innerHTML = mappings.length === 0
       ? "<tr><td colspan=\"3\" class=\"text-muted\">No mappings.</td></tr>"

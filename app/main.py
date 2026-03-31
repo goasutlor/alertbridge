@@ -500,6 +500,29 @@ async def api_dlq_recent(
     return JSONResponse({"configured": True, "entries": entries, "count": len(entries)})
 
 
+def _internal_webhook_base() -> str:
+    """
+    Base URL for in-cluster callers, e.g. http://alertbridge-lite.alertbridge.svc.cluster.local
+    Override with ALERTBRIDGE_INTERNAL_WEBHOOK_BASE. If unset, build from
+    ALERTBRIDGE_K8S_SERVICE_NAME (default alertbridge-lite) + ALERTBRIDGE_K8S_NAMESPACE when set.
+    """
+    explicit = os.getenv("ALERTBRIDGE_INTERNAL_WEBHOOK_BASE", "").strip().rstrip("/")
+    if explicit:
+        return explicit
+    ns = os.getenv("ALERTBRIDGE_K8S_NAMESPACE", "").strip()
+    if not ns:
+        return ""
+    svc = os.getenv("ALERTBRIDGE_K8S_SERVICE_NAME", "alertbridge-lite").strip() or "alertbridge-lite"
+    return f"http://{svc}.{ns}.svc.cluster.local"
+
+
+@app.get("/api/in-cluster-webhook-base")
+async def api_in_cluster_webhook_base() -> Response:
+    """In-cluster webhook base (HTTP Service DNS) for UI copy-paste. No auth."""
+    base = _internal_webhook_base()
+    return JSONResponse({"internal_webhook_base": base or None})
+
+
 @app.get("/api/config/targets")
 async def api_config_targets() -> Response:
     """Return effective target URL per route (what forward uses). No auth."""

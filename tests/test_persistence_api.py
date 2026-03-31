@@ -94,3 +94,18 @@ def test_apply_pattern_returns_409_and_keeps_rules_unchanged(client, monkeypatch
     assert route.transform.include_fields is None
     assert route.transform.drop_fields is None
     assert route.transform.output_template is None
+
+
+def test_save_pattern_includes_timestamps(client):
+    response = client.post(
+        "/api/patterns",
+        json={
+            "name": "p-ts",
+            "source_type": "ocp-alertmanager-4.20",
+            "mappings": [{"target_field_id": "title", "source_field_id": "groupLabels.alertname"}],
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body.get("created_at")
+    assert body.get("updated_at")
