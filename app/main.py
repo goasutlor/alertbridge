@@ -28,7 +28,7 @@ from app.config import (
     set_rules,
     watch_and_reload,
 )
-from app.dlq import record_failed_forward
+from app.dlq import dlq_file_path, read_recent_dlq, record_failed_forward
 from app.forwarder import check_target_status, close_client, forward_payload, get_client
 from app.logging_conf import configure_logging
 from app.hmac_verify import verify_hmac as verify_hmac_signature
@@ -53,14 +53,6 @@ from app.patterns import (
     list_schemas,
     save_pattern as save_pattern_data,
     delete_pattern as delete_pattern_data,
-)
-from app.loki_search import (
-    build_logql,
-    diagnose_loki,
-    logs_enabled,
-    loki_ready,
-    query_loki,
-    stream_selector_preview,
 )
 from app.rules import ApiKeyConfig, Defaults, RuleSet, sanitize_payload, select_route, transform_payload
 
@@ -160,9 +152,7 @@ async def security_headers_middleware(request: Request, call_next) -> Response:
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; script-src 'self'; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-        "font-src 'self' https://fonts.gstatic.com; "
-        "connect-src 'self'"
+        "style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'"
     )
     return response
 
@@ -252,6 +242,7 @@ async def put_config(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     set_rules(rules)
+    invalidate_target_status_cache()
     CONFIG_RELOAD_TOTAL.labels(result="success").inc()
     return JSONResponse({"saved": True})
 
@@ -260,6 +251,7 @@ async def put_config(
 async def admin_reload(_: Optional[str] = Depends(require_basic_auth)) -> Response:
     try:
         reload_rules()
+        invalidate_target_status_cache()
         CONFIG_RELOAD_TOTAL.labels(result="success").inc()
     except Exception as exc:
         CONFIG_RELOAD_TOTAL.labels(result="fail").inc()
@@ -492,93 +484,20 @@ async def api_recent_payloads() -> Response:
     return JSONResponse(snapshot)
 
 
-@app.get("/api/logs/config")
-async def api_logs_config(_: Optional[str] = Depends(require_basic_auth)) -> Response:
-    """Whether Loki-backed log search is available (requires Basic Auth)."""
-    return JSONResponse(
-        {
-            "enabled": logs_enabled(),
-            "stream_selector": stream_selector_preview(),
-        }
-    )
-
-
-@app.get("/api/logs/diagnose")
-async def api_logs_diagnose(
+@app.get("/api/dlq/recent")
+async def api_dlq_recent(
     _: Optional[str] = Depends(require_basic_auth),
-    hours: int = 24,
+    limit: int = 50,
 ) -> Response:
-    """
-    Deep check: Loki label API + query_range counts for this app's stream vs forward_failed filter.
-    Use when log search returns 0 lines but Loki looks healthy.
-    """
-    if not logs_enabled():
+    """Latest rows from the on-disk DLQ (JSONL). Requires Basic Auth."""
+    if not dlq_file_path():
         return JSONResponse(
-            {"detail": "Log search not configured. Set ALERTBRIDGE_LOKI_URL on the Deployment."},
+            {"configured": False, "entries": [], "detail": "ALERTBRIDGE_DLQ_FILE not set"},
             status_code=503,
         )
-    hours_clamped = max(1, min(int(hours), 168))
-    payload = await diagnose_loki(hours_clamped)
-    return JSONResponse(payload)
-
-
-@app.get("/api/logs/search")
-async def api_logs_search(
-    _: Optional[str] = Depends(require_basic_auth),
-    hours: int = 24,
-    limit: int = 100,
-    event: str = "all",
-    q: str = "",
-) -> Response:
-    """
-    Search pod logs via Loki (query_range). UI-only; does not replace ConfigMap persistence.
-    """
-    hours_clamped = max(1, min(int(hours), 168))
-    limit_clamped = max(1, min(int(limit), 500))
-    if not logs_enabled():
-        return JSONResponse(
-            {"detail": "Log search not configured. Set ALERTBRIDGE_LOKI_URL on the Deployment."},
-            status_code=503,
-        )
-    try:
-        logql = build_logql(event, q)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    entries, err = await query_loki(logql, hours_clamped, limit_clamped)
-    if err:
-        return JSONResponse(
-            {"detail": err, "logql": logql, "entries": [], "hours": hours_clamped, "limit": limit_clamped},
-            status_code=502,
-        )
-
-    # Add readable UTC timestamp for UI
-    out_rows = []
-    for row in entries:
-        ts_ns = row.get("ts")
-        ts_iso = ""
-        try:
-            sec = int(str(ts_ns)) / 1_000_000_000.0
-            ts_iso = datetime.fromtimestamp(sec, tz=timezone.utc).isoformat()
-        except (TypeError, ValueError, OSError):
-            ts_iso = str(ts_ns)
-        out_rows.append(
-            {
-                "ts_ns": ts_ns,
-                "ts_iso": ts_iso,
-                "line": row.get("line"),
-                "labels": row.get("labels") or {},
-            }
-        )
-
-    return JSONResponse(
-        {
-            "entries": out_rows,
-            "logql": logql,
-            "hours": hours_clamped,
-            "limit": limit_clamped,
-        }
-    )
+    lim = max(1, min(int(limit), 200))
+    entries = read_recent_dlq(limit=lim)
+    return JSONResponse({"configured": True, "entries": entries, "count": len(entries)})
 
 
 @app.get("/api/config/targets")
@@ -613,11 +532,43 @@ async def _compute_target_status() -> Dict[str, Any]:
     return {"routes": out, "has_any_target": has_any_target, "all_ok": all_ok}
 
 
+_TARGET_STATUS_LOCK = asyncio.Lock()
+_TARGET_STATUS_CACHE: Optional[Dict[str, Any]] = None
+_TARGET_STATUS_CACHE_MONO: float = 0.0
+TARGET_STATUS_CACHE_TTL_SEC = float(os.getenv("ALERTBRIDGE_TARGET_STATUS_CACHE_SEC", "12"))
+
+
+def invalidate_target_status_cache() -> None:
+    """Drop cached target probes (e.g. after admin reload)."""
+    global _TARGET_STATUS_CACHE, _TARGET_STATUS_CACHE_MONO
+    _TARGET_STATUS_CACHE = None
+    _TARGET_STATUS_CACHE_MONO = 0.0
+
+
+async def _get_target_status_snapshot() -> Dict[str, Any]:
+    """
+    Cached outbound target probes for portal badges. Without this, every /api/portal-status poll
+    runs GET+POST to each forward target (slow if targets are far away or down).
+    """
+    global _TARGET_STATUS_CACHE, _TARGET_STATUS_CACHE_MONO
+    now = time.monotonic()
+    if _TARGET_STATUS_CACHE is not None and (now - _TARGET_STATUS_CACHE_MONO) < TARGET_STATUS_CACHE_TTL_SEC:
+        return _TARGET_STATUS_CACHE
+    async with _TARGET_STATUS_LOCK:
+        now = time.monotonic()
+        if _TARGET_STATUS_CACHE is not None and (now - _TARGET_STATUS_CACHE_MONO) < TARGET_STATUS_CACHE_TTL_SEC:
+            return _TARGET_STATUS_CACHE
+        snap = await _compute_target_status()
+        _TARGET_STATUS_CACHE = snap
+        _TARGET_STATUS_CACHE_MONO = time.monotonic()
+        return snap
+
+
 @app.get("/api/target-status")
 async def api_target_status() -> Response:
     """Two-phase check: Phase1 server reachable, Phase2 API handshake OK. No auth."""
     try:
-        return JSONResponse(await _compute_target_status())
+        return JSONResponse(await _get_target_status_snapshot())
     except Exception as exc:
         logger.exception("target_status_failed")
         return JSONResponse(
@@ -626,9 +577,28 @@ async def api_target_status() -> Response:
         )
 
 
+def _portal_dlq_badge() -> Dict[str, Any]:
+    p = dlq_file_path()
+    if not p:
+        return {"state": "disabled", "detail": "not configured"}
+    try:
+        if os.path.isfile(p):
+            sz = os.path.getsize(p)
+            if sz >= 1024 * 1024:
+                detail = f"{sz // (1024 * 1024)} MiB"
+            elif sz >= 1024:
+                detail = f"{sz // 1024} KiB"
+            else:
+                detail = "empty" if sz == 0 else f"{sz} B"
+            return {"state": "ok", "detail": detail}
+        return {"state": "partial", "detail": "awaits first failure"}
+    except OSError as exc:
+        return {"state": "down", "detail": str(exc)[:120]}
+
+
 @app.get("/api/portal-status")
 async def api_portal_status() -> Response:
-    """Aggregated header badges: incoming (receive), forward (targets), log archive (Loki). No auth."""
+    """Aggregated header badges: incoming (receive), forward (targets), DLQ file. No auth."""
     rules = get_rules()
     rl = rules_loaded()
     n_routes = len(rules.routes) if rules else 0
@@ -640,7 +610,7 @@ async def api_portal_status() -> Response:
         incoming = {"state": "ok", "detail": f"{n_routes} route(s)"}
 
     try:
-        ts = await _compute_target_status()
+        ts = await _get_target_status_snapshot()
         routes_out = ts["routes"]
         has_any = ts["has_any_target"]
         all_ok = ts["all_ok"]
@@ -662,20 +632,13 @@ async def api_portal_status() -> Response:
         all_ok = False
         forward = {"state": "down", "detail": str(exc), "ok_count": 0, "total": 0}
 
-    if not logs_enabled():
-        log_archive = {"state": "disabled", "detail": "not configured"}
-    else:
-        ok_l, err_l = await loki_ready()
-        if ok_l:
-            log_archive = {"state": "ok", "detail": "archive ready"}
-        else:
-            log_archive = {"state": "down", "detail": err_l or "unreachable"}
+    dlq = _portal_dlq_badge()
 
     return JSONResponse(
         {
             "incoming": incoming,
             "forward": forward,
-            "log_archive": log_archive,
+            "dlq": dlq,
             "routes": routes_out,
             "has_any_target": has_any,
             "all_ok": all_ok,

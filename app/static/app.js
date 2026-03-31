@@ -47,8 +47,8 @@ const statusIncoming = document.getElementById("statusIncoming");
 const statusIncomingText = document.getElementById("statusIncomingText");
 const statusForward = document.getElementById("statusForward");
 const statusForwardText = document.getElementById("statusForwardText");
-const statusLogArchive = document.getElementById("statusLogArchive");
-const statusLogArchiveText = document.getElementById("statusLogArchiveText");
+const statusDlq = document.getElementById("statusDlq");
+const statusDlqText = document.getElementById("statusDlqText");
 const recentPayloadsList = document.getElementById("recentPayloadsList");
 const recentPayloadsStatus = document.getElementById("recentPayloadsStatus");
 const recentSentList = document.getElementById("recentSentList");
@@ -64,6 +64,8 @@ let recentPayloadsCache = [];
 let failedEventsCache = [];
 let targetsCache = [];
 let targetStatusCache = { routes: [] };
+let dlqEntriesCache = [];
+let dlqOpenDetailIndex = null;
 
 function tr(key) {
   const fn = (typeof window !== "undefined" && window.t) ? window.t : (k => k);
@@ -632,7 +634,7 @@ function drawHeartbeatChart(data) {
   ctx.lineTo(points[points.length - 1].x, padding.top + graphH);
   ctx.lineTo(points[0].x, padding.top + graphH);
   ctx.closePath();
-  ctx.fillStyle = "rgba(34, 197, 94, 0.15)";
+  ctx.fillStyle = "rgba(13, 148, 136, 0.12)";
   ctx.fill();
 
   ctx.beginPath();
@@ -640,7 +642,7 @@ function drawHeartbeatChart(data) {
   for (let i = 1; i < points.length; i++) {
     ctx.lineTo(points[i].x, points[i].y);
   }
-  ctx.strokeStyle = "#22c55e";
+  ctx.strokeStyle = "#0d9488";
   ctx.lineWidth = 2;
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
@@ -675,12 +677,12 @@ async function loadPortalStatus() {
     const fwd = data.forward || {};
     setHeaderBadge(statusForward, statusForwardText, fwd.state || "down", "statusForwardShort", fwd.detail || "");
 
-    const log = data.log_archive || {};
-    setHeaderBadge(statusLogArchive, statusLogArchiveText, log.state || "down", "statusLogShort", log.detail || "");
+    const dlq = data.dlq || {};
+    setHeaderBadge(statusDlq, statusDlqText, dlq.state || "down", "statusDlqShort", dlq.detail || "");
   } catch {
     setHeaderBadge(statusIncoming, statusIncomingText, "down", "statusIncomingShort", tr("statusUnknown"));
     setHeaderBadge(statusForward, statusForwardText, "down", "statusForwardShort", tr("statusUnknown"));
-    setHeaderBadge(statusLogArchive, statusLogArchiveText, "down", "statusLogShort", tr("statusUnknown"));
+    setHeaderBadge(statusDlq, statusDlqText, "down", "statusDlqShort", tr("statusUnknown"));
   }
 }
 
@@ -1509,143 +1511,126 @@ window.onLangChange = () => {
     renderRoutes(configJson.routes || []);
     renderTargetUrls(configJson.routes || []);
   }
-  loadLogSearchConfig();
+  loadDlqPanel();
   loadPortalStatus();
 };
 
-async function loadLogSearchConfig() {
-  const disabled = document.getElementById("logSearchDisabled");
-  const disabledMsg = document.getElementById("logSearchDisabledMsg");
-  const form = document.getElementById("logSearchForm");
-  const hint = document.getElementById("logSearchHint");
-  if (!disabled || !form) return;
+function renderDlqTable() {
+  const body = document.getElementById("dlqTableBody");
+  const emptyEl = document.getElementById("dlqTableEmpty");
+  if (!body || !emptyEl) return;
+  const entries = dlqEntriesCache;
+  if (!entries.length) {
+    body.innerHTML = "";
+    emptyEl.style.display = "block";
+    return;
+  }
+  emptyEl.style.display = "none";
+  const rows = [];
+  entries.forEach((e, i) => {
+    const errFull = e.error != null ? String(e.error) : "";
+    const errShort = errFull.slice(0, 72);
+    const errTrunc = errFull.length > 72;
+    const open = dlqOpenDetailIndex === i;
+    const btnLabel = open ? tr("dlqHideDetail") : tr("dlqShowDetail");
+    const st = e.http_status;
+    const stDisp = st != null && st !== "" ? String(st) : "—";
+    const stClass = st != null && st !== "" ? String(st) : "";
+    rows.push(`<tr class="dlq-row">
+      <td>${escapeHtml(e.ts || "")}</td>
+      <td>${escapeHtml(e.source || "")}</td>
+      <td>${escapeHtml(e.route || "")}</td>
+      <td class="status-${escapeHtml(stClass)}">${escapeHtml(stDisp)}</td>
+      <td><code>${escapeHtml(e.request_id || "")}</code></td>
+      <td class="failed-error-cell" title="${escapeHtml(errFull)}">${escapeHtml(errShort)}${errTrunc ? "…" : ""}</td>
+      <td><button type="button" class="btn btn-secondary dlq-detail-btn" data-dlq-toggle="${i}" aria-expanded="${open}">${btnLabel}</button></td>
+    </tr>`);
+    rows.push(
+      `<tr class="dlq-detail-row" data-dlq-detail-for="${i}" style="display:${open ? "table-row" : "none"};"><td colspan="7"><pre class="dlq-detail-pre">${escapeHtml(JSON.stringify(e, null, 2))}</pre></td></tr>`
+    );
+  });
+  body.innerHTML = rows.join("");
+}
+
+function onDlqTableClick(ev) {
+  const btn = ev.target.closest("[data-dlq-toggle]");
+  if (!btn) return;
+  const idx = parseInt(btn.getAttribute("data-dlq-toggle"), 10);
+  if (Number.isNaN(idx)) return;
+  if (dlqOpenDetailIndex === idx) {
+    dlqOpenDetailIndex = null;
+  } else {
+    dlqOpenDetailIndex = idx;
+  }
+  renderDlqTable();
+}
+
+async function loadDlqPanel() {
+  const disabled = document.getElementById("dlqDisabled");
+  const disabledMsg = document.getElementById("dlqDisabledMsg");
+  const panel = document.getElementById("dlqPanel");
+  const statusEl = document.getElementById("dlqStatus");
+  if (!disabled || !panel) return;
   try {
-    const res = await fetch("/api/logs/config", { credentials: "include" });
+    const res = await fetch("/api/dlq/recent?limit=1", { credentials: "include" });
     if (res.status === 401) {
       disabled.style.display = "block";
-      form.style.display = "none";
-      if (disabledMsg) disabledMsg.textContent = tr("logSearchLogin");
+      panel.style.display = "none";
+      if (disabledMsg) disabledMsg.textContent = tr("dlqLogin");
+      if (statusEl) statusEl.textContent = "";
+      dlqEntriesCache = [];
+      dlqOpenDetailIndex = null;
       return;
     }
-    const data = await res.json();
-    if (!data.enabled) {
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 503 && data.configured === false) {
       disabled.style.display = "block";
-      form.style.display = "none";
-      if (disabledMsg) disabledMsg.textContent = tr("logSearchOff");
+      panel.style.display = "none";
+      if (disabledMsg) disabledMsg.textContent = tr("dlqOff");
+      if (statusEl) statusEl.textContent = "";
+      dlqEntriesCache = [];
+      dlqOpenDetailIndex = null;
       return;
     }
     disabled.style.display = "none";
-    form.style.display = "block";
-    if (hint) {
-      hint.textContent = `${tr("logSearchHintStream")}: ${data.stream_selector || ""}`;
-    }
+    panel.style.display = "block";
+    await refreshDlq();
   } catch {
     disabled.style.display = "block";
-    form.style.display = "none";
-    if (disabledMsg) disabledMsg.textContent = tr("logSearchOff");
+    panel.style.display = "none";
+    if (disabledMsg) disabledMsg.textContent = tr("dlqOff");
+    dlqEntriesCache = [];
+    dlqOpenDetailIndex = null;
   }
 }
 
-async function runLogSearch() {
-  const hoursEl = document.getElementById("logSearchHours");
-  const eventEl = document.getElementById("logSearchEvent");
-  const limitEl = document.getElementById("logSearchLimit");
-  const qEl = document.getElementById("logSearchQ");
-  const statusEl = document.getElementById("logSearchStatus");
-  const outEl = document.getElementById("logSearchOutput");
-  if (!hoursEl || !eventEl || !limitEl || !statusEl || !outEl) return;
-  const hours = hoursEl.value || "24";
-  const event = eventEl.value || "all";
-  const limit = limitEl.value || "100";
-  const q = (qEl && qEl.value) ? qEl.value.trim() : "";
-  statusEl.textContent = tr("logSearchLoading");
-  outEl.textContent = "";
-  const diagEl = document.getElementById("logSearchDiagnose");
-  if (diagEl) {
-    diagEl.style.display = "none";
-    diagEl.textContent = "";
-  }
-  const params = new URLSearchParams({ hours, limit, event, q });
+async function refreshDlq() {
+  const limitEl = document.getElementById("dlqLimit");
+  const statusEl = document.getElementById("dlqStatus");
+  const lim = (limitEl && limitEl.value) ? limitEl.value : "50";
+  if (statusEl) statusEl.textContent = tr("dlqLoading");
+  dlqOpenDetailIndex = null;
   try {
-    const res = await fetch(`/api/logs/search?${params.toString()}`, { credentials: "include" });
+    const res = await fetch(`/api/dlq/recent?limit=${encodeURIComponent(lim)}`, { credentials: "include" });
     const data = await res.json().catch(() => ({}));
     if (res.status === 401) {
-      statusEl.textContent = tr("logSearchLogin");
-      return;
-    }
-    if (res.status === 503) {
-      statusEl.textContent = data.detail || tr("logSearchOff");
-      return;
-    }
-    if (res.status === 400) {
-      statusEl.textContent = data.detail || "Bad request";
-      return;
-    }
-    if (res.status === 502) {
-      statusEl.textContent = data.detail || "Loki error";
-      if (data.logql) outEl.textContent = `LogQL: ${data.logql}\n\n${data.detail || ""}`;
+      if (statusEl) statusEl.textContent = tr("dlqLogin");
       return;
     }
     if (!res.ok) {
-      statusEl.textContent = data.detail || `HTTP ${res.status}`;
+      if (statusEl) statusEl.textContent = data.detail || `HTTP ${res.status}`;
+      dlqEntriesCache = [];
+      renderDlqTable();
       return;
     }
     const entries = data.entries || [];
-    statusEl.textContent = `${tr("logSearchDone")} ${entries.length}`;
-    if (entries.length === 0) {
-      outEl.textContent = tr("logSearchNoResults");
-      if (data.logql) outEl.textContent += `\n\nLogQL:\n${data.logql}`;
-      return;
-    }
-    const lines = entries.map((row) => {
-      const t = row.ts_iso || row.ts_ns || "";
-      return `[${t}] ${row.line || ""}`;
-    });
-    outEl.textContent = lines.join("\n");
-    if (data.logql) {
-      outEl.textContent += `\n\n--- LogQL ---\n${data.logql}`;
-    }
+    dlqEntriesCache = entries;
+    if (statusEl) statusEl.textContent = `${tr("dlqDone")} · ${entries.length}`;
+    renderDlqTable();
   } catch (e) {
-    statusEl.textContent = String(e);
-  }
-}
-
-async function runLogSearchDiagnose() {
-  const hoursEl = document.getElementById("logSearchHours");
-  const statusEl = document.getElementById("logSearchStatus");
-  const diagEl = document.getElementById("logSearchDiagnose");
-  const outEl = document.getElementById("logSearchOutput");
-  if (!hoursEl || !statusEl || !diagEl) return;
-  const hours = hoursEl.value || "24";
-  statusEl.textContent = tr("logSearchLoading");
-  diagEl.style.display = "block";
-  diagEl.textContent = "";
-  try {
-    const res = await fetch(`/api/logs/diagnose?hours=${encodeURIComponent(hours)}`, {
-      credentials: "include",
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.status === 401) {
-      statusEl.textContent = tr("logSearchLogin");
-      diagEl.textContent = tr("logSearchLogin");
-      return;
-    }
-    if (res.status === 503) {
-      statusEl.textContent = data.detail || tr("logSearchOff");
-      diagEl.textContent = data.detail || "";
-      return;
-    }
-    if (!res.ok) {
-      statusEl.textContent = `HTTP ${res.status}`;
-      diagEl.textContent = JSON.stringify(data, null, 2);
-      return;
-    }
-    statusEl.textContent = tr("logSearchVerifyDone");
-    diagEl.textContent = JSON.stringify(data, null, 2);
-    if (outEl) outEl.textContent = "";
-  } catch (e) {
-    statusEl.textContent = String(e);
-    diagEl.textContent = String(e);
+    if (statusEl) statusEl.textContent = String(e);
+    dlqEntriesCache = [];
+    renderDlqTable();
   }
 }
 
@@ -1664,18 +1649,19 @@ loadApiKeys();
 loadHeaderVersion();
 setInterval(loadRecentPayloads, 5000);
 loadStatsAndChart();
-setInterval(loadStatsAndChart, 1000);
+setInterval(loadStatsAndChart, 2500);
 loadLiveRequests();
 loadFailedEvents();
-setInterval(loadLiveRequests, 1500);
-setInterval(loadFailedEvents, 1500);
+setInterval(loadLiveRequests, 2500);
+setInterval(loadFailedEvents, 2500);
 loadRecentSent();
-setInterval(loadRecentSent, 1500);
-setInterval(loadEffectiveTargets, 3000);
-setInterval(loadPortalStatus, 5000);
+setInterval(loadRecentSent, 2500);
+setInterval(loadEffectiveTargets, 5000);
+setInterval(loadPortalStatus, 8000);
 
-document.getElementById("logSearchBtn")?.addEventListener("click", () => { runLogSearch(); });
-document.getElementById("logSearchVerifyBtn")?.addEventListener("click", () => { runLogSearchDiagnose(); });
+document.getElementById("dlqRefreshBtn")?.addEventListener("click", () => { refreshDlq(); });
+document.getElementById("dlqLimit")?.addEventListener("change", () => { refreshDlq(); });
+document.getElementById("dlqListWrap")?.addEventListener("click", onDlqTableClick);
 
 if (failedEventsSearch) {
   failedEventsSearch.addEventListener("input", () => renderFailedEvents(failedEventsCache));
@@ -1698,4 +1684,4 @@ if (patternModal) {
 
 if (window.applyI18n) window.applyI18n();
 loadPortalStatus();
-loadLogSearchConfig();
+loadDlqPanel();

@@ -14,7 +14,9 @@ _client: Optional[httpx.AsyncClient] = None
 
 # Allowed target URL schemes only (no file:, gopher:, ftp: etc. to prevent SSRF)
 ALLOWED_URL_SCHEMES = ("https", "http")
-CHECK_TIMEOUT = httpx.Timeout(2.0, connect=1.5)
+# Portal /api/target-status probes only — fail fast so the UI stays responsive.
+# Real forwards still use Defaults.target_timeout_* from rules.
+STATUS_PROBE_TIMEOUT = httpx.Timeout(2.5, connect=1.0)
 
 # Circuit breaker: per-route state
 _circuit: Dict[str, Dict[str, Any]] = {}  # route_name -> {failures, last_fail, state}
@@ -237,15 +239,14 @@ async def check_target_status(route: RouteConfig, defaults: Defaults) -> Dict[st
     try:
         # Phase 1: Server reachable
         try:
-            r = await client.get(f"{base.rstrip('/')}/", timeout=CHECK_TIMEOUT)
+            r = await client.get(f"{base.rstrip('/')}/", timeout=STATUS_PROBE_TIMEOUT)
             phase1_ok = True
         except (httpx.ConnectError, httpx.TimeoutException, httpx.RequestError) as e:
             return {"route": route.name, "target_url": url, "phase1_ok": False, "phase2_ok": False, "error": f"Phase1: {type(e).__name__} — {str(e)}"}
         # Phase 2: API handshake (POST with auth)
         headers = _build_forward_headers(route)
-        timeout = httpx.Timeout(defaults.target_timeout_read_sec, connect=defaults.target_timeout_connect_sec)
         try:
-            r = await client.post(url, json={}, headers=headers, timeout=timeout)
+            r = await client.post(url, json={}, headers=headers, timeout=STATUS_PROBE_TIMEOUT)
             phase2_ok = 200 <= r.status_code < 300
             if not phase2_ok:
                 error_msg = f"Phase2: HTTP {r.status_code}"

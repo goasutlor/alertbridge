@@ -4,9 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AlertBridge</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
@@ -33,9 +30,9 @@
               <span class="portal-status-dot"></span>
               <span id="statusForwardText" class="portal-status-text" data-i18n="statusForwardChecking">Forward: …</span>
             </div>
-            <div id="statusLogArchive" class="portal-status state-checking" title="">
+            <div id="statusDlq" class="portal-status state-checking" title="">
               <span class="portal-status-dot"></span>
-              <span id="statusLogArchiveText" class="portal-status-text" data-i18n="statusLogChecking">Log archive: …</span>
+              <span id="statusDlqText" class="portal-status-text" data-i18n="statusDlqChecking">DLQ: …</span>
             </div>
           </div>
         </div>
@@ -95,7 +92,7 @@
 
       <section class="card">
         <h2 class="card-title" data-i18n="failedEvents">Failed Events (Forward did not succeed)</h2>
-        <p class="card-subtitle" data-i18n="failedEventsSub">Display 20 · up to 200 stored (search all) · in-memory only (lost on restart)</p>
+        <p class="card-subtitle" data-i18n="failedEventsSub">Display 20 · up to 200 in memory (search all) · use DLQ below for durable history on PVC</p>
         <div class="failed-events-toolbar">
           <input type="text" id="failedEventsSearch" class="input-inline" placeholder="Search: source, route, request_id..." data-i18n-placeholder="failedSearchPlaceholder" />
         </div>
@@ -117,45 +114,41 @@
         </div>
       </section>
 
-      <section class="card card-log-search" id="logSearchCard">
-        <h2 class="card-title" data-i18n="logSearchTitle">Log archive search</h2>
-        <p class="card-subtitle" data-i18n="logSearchSub">Search application logs when a log store is connected — stays inside this portal.</p>
-        <div id="logSearchDisabled" class="log-search-disabled" style="display:none;">
-          <p class="text-muted" id="logSearchDisabledMsg" data-i18n="logSearchOff">Log search is not configured. Set ALERTBRIDGE_LOKI_URL and label selectors on the Deployment.</p>
+      <section class="card card-dlq" id="dlqCard">
+        <h2 class="card-title" data-i18n="dlqTitle">Dead letter queue</h2>
+        <p class="card-subtitle" data-i18n="dlqSub">Summary table; expand a row for full JSON. Requires Basic Auth.</p>
+        <div id="dlqDisabled" class="dlq-disabled" style="display:none;">
+          <p class="text-muted" id="dlqDisabledMsg" data-i18n="dlqOff">DLQ is not configured. Set ALERTBRIDGE_DLQ_FILE and mount a volume (see install-ocp-pull.yaml).</p>
         </div>
-        <div id="logSearchForm" class="log-search-form" style="display:none;">
-          <div class="form-row log-search-row">
-            <label for="logSearchHours" data-i18n="logSearchHours">Range</label>
-            <select id="logSearchHours" class="select" aria-label="Time range">
-              <option value="1">1 h</option>
-              <option value="6">6 h</option>
-              <option value="24" selected>24 h</option>
-              <option value="72">72 h</option>
-              <option value="168">7 d</option>
-            </select>
-            <label for="logSearchEvent" data-i18n="logSearchEvent">Filter</label>
-            <select id="logSearchEvent" class="select">
-              <option value="all" data-i18n="logSearchEvAll">All lines</option>
-              <option value="errors" data-i18n="logSearchEvErr">Forward errors</option>
-              <option value="requests" data-i18n="logSearchEvReq">HTTP requests</option>
-            </select>
-            <label for="logSearchLimit" data-i18n="logSearchLimit">Max lines</label>
-            <select id="logSearchLimit" class="select">
-              <option value="50">50</option>
-              <option value="100" selected>100</option>
+        <div id="dlqPanel" class="dlq-panel" style="display:none;">
+          <div class="dlq-toolbar">
+            <label for="dlqLimit" data-i18n="dlqLimitLabel">Entries</label>
+            <select id="dlqLimit" class="select" aria-label="Max DLQ rows">
+              <option value="25">25</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
               <option value="200">200</option>
-              <option value="500">500</option>
             </select>
+            <button type="button" id="dlqRefreshBtn" class="btn btn-primary" data-i18n="dlqRefresh">Refresh</button>
+            <span id="dlqStatus" class="status"></span>
           </div>
-          <div class="form-row log-search-q-row">
-            <input type="text" id="logSearchQ" class="input-inline log-search-q" placeholder="Optional: request_id, route, text…" data-i18n-placeholder="logSearchPlaceholder" />
-            <button type="button" id="logSearchBtn" class="btn btn-primary" data-i18n="logSearchBtn">Search</button>
-            <button type="button" id="logSearchVerifyBtn" class="btn btn-secondary" data-i18n="logSearchVerify">Verify stream</button>
-            <span id="logSearchStatus" class="status"></span>
+          <div id="dlqListWrap" class="live-requests">
+            <table class="live-table dlq-table">
+              <thead>
+                <tr>
+                  <th data-i18n="dlqColTime">Time (GMT+7)</th>
+                  <th data-i18n="dlqColSource">Source</th>
+                  <th data-i18n="dlqColRoute">Route</th>
+                  <th data-i18n="dlqColHttp">HTTP</th>
+                  <th data-i18n="dlqColReq">Request ID</th>
+                  <th data-i18n="dlqColError">Error</th>
+                  <th data-i18n="dlqColAction">Detail</th>
+                </tr>
+              </thead>
+              <tbody id="dlqTableBody"></tbody>
+            </table>
+            <p id="dlqTableEmpty" class="live-empty" style="display:none;" data-i18n="dlqEmpty">No entries in the file yet.</p>
           </div>
-          <p class="text-muted log-search-hint" id="logSearchHint"></p>
-          <pre id="logSearchDiagnose" class="output log-search-diagnose" style="display:none;" aria-live="polite"></pre>
-          <pre id="logSearchOutput" class="output log-search-output" aria-live="polite"></pre>
         </div>
       </section>
 
