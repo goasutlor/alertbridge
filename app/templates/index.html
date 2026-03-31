@@ -178,6 +178,37 @@
         </div>
       </section>
 
+      <section class="card" id="dailyMetricsCard">
+        <h2 class="card-title" data-i18n="dailyTitle">Daily Metrics</h2>
+        <p class="card-subtitle" data-i18n="dailySub">Persisted daily counters on PVC (no details).</p>
+        <div class="table-pager" style="justify-content:flex-start; margin-bottom: 8px;">
+          <label for="dailyDays" data-i18n="dailyDaysLabel">Range</label>
+          <select id="dailyDays" class="select select-compact">
+            <option value="7">7d</option>
+            <option value="30" selected>30d</option>
+            <option value="90">90d</option>
+          </select>
+          <button type="button" id="dailyRefreshBtn" class="btn btn-primary btn-compact" data-i18n="dailyRefresh">Refresh</button>
+          <span id="dailyStatus" class="status" style="margin-top:0;"></span>
+        </div>
+        <div class="live-requests">
+          <table class="live-table">
+            <thead>
+              <tr>
+                <th data-i18n="dailyColDate">Date</th>
+                <th data-i18n="dailyColIncoming">Incoming</th>
+                <th data-i18n="dailyColFwdOk">Fwd OK</th>
+                <th data-i18n="dailyColFwdFail">Fwd Fail</th>
+                <th data-i18n="dailyColDlq">DLQ</th>
+                <th data-i18n="dailyColUpdated">Updated</th>
+              </tr>
+            </thead>
+            <tbody id="dailyMetricsBody"></tbody>
+          </table>
+          <p id="dailyMetricsEmpty" class="live-empty" style="display:none;" data-i18n="dailyEmpty">No daily counters yet.</p>
+        </div>
+      </section>
+
       <section class="card card-sent">
         <h2 class="card-title">Last Transformed Alert Sent</h2>
         <p class="card-subtitle">Payloads that were successfully forwarded (after transform). Use to verify transformation output.</p>

@@ -880,6 +880,55 @@ async function loadFailedEvents() {
   } catch (err) {}
 }
 
+function renderDailyMetrics(rows) {
+  const body = document.getElementById("dailyMetricsBody");
+  const empty = document.getElementById("dailyMetricsEmpty");
+  if (!body || !empty) return;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    body.innerHTML = "";
+    empty.style.display = "block";
+    empty.textContent = tr("dailyEmpty");
+    return;
+  }
+  empty.style.display = "none";
+  body.innerHTML = rows.map((r) => `
+    <tr>
+      <td>${escapeHtml(r.date || "")}</td>
+      <td>${escapeHtml(String(r.incoming ?? 0))}</td>
+      <td>${escapeHtml(String(r.forward_success ?? 0))}</td>
+      <td>${escapeHtml(String(r.forward_fail ?? 0))}</td>
+      <td>${escapeHtml(String(r.dlq ?? 0))}</td>
+      <td>${escapeHtml(r.updated_at || "")}</td>
+    </tr>
+  `).join("");
+}
+
+async function loadDailyMetrics() {
+  const statusEl = document.getElementById("dailyStatus");
+  const daysEl = document.getElementById("dailyDays");
+  const days = (daysEl && daysEl.value) ? daysEl.value : "30";
+  if (statusEl) statusEl.textContent = tr("dailyLoading");
+  try {
+    const res = await fetch(`/api/metrics/daily?days=${encodeURIComponent(days)}`, { credentials: "include" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (statusEl) statusEl.textContent = data.detail || `HTTP ${res.status}`;
+      renderDailyMetrics([]);
+      return;
+    }
+    if (data.configured === false) {
+      if (statusEl) statusEl.textContent = tr("dailyOff");
+      renderDailyMetrics([]);
+      return;
+    }
+    if (statusEl) statusEl.textContent = "";
+    renderDailyMetrics(data.entries || []);
+  } catch (e) {
+    if (statusEl) statusEl.textContent = String(e);
+    renderDailyMetrics([]);
+  }
+}
+
 // ---------- Field Mapper ----------
 async function loadPatternSchemas() {
   if (!mapperSourceType) return;
@@ -1814,6 +1863,8 @@ loadRecentSent();
 setInterval(loadRecentSent, 2500);
 setInterval(loadEffectiveTargets, 5000);
 setInterval(loadPortalStatus, 8000);
+setInterval(loadDailyMetrics, 30000);
+loadDailyMetrics();
 
 document.getElementById("dlqRefreshBtn")?.addEventListener("click", () => { refreshDlq(); });
 document.getElementById("dlqLimit")?.addEventListener("change", () => { refreshDlq(); });
@@ -1826,6 +1877,8 @@ document.getElementById("liveNextBtn")?.addEventListener("click", () => { livePa
 document.getElementById("failedPageSize")?.addEventListener("change", () => { failedPage = 1; renderFailedEvents(failedEventsCache); });
 document.getElementById("failedPrevBtn")?.addEventListener("click", () => { failedPage = Math.max(1, failedPage - 1); renderFailedEvents(failedEventsCache); });
 document.getElementById("failedNextBtn")?.addEventListener("click", () => { failedPage += 1; renderFailedEvents(failedEventsCache); });
+document.getElementById("dailyRefreshBtn")?.addEventListener("click", () => { loadDailyMetrics(); });
+document.getElementById("dailyDays")?.addEventListener("change", () => { loadDailyMetrics(); });
 
 if (failedEventsSearch) {
   failedEventsSearch.addEventListener("input", () => { failedPage = 1; renderFailedEvents(failedEventsCache); });
