@@ -46,8 +46,14 @@ def test_dlq_appends_line_on_forward_failure(monkeypatch, tmp_path: Path) -> Non
     row = json.loads(lines[-1])
     assert row["route"] == "trivial"
     assert row["source"] == "probe"
+    assert "base_request_id" in row
     assert "transformed" in row
     assert row.get("error") is not None
+    assert "attempts_used" in row
+    assert "max_attempts" in row
+    assert "is_retry" in row
+    assert "retry_count" in row
+    assert "circuit_open" in row
 
 
 def test_read_recent_dlq_newest_first(monkeypatch, tmp_path: Path) -> None:

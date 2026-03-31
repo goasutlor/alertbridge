@@ -328,12 +328,13 @@ async def webhook(source: str, request: Request) -> Response:
     last_failed_output: Any = None
     for i, output in enumerate(outputs_to_forward):
         rid = f"{request_id}-{i}" if len(outputs_to_forward) > 1 else request_id
-        ok, status_code, err = await forward_payload(output, route, rid, rules.defaults)
+        ok, status_code, err, attempt_meta = await forward_payload(output, route, rid, rules.defaults)
         if ok:
             increment_daily("forward_success")
             RECENT_SENT.append({
                 "ts": datetime.now(BANGKOK).isoformat()[:23],
                 "request_id": rid,
+                "base_request_id": request_id,
                 "source": source,
                 "route": route.name,
                 "transformed": sanitize_payload(output),
@@ -349,11 +350,17 @@ async def webhook(source: str, request: Request) -> Response:
                 {
                     "ts": datetime.now(BANGKOK).isoformat()[:23],
                     "request_id": rid,
+                    "base_request_id": request_id,
                     "source": source,
                     "route": route.name,
                     "http_status": status_code,
                     "error": str(err) if err else None,
                     "error_type": type(err).__name__ if err else None,
+                    "attempts_used": int(attempt_meta.get("attempts_used", 0)),
+                    "max_attempts": int(attempt_meta.get("max_attempts", 0)),
+                    "is_retry": bool(attempt_meta.get("retried", False)),
+                    "retry_count": max(int(attempt_meta.get("attempts_used", 0)) - 1, 0),
+                    "circuit_open": bool(attempt_meta.get("circuit_open", False)),
                     "transformed": sanitize_payload(output),
                 }
             )

@@ -114,15 +114,30 @@ async def forward_payload(
     route: RouteConfig,
     request_id: str,
     defaults: Defaults,
-) -> Tuple[bool, Optional[int], Optional[Exception]]:
+) -> Tuple[bool, Optional[int], Optional[Exception], Dict[str, Any]]:
     url = (route.target.url or "").strip() or os.getenv(route.target.url_env)
     if not url:
-        return False, None, ValueError(f"Missing target URL (set url in config or env {route.target.url_env})")
+        return False, None, ValueError(f"Missing target URL (set url in config or env {route.target.url_env})"), {
+            "attempts_used": 0,
+            "max_attempts": len(BACKOFF_SCHEDULE),
+            "circuit_open": False,
+            "retried": False,
+        }
     if not _is_safe_forward_url(url):
-        return False, None, ValueError(f"Target URL scheme or host not allowed")
+        return False, None, ValueError(f"Target URL scheme or host not allowed"), {
+            "attempts_used": 0,
+            "max_attempts": len(BACKOFF_SCHEDULE),
+            "circuit_open": False,
+            "retried": False,
+        }
 
     if not _circuit_allow(route.name):
-        return False, None, ValueError("Circuit breaker open (target degraded)")
+        return False, None, ValueError("Circuit breaker open (target degraded)"), {
+            "attempts_used": 0,
+            "max_attempts": len(BACKOFF_SCHEDULE),
+            "circuit_open": True,
+            "retried": False,
+        }
 
     headers = {"Content-Type": "application/json", "X-Request-ID": request_id}
     if route.target.auth_header_env:
@@ -170,21 +185,46 @@ async def forward_payload(
                     if attempt < len(BACKOFF_SCHEDULE):
                         continue
                     _circuit_record(route.name, False)
-                    return False, response.status_code, last_error
+                    return False, response.status_code, last_error, {
+                        "attempts_used": attempt,
+                        "max_attempts": len(BACKOFF_SCHEDULE),
+                        "circuit_open": False,
+                        "retried": attempt > 1,
+                    }
                 _circuit_record(route.name, True)
-                return response.is_success, response.status_code, None
+                return response.is_success, response.status_code, None, {
+                    "attempts_used": attempt,
+                    "max_attempts": len(BACKOFF_SCHEDULE),
+                    "circuit_open": False,
+                    "retried": attempt > 1,
+                }
             except httpx.ConnectTimeout as exc:
                 last_error = exc
                 if attempt < len(BACKOFF_SCHEDULE):
                     continue
                 _circuit_record(route.name, False)
-                return False, None, last_error
+                return False, None, last_error, {
+                    "attempts_used": attempt,
+                    "max_attempts": len(BACKOFF_SCHEDULE),
+                    "circuit_open": False,
+                    "retried": attempt > 1,
+                }
             except Exception as exc:
                 _circuit_record(route.name, False)
-                return False, None, exc
+                return False, None, exc, {
+                    "attempts_used": attempt,
+                    "max_attempts": len(BACKOFF_SCHEDULE),
+                    "circuit_open": False,
+                    "retried": attempt > 1,
+                }
 
         _circuit_record(route.name, False)
-        return False, None, last_error
+        return False, None, last_error, {
+            "attempts_used": len(BACKOFF_SCHEDULE),
+            "max_attempts": len(BACKOFF_SCHEDULE),
+            "circuit_open": False,
+            "retried": len(BACKOFF_SCHEDULE) > 1,
+        }
     finally:
         if should_close:
             await client.aclose()
