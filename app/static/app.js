@@ -119,7 +119,10 @@ async function loadHeaderVersion() {
     if (!res.ok) return;
     const data = await res.json();
     const v = data.version;
-    if (v) el.textContent = `v${v}`;
+    const ns = data.namespace;
+    if (v) {
+      el.textContent = ns ? `v${v} · ns:${ns}` : `v${v}`;
+    }
   } catch (_) {}
 }
 

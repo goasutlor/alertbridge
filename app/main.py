@@ -434,10 +434,18 @@ async def healthz() -> Response:
 async def version() -> Response:
     """Return app version, author, and git commit (for deploy verification)."""
     git_sha = os.getenv("GIT_SHA", "unknown")
+    ns = os.getenv("ALERTBRIDGE_K8S_NAMESPACE", "").strip()
+    if not ns:
+        try:
+            with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace", "r", encoding="utf-8") as handle:
+                ns = handle.read().strip()
+        except OSError:
+            ns = ""
     return JSONResponse({
         "version": APP_VERSION,
         "author": "Sontas Jiamsripong",
         "git_sha": git_sha,
+        "namespace": ns or None,
     })
 
 
