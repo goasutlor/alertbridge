@@ -742,6 +742,18 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   text-align: center;
 }
 
+.table-pager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.select-compact { min-width: 84px; padding: 7px 10px; font-size: 13px; }
+.btn-compact { padding: 6px 12px; font-size: 12px; }
+.pager-info { font-size: 12px; color: var(--text-muted); min-width: 46px; text-align: center; }
+
 /* Field Mapper */
 .card-mapper .card-subtitle { margin-bottom: 18px; }
 

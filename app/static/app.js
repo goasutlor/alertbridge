@@ -62,10 +62,14 @@ const apiKeyCopyBtn = document.getElementById("apiKeyCopyBtn");
 const apiKeysList = document.getElementById("apiKeysList");
 let recentPayloadsCache = [];
 let failedEventsCache = [];
+let liveRequestsCache = [];
 let targetsCache = [];
 let targetStatusCache = { routes: [] };
 let dlqEntriesCache = [];
 let dlqOpenDetailIndex = null;
+let livePage = 1;
+let failedPage = 1;
+let dlqPage = 1;
 
 function tr(key) {
   const fn = (typeof window !== "undefined" && window.t) ? window.t : (k => k);
@@ -757,13 +761,25 @@ async function loadStatsAndChart() {
 
 function renderLiveRequests(list) {
   if (!liveRequestsBody || !liveRequestsEmpty) return;
+  const pageSize = Number(document.getElementById("livePageSize")?.value || 10);
+  const pageInfo = document.getElementById("livePageInfo");
+  const prevBtn = document.getElementById("livePrevBtn");
+  const nextBtn = document.getElementById("liveNextBtn");
   if (!list || list.length === 0) {
     liveRequestsBody.innerHTML = "";
     liveRequestsEmpty.style.display = "block";
+    if (pageInfo) pageInfo.textContent = "0/0";
+    if (prevBtn) prevBtn.disabled = true;
+    if (nextBtn) nextBtn.disabled = true;
     return;
   }
+  const totalPages = Math.max(1, Math.ceil(list.length / pageSize));
+  if (livePage > totalPages) livePage = totalPages;
+  if (livePage < 1) livePage = 1;
+  const start = (livePage - 1) * pageSize;
+  const paged = list.slice(start, start + pageSize);
   liveRequestsEmpty.style.display = "none";
-  liveRequestsBody.innerHTML = list
+  liveRequestsBody.innerHTML = paged
     .map(
       (r) =>
         `<tr>
@@ -777,6 +793,9 @@ function renderLiveRequests(list) {
         </tr>`
     )
     .join("");
+  if (pageInfo) pageInfo.textContent = `${livePage}/${totalPages}`;
+  if (prevBtn) prevBtn.disabled = livePage <= 1;
+  if (nextBtn) nextBtn.disabled = livePage >= totalPages;
 }
 function escapeHtml(s) {
   if (s == null) return "";
@@ -790,7 +809,8 @@ async function loadLiveRequests() {
     const response = await fetch("/api/recent-requests", { credentials: "include" });
     if (!response.ok) return;
     const data = await response.json();
-    renderLiveRequests(Array.isArray(data) ? data : []);
+    liveRequestsCache = Array.isArray(data) ? data : [];
+    renderLiveRequests(liveRequestsCache);
   } catch (err) {}
 }
 
@@ -807,19 +827,28 @@ function filterFailedEvents(list, q) {
   });
 }
 
-const FAILED_EVENTS_DISPLAY_LIMIT = 20;
-
 function renderFailedEvents(list) {
   if (!failedEventsBody || !failedEventsEmpty) return;
   const q = failedEventsSearch ? failedEventsSearch.value.trim() : "";
   const filtered = filterFailedEvents(list, q);
-  const toShow = filtered.slice(0, FAILED_EVENTS_DISPLAY_LIMIT);
+  const pageSize = Number(document.getElementById("failedPageSize")?.value || 10);
+  const pageInfo = document.getElementById("failedPageInfo");
+  const prevBtn = document.getElementById("failedPrevBtn");
+  const nextBtn = document.getElementById("failedNextBtn");
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  if (failedPage > totalPages) failedPage = totalPages;
+  if (failedPage < 1) failedPage = 1;
+  const start = (failedPage - 1) * pageSize;
+  const toShow = filtered.slice(start, start + pageSize);
   if (!toShow.length) {
     failedEventsBody.innerHTML = "";
     failedEventsEmpty.style.display = "block";
     failedEventsEmpty.textContent = q
       ? tr("noMatchesForSearch")
       : tr("failedEmpty");
+    if (pageInfo) pageInfo.textContent = "0/0";
+    if (prevBtn) prevBtn.disabled = true;
+    if (nextBtn) nextBtn.disabled = true;
     return;
   }
   failedEventsEmpty.style.display = "none";
@@ -835,6 +864,9 @@ function renderFailedEvents(list) {
       </tr>`
     )
     .join("");
+  if (pageInfo) pageInfo.textContent = `${failedPage}/${totalPages}`;
+  if (prevBtn) prevBtn.disabled = failedPage <= 1;
+  if (nextBtn) nextBtn.disabled = failedPage >= totalPages;
 }
 
 async function loadFailedEvents() {
@@ -1555,14 +1587,27 @@ function renderDlqTable() {
   const emptyEl = document.getElementById("dlqTableEmpty");
   if (!body || !emptyEl) return;
   const entries = dlqEntriesCache;
+  const pageSize = Number(document.getElementById("dlqLimit")?.value || 10);
+  const pageInfo = document.getElementById("dlqPageInfo");
+  const prevBtn = document.getElementById("dlqPrevBtn");
+  const nextBtn = document.getElementById("dlqNextBtn");
   if (!entries.length) {
     body.innerHTML = "";
     emptyEl.style.display = "block";
+    if (pageInfo) pageInfo.textContent = "0/0";
+    if (prevBtn) prevBtn.disabled = true;
+    if (nextBtn) nextBtn.disabled = true;
     return;
   }
+  const totalPages = Math.max(1, Math.ceil(entries.length / pageSize));
+  if (dlqPage > totalPages) dlqPage = totalPages;
+  if (dlqPage < 1) dlqPage = 1;
+  const start = (dlqPage - 1) * pageSize;
+  const pagedEntries = entries.slice(start, start + pageSize);
   emptyEl.style.display = "none";
   const rows = [];
-  entries.forEach((e, i) => {
+  pagedEntries.forEach((e, localIdx) => {
+    const i = start + localIdx;
     const errFull = e.error != null ? String(e.error) : "";
     const errShort = errFull.slice(0, 72);
     const errTrunc = errFull.length > 72;
@@ -1585,6 +1630,9 @@ function renderDlqTable() {
     );
   });
   body.innerHTML = rows.join("");
+  if (pageInfo) pageInfo.textContent = `${dlqPage}/${totalPages}`;
+  if (prevBtn) prevBtn.disabled = dlqPage <= 1;
+  if (nextBtn) nextBtn.disabled = dlqPage >= totalPages;
 }
 
 function onDlqTableClick(ev) {
@@ -1642,9 +1690,11 @@ async function loadDlqPanel() {
 async function refreshDlq() {
   const limitEl = document.getElementById("dlqLimit");
   const statusEl = document.getElementById("dlqStatus");
-  const lim = (limitEl && limitEl.value) ? limitEl.value : "50";
+  const pageSize = Number((limitEl && limitEl.value) ? limitEl.value : "10");
+  const lim = String(Math.min(500, Math.max(50, pageSize * 10)));
   if (statusEl) statusEl.textContent = tr("dlqLoading");
   dlqOpenDetailIndex = null;
+  dlqPage = 1;
   try {
     const res = await fetch(`/api/dlq/recent?limit=${encodeURIComponent(lim)}`, { credentials: "include" });
     const data = await res.json().catch(() => ({}));
@@ -1697,9 +1747,17 @@ setInterval(loadPortalStatus, 8000);
 document.getElementById("dlqRefreshBtn")?.addEventListener("click", () => { refreshDlq(); });
 document.getElementById("dlqLimit")?.addEventListener("change", () => { refreshDlq(); });
 document.getElementById("dlqListWrap")?.addEventListener("click", onDlqTableClick);
+document.getElementById("dlqPrevBtn")?.addEventListener("click", () => { dlqPage = Math.max(1, dlqPage - 1); renderDlqTable(); });
+document.getElementById("dlqNextBtn")?.addEventListener("click", () => { dlqPage += 1; renderDlqTable(); });
+document.getElementById("livePageSize")?.addEventListener("change", () => { livePage = 1; renderLiveRequests(liveRequestsCache); });
+document.getElementById("livePrevBtn")?.addEventListener("click", () => { livePage = Math.max(1, livePage - 1); renderLiveRequests(liveRequestsCache); });
+document.getElementById("liveNextBtn")?.addEventListener("click", () => { livePage += 1; renderLiveRequests(liveRequestsCache); });
+document.getElementById("failedPageSize")?.addEventListener("change", () => { failedPage = 1; renderFailedEvents(failedEventsCache); });
+document.getElementById("failedPrevBtn")?.addEventListener("click", () => { failedPage = Math.max(1, failedPage - 1); renderFailedEvents(failedEventsCache); });
+document.getElementById("failedNextBtn")?.addEventListener("click", () => { failedPage += 1; renderFailedEvents(failedEventsCache); });
 
 if (failedEventsSearch) {
-  failedEventsSearch.addEventListener("input", () => renderFailedEvents(failedEventsCache));
+  failedEventsSearch.addEventListener("input", () => { failedPage = 1; renderFailedEvents(failedEventsCache); });
 }
 
 const patternModal = document.getElementById("patternModal");

@@ -87,6 +87,17 @@
             <tbody id="liveRequestsBody"></tbody>
           </table>
           <p id="liveRequestsEmpty" class="live-empty"><span data-i18n="liveEmpty">No webhooks yet. POST to</span> <code>/webhook/ocp</code> <code>/webhook/confluent</code> <span data-i18n="orSource">or other source</span></p>
+          <div class="table-pager">
+            <label for="livePageSize" data-i18n="rowsPerPage">Rows</label>
+            <select id="livePageSize" class="select select-compact">
+              <option value="10" selected>10</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+            <button type="button" id="livePrevBtn" class="btn btn-secondary btn-compact" data-i18n="prev">Prev</button>
+            <span id="livePageInfo" class="pager-info">1/1</span>
+            <button type="button" id="liveNextBtn" class="btn btn-secondary btn-compact" data-i18n="next">Next</button>
+          </div>
         </div>
       </section>
 
@@ -111,6 +122,17 @@
             <tbody id="failedEventsBody"></tbody>
           </table>
           <p id="failedEventsEmpty" class="live-empty" data-i18n="failedEmpty">No failed events. Forward failures will appear here.</p>
+          <div class="table-pager">
+            <label for="failedPageSize" data-i18n="rowsPerPage">Rows</label>
+            <select id="failedPageSize" class="select select-compact">
+              <option value="10" selected>10</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+            <button type="button" id="failedPrevBtn" class="btn btn-secondary btn-compact" data-i18n="prev">Prev</button>
+            <span id="failedPageInfo" class="pager-info">1/1</span>
+            <button type="button" id="failedNextBtn" class="btn btn-secondary btn-compact" data-i18n="next">Next</button>
+          </div>
         </div>
       </section>
 
@@ -122,12 +144,11 @@
         </div>
         <div id="dlqPanel" class="dlq-panel" style="display:none;">
           <div class="dlq-toolbar">
-            <label for="dlqLimit" data-i18n="dlqLimitLabel">Entries</label>
-            <select id="dlqLimit" class="select" aria-label="Max DLQ rows">
-              <option value="25">25</option>
-              <option value="50" selected>50</option>
+            <label for="dlqLimit" data-i18n="rowsPerPage">Rows</label>
+            <select id="dlqLimit" class="select" aria-label="Rows per page">
+              <option value="10" selected>10</option>
+              <option value="50">50</option>
               <option value="100">100</option>
-              <option value="200">200</option>
             </select>
             <button type="button" id="dlqRefreshBtn" class="btn btn-primary" data-i18n="dlqRefresh">Refresh</button>
             <span id="dlqStatus" class="status"></span>
@@ -148,6 +169,11 @@
               <tbody id="dlqTableBody"></tbody>
             </table>
             <p id="dlqTableEmpty" class="live-empty" style="display:none;" data-i18n="dlqEmpty">No entries in the file yet.</p>
+            <div class="table-pager">
+              <button type="button" id="dlqPrevBtn" class="btn btn-secondary btn-compact" data-i18n="prev">Prev</button>
+              <span id="dlqPageInfo" class="pager-info">1/1</span>
+              <button type="button" id="dlqNextBtn" class="btn btn-secondary btn-compact" data-i18n="next">Next</button>
+            </div>
           </div>
         </div>
       </section>
