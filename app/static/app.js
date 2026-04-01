@@ -31,6 +31,7 @@ const mapperSourceFields = document.getElementById("mapperSourceFields");
 const mapperMappingBody = document.getElementById("mapperMappingBody");
 const mapperSavePatternBtn = document.getElementById("mapperSavePatternBtn");
 const mapperLoadPatternBtn = document.getElementById("mapperLoadPatternBtn");
+const mapperApplySavedToRouteBtn = document.getElementById("mapperApplySavedToRouteBtn");
 const mapperApplyRoute = document.getElementById("mapperApplyRoute");
 const mapperApplyBtn = document.getElementById("mapperApplyBtn");
 const mapperStatus = document.getElementById("mapperStatus");
@@ -428,6 +429,54 @@ function renderTargetUrls(routes) {
   });
 }
 
+function formatRouteActivePattern(route) {
+  const nm = route.active_pattern_name;
+  const id = route.active_pattern_id;
+  if (nm) {
+    const shortId =
+      id && String(id).length > 8
+        ? ` · <code title="${escapeHtml(String(id))}">${escapeHtml(String(id).slice(0, 8))}…</code>`
+        : id
+          ? ` · <code>${escapeHtml(String(id))}</code>`
+          : "";
+    return `<span class="route-ap-label">${escapeHtml(tr("mapperActivePattern"))}:</span> <strong>${escapeHtml(nm)}</strong>${shortId}`;
+  }
+  if (id) {
+    return `<span class="route-ap-label">${escapeHtml(tr("mapperActivePattern"))}:</span> <code>${escapeHtml(String(id).slice(0, 8))}…</code> <span class="text-muted">(${escapeHtml(tr("mapperActivePatternNameMissing"))})</span>`;
+  }
+  return `<span class="text-muted">${escapeHtml(tr("mapperActivePatternUnknownShort"))}</span>`;
+}
+
+function updateMapperActivePatternDisplay() {
+  const el = document.getElementById("mapperActivePatternLine");
+  if (!el || !mapperApplyRoute) return;
+  const routeName = mapperApplyRoute.value;
+  if (!routeName || !configJson || !Array.isArray(configJson.routes)) {
+    el.textContent = "";
+    return;
+  }
+  const route = configJson.routes.find((r) => r.name === routeName);
+  if (!route) {
+    el.textContent = "";
+    return;
+  }
+  const nm = route.active_pattern_name;
+  const id = route.active_pattern_id;
+  if (nm) {
+    el.innerHTML = `${escapeHtml(tr("mapperActivePattern"))}: <strong>${escapeHtml(nm)}</strong>${
+      id && String(id).length > 8
+        ? ` · <code title="${escapeHtml(String(id))}">${escapeHtml(String(id).slice(0, 8))}…</code>`
+        : id
+          ? ` · <code>${escapeHtml(String(id))}</code>`
+          : ""
+    }`;
+  } else if (id) {
+    el.innerHTML = `${escapeHtml(tr("mapperActivePattern"))}: <code>${escapeHtml(String(id).slice(0, 8))}…</code> <span class="text-muted">(${escapeHtml(tr("mapperActivePatternNameMissing"))})</span>`;
+  } else {
+    el.textContent = tr("mapperActivePatternUnknownShort");
+  }
+}
+
 function renderRoutes(routes) {
   if (!routesList) return;
   routesList.innerHTML = "";
@@ -471,6 +520,7 @@ function renderRoutes(routes) {
         <span class="route-source-label">Source:</span>
         <span class="route-source-value">${escapeHtml(source)}</span>
       </div>
+      <div class="route-active-pattern-line">${formatRouteActivePattern(route)}</div>
     `;
     routesList.appendChild(item);
 
@@ -1185,6 +1235,7 @@ function mappingsFromRouteTransform(route) {
 }
 
 function loadActiveRouteMappingIntoForm() {
+  updateMapperActivePatternDisplay();
   if (!configJson || !Array.isArray(configJson.routes)) return;
   if (!mapperApplyRoute) return;
   const routeName = mapperApplyRoute.value;
@@ -1218,7 +1269,7 @@ async function loadSavedPatterns() {
     if (!res.ok) return;
     const list = await res.json();
     if (mapperLoadPatternSelect) {
-      mapperLoadPatternSelect.innerHTML = "<option value=\"\">— Select pattern —</option>" +
+      mapperLoadPatternSelect.innerHTML = `<option value="">${escapeHtml(tr("mapperSelectPatternPlaceholder"))}</option>` +
         list.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("");
     }
     savedPatternsList.innerHTML = list.length === 0
@@ -1230,8 +1281,8 @@ async function loadSavedPatterns() {
           <span class="pattern-actions">
             <button type="button" class="btn btn-secondary btn-display-pattern" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}" title="Show mapping">Display</button>
             <button type="button" class="btn btn-secondary btn-download-pattern" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}" title="Download as JSON">Download</button>
-            <button type="button" class="btn btn-secondary btn-load-pattern" data-id="${escapeHtml(p.id)}">Load</button>
-            <button type="button" class="btn btn-primary btn-apply-pattern" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}">Apply to route</button>
+            <button type="button" class="btn btn-secondary btn-load-pattern" data-id="${escapeHtml(p.id)}">${escapeHtml(tr("mapperLoadIntoEditorBtn"))}</button>
+            <button type="button" class="btn btn-primary btn-apply-pattern" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}">${escapeHtml(tr("mapperApplyToRouteBtn"))}</button>
             <button type="button" class="btn btn-danger btn-delete-pattern" data-id="${escapeHtml(p.id)}" title="Delete pattern">Delete</button>
           </span>
         </li>
@@ -1628,6 +1679,19 @@ if (mapperLoadPatternBtn) {
   });
 }
 
+if (mapperApplySavedToRouteBtn && mapperLoadPatternSelect) {
+  mapperApplySavedToRouteBtn.addEventListener("click", () => {
+    const id = mapperLoadPatternSelect.value;
+    if (!id) {
+      if (mapperStatus) mapperStatus.textContent = tr("mapperSelectSavedPatternFirst");
+      return;
+    }
+    const opt = mapperLoadPatternSelect.options[mapperLoadPatternSelect.selectedIndex];
+    const name = opt ? opt.textContent.trim() : "";
+    applyPatternById(id, name);
+  });
+}
+
 if (mapperApplyBtn) {
   mapperApplyBtn.addEventListener("click", async () => {
     const routeName = mapperApplyRoute && mapperApplyRoute.value;
@@ -1800,6 +1864,8 @@ window.onLangChange = () => {
     renderRoutes(configJson.routes || []);
     renderTargetUrls(configJson.routes || []);
   }
+  updateMapperActivePatternDisplay();
+  loadSavedPatterns();
   loadDlqPanel();
   loadPortalStatus();
 };

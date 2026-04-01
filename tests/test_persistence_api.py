@@ -73,6 +73,44 @@ def test_delete_pattern_returns_409_and_restores_on_persist_failure(client, monk
     assert restored["name"] == "p2"
 
 
+def test_apply_pattern_sets_active_pattern_metadata(client, monkeypatch):
+    monkeypatch.setattr("app.main.persist_rules", lambda _rules: None)
+
+    response = client.post(
+        "/api/patterns/apply",
+        json={
+            "route_name": "ocp-alertmanager",
+            "source_type": "ocp-alertmanager-4.20",
+            "pattern_name": "my-applied-pattern",
+            "mappings": [{"target_field_id": "title", "source_field_id": "groupLabels.alertname"}],
+        },
+    )
+
+    assert response.status_code == 200
+    rules = get_rules()
+    route = next(r for r in rules.routes if r.name == "ocp-alertmanager")
+    assert route.active_pattern_name == "my-applied-pattern"
+    assert route.active_pattern_id
+
+
+def test_apply_pattern_by_pattern_id_sets_active_metadata(client, monkeypatch):
+    monkeypatch.setattr("app.main.persist_rules", lambda _rules: None)
+    saved = save_pattern_data(
+        name="saved-for-apply",
+        source_type="ocp-alertmanager-4.20",
+        mappings=[{"target_field_id": "title", "source_field_id": "groupLabels.alertname"}],
+    )
+    pid = saved["id"]
+    response = client.post(
+        "/api/patterns/apply",
+        json={"route_name": "ocp-alertmanager", "pattern_id": pid},
+    )
+    assert response.status_code == 200
+    route = next(r for r in get_rules().routes if r.name == "ocp-alertmanager")
+    assert route.active_pattern_id == pid
+    assert route.active_pattern_name == "saved-for-apply"
+
+
 def test_apply_pattern_returns_409_and_keeps_rules_unchanged(client, monkeypatch):
     monkeypatch.setattr("app.main.persist_rules", _raise_permission_error)
 

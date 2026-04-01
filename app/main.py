@@ -998,7 +998,23 @@ async def api_apply_pattern(
 
     try:
         new_transform = build_transform_from_mapping(mappings)
-        new_route = route.model_copy(update={"transform": new_transform})
+        active_id: Optional[str] = None
+        active_nm: Optional[str] = None
+        if pattern_id:
+            pmeta = get_pattern(pattern_id)
+            if pmeta:
+                active_id = pattern_id
+                active_nm = pmeta.get("name")
+        elif saved_pattern:
+            active_id = saved_pattern.get("id")
+            active_nm = saved_pattern.get("name")
+        new_route = route.model_copy(
+            update={
+                "transform": new_transform,
+                "active_pattern_id": active_id,
+                "active_pattern_name": active_nm,
+            }
+        )
         updated_routes = [new_route if r.name == route_name else r for r in rules.routes]
         new_rules = rules.model_copy(update={"routes": updated_routes})
         try:

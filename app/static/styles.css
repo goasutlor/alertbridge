@@ -484,6 +484,14 @@ body {
 .route-source-label { font-weight: 500; }
 .route-source-value { font-family: monospace; color: var(--text); }
 
+.route-active-pattern-line {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.route-active-pattern-line .route-ap-label { font-weight: 500; margin-right: 4px; }
+
 .routes-empty {
   padding: 24px;
   text-align: center;
@@ -823,6 +831,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   margin-bottom: 14px;
 }
 .mapper-toolbar label { font-size: 13px; color: var(--text-muted); }
+.mapper-toolbar-saved-label { font-size: 13px; font-weight: 500; color: var(--text-muted); }
+.mapper-saved-switch-hint { font-size: 12px; margin: -6px 0 14px; line-height: 1.45; max-width: 52rem; }
 .mapper-select { min-width: 220px; }
 .mapper-name-label { margin-left: 12px; }
 

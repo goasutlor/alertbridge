@@ -69,6 +69,10 @@ class RouteConfig(BaseModel):
     """If True, split payload.alerts[] and forward each alert separately (OCP Alertmanager)."""
     forward_enabled: bool = True
     """If False, accept webhooks and transform in-process but do not POST to the target (pause forwarding)."""
+    active_pattern_id: Optional[str] = None
+    """Set when a saved pattern is applied to this route via /api/patterns/apply (for UI clarity)."""
+    active_pattern_name: Optional[str] = None
+    """Display name of the pattern last applied to this route."""
 
 
 class BasicAuthUser(BaseModel):

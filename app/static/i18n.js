@@ -113,6 +113,17 @@ const LANG = {
     statusIncomingChecking: "Incoming: …",
     statusForwardChecking: "Forward: …",
     statusDlqChecking: "DLQ: …",
+    mapperActivePattern: "Active pattern",
+    mapperActivePatternNameMissing: "name not stored",
+    mapperActivePatternUnknownShort: "No pattern recorded for this route (apply a saved pattern or use Apply to route).",
+    mapperSavedPatternLabel: "Saved pattern",
+    mapperLoadIntoEditorBtn: "Load into editor",
+    mapperSetActiveForRouteBtn: "Set as active for route",
+    mapperSavedPatternSwitchHint:
+      "Choose a saved pattern and the route under “Apply to route” below, then use Set as active for route to switch which pattern is live on that route. Load into editor only fills the form — it does not change forwarding.",
+    mapperSelectSavedPatternFirst: "Select a saved pattern in the dropdown first.",
+    mapperApplyToRouteBtn: "Apply to route",
+    mapperSelectPatternPlaceholder: "— Select pattern —",
   },
   th: {
     liveEvents: "Live Events (Webhooks ที่เข้ามา)",
@@ -225,6 +236,17 @@ const LANG = {
     statusIncomingChecking: "รับเข้า: …",
     statusForwardChecking: "Forward: …",
     statusDlqChecking: "DLQ: …",
+    mapperActivePattern: "Pattern ที่ใช้งานอยู่",
+    mapperActivePatternNameMissing: "ไม่มีชื่อที่บันทึก",
+    mapperActivePatternUnknownShort: "ยังไม่มีการบันทึก pattern สำหรับ route นี้ (ใช้ Apply จาก Saved pattern หรือ Apply to route)",
+    mapperSavedPatternLabel: "Pattern ที่บันทึกไว้",
+    mapperLoadIntoEditorBtn: "โหลดเข้า editor",
+    mapperSetActiveForRouteBtn: "ตั้งเป็น pattern ที่ใช้กับ route",
+    mapperSavedPatternSwitchHint:
+      "เลือก pattern จาก dropdown และเลือก route ใน “Apply to route” ด้านล่าง แล้วกดปุ่มนี้เพื่อสลับ pattern ที่กำลังใช้งานจริง — ปุ่มโหลดเข้า editor แค่เติมฟอร์ม ไม่เปลี่ยนการ forward",
+    mapperSelectSavedPatternFirst: "เลือก pattern จาก dropdown ก่อน",
+    mapperApplyToRouteBtn: "นำไปใช้กับ route",
+    mapperSelectPatternPlaceholder: "— เลือก pattern —",
   },
 };
 
