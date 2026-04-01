@@ -340,6 +340,43 @@ async def webhook(source: str, request: Request) -> Response:
             status=str(http_status),
         ).inc()
         alert_summary = extract_alert_summary(payload)
+        err_pause = "Forwarding paused (outbound disabled for this route)"
+        if outputs_to_forward:
+            preview_src = outputs_to_forward[0]
+        else:
+            preview_src = transform_payload(payload, route)
+        san_preview = sanitize_payload(preview_src)
+        RECENT_FAILED.append(
+            {
+                "ts": datetime.now(BANGKOK).isoformat()[:23],
+                "request_id": request_id,
+                "source": source,
+                "route": route.name,
+                "http_status": http_status,
+                "payload_preview": json.dumps(san_preview)[:200],
+                "error": err_pause,
+            }
+        )
+        if dlq_file_path():
+            record_failed_forward(
+                {
+                    "ts": datetime.now(BANGKOK).isoformat()[:23],
+                    "request_id": request_id,
+                    "base_request_id": request_id,
+                    "unroll_index": 0,
+                    "unroll_count": max(1, len(outputs_to_forward)),
+                    "source": source,
+                    "route": route.name,
+                    "http_status": None,
+                    "error": err_pause,
+                    "error_type": "ForwardPaused",
+                    "final_failure": True,
+                    "forward_paused": True,
+                    "transformed": san_preview,
+                }
+            )
+        increment_daily("forward_fail")
+        increment_daily("dlq")
         RECENT_WEBHOOKS.append({
             "ts": datetime.now(BANGKOK).isoformat()[:23],
             "request_id": request_id,

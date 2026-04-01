@@ -207,7 +207,7 @@ def test_purge_dlq_by_ids_helpers(monkeypatch, tmp_path: Path) -> None:
     assert p.read_text(encoding="utf-8") == ""
 
 
-def test_webhook_forward_paused_skips_outbound(monkeypatch, tmp_path: Path) -> None:
+def test_webhook_forward_paused_skips_outbound_but_records_failed_and_dlq(monkeypatch, tmp_path: Path) -> None:
     dlq = tmp_path / "paused.jsonl"
     monkeypatch.setenv("ALERTBRIDGE_DLQ_FILE", str(dlq))
 
@@ -236,9 +236,20 @@ def test_webhook_forward_paused_skips_outbound(monkeypatch, tmp_path: Path) -> N
     with TestClient(app) as ac:
         set_rules(rules)
         r = ac.post("/webhook/probe", json={"alerts": [{"status": "firing", "labels": {}}]})
+        failed = ac.get("/api/recent-failed")
 
     assert r.status_code == 200
     body = r.json()
     assert body.get("forward_paused") is True
     assert body.get("forwarded") is False
-    assert not dlq.exists()
+    assert dlq.exists()
+    lines = dlq.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 1
+    row = json.loads(lines[0])
+    assert row.get("forward_paused") is True
+    assert row.get("error_type") == "ForwardPaused"
+    assert failed.status_code == 200
+    failed_list = failed.json()
+    assert any(
+        x.get("error") == "Forwarding paused (outbound disabled for this route)" for x in failed_list
+    ), failed_list
