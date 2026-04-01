@@ -118,6 +118,26 @@ def get_pattern(pattern_id: str) -> Optional[Dict[str, Any]]:
     return _saved_patterns.get(pattern_id)
 
 
+def find_pattern_id_by_name(name: str) -> Optional[str]:
+    """
+    If a saved pattern uses this exact name (trimmed), return its id.
+    When multiple exist (legacy duplicates), prefer the most recently updated.
+    """
+    n = (name or "").strip()
+    if not n:
+        return None
+    best_id: Optional[str] = None
+    best_ts = ""
+    for pid, p in _saved_patterns.items():
+        if (p.get("name") or "").strip() != n:
+            continue
+        ts = (p.get("updated_at") or p.get("created_at") or "") or ""
+        if ts >= best_ts:
+            best_ts = ts
+            best_id = pid
+    return best_id
+
+
 def save_pattern(
     name: str,
     source_type: str,
@@ -127,8 +147,13 @@ def save_pattern(
     """
     Save or update a pattern. mappings: [ { target_field_id, source_field_id?, static_value? }, ... ]
     Returns the saved pattern { id, name, source_type, mappings }.
+    When pattern_id is omitted, updates an existing row with the same name if present (no duplicate names).
     """
-    pid = pattern_id or str(uuid.uuid4())
+    if pattern_id is not None:
+        pid = pattern_id
+    else:
+        existing = find_pattern_id_by_name(name)
+        pid = existing if existing else str(uuid.uuid4())
     old = _saved_patterns.get(pid) or {}
     created_at = old.get("created_at") or _now_bangkok_iso()
     _saved_patterns[pid] = {

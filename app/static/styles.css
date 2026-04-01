@@ -767,6 +767,44 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .failed-events-toolbar .input-inline { min-width: 220px; }
 .failed-error-cell { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .live-alert-summary { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-table .td-severity { white-space: nowrap; }
+
+.severity-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.severity-badge.severity-critical {
+  background: rgba(220, 38, 38, 0.18);
+  color: #b91c1c;
+  border: 1px solid rgba(220, 38, 38, 0.45);
+}
+.severity-badge.severity-warning {
+  background: rgba(234, 179, 8, 0.2);
+  color: #a16207;
+  border: 1px solid rgba(234, 179, 8, 0.45);
+}
+.severity-badge.severity-info {
+  background: rgba(59, 130, 246, 0.15);
+  color: #1d4ed8;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+}
+.severity-badge.severity-low {
+  background: rgba(100, 116, 139, 0.12);
+  color: #475569;
+  border: 1px solid rgba(100, 116, 139, 0.35);
+}
+.severity-badge.severity-default {
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.payload-severity { flex-shrink: 0; }
 
 .live-empty {
   color: var(--text-muted);
@@ -1017,6 +1055,19 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   font-size: 13px;
   margin-top: 4px;
 }
+
+.mapper-active-pattern {
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+.mapper-active-pattern.mapper-active-pattern-highlight {
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(13, 148, 136, 0.1);
+  border: 1px solid rgba(13, 148, 136, 0.38);
+}
+.mapper-active-route-label { color: var(--text-muted); font-weight: 500; }
 
 .saved-patterns { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--border); }
 .saved-patterns-sub { font-size: 12px; margin: 6px 0 0; line-height: 1.45; max-width: 52rem; }

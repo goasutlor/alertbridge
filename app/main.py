@@ -115,6 +115,39 @@ def extract_alert_summary(payload: Any) -> str:
     return ""
 
 
+def extract_alert_severity(payload: Any) -> str:
+    """
+    Extract severity/risk level from OCP Alertmanager, Confluent, or transformed output.
+    Checks commonLabels, groupLabels, alerts[].labels, top-level labels, and flat severity.
+    """
+    if not payload or not isinstance(payload, dict):
+        return ""
+    v = payload.get("severity")
+    if v is not None and not isinstance(v, (dict, list)):
+        s = str(v).strip()
+        if s:
+            return s[:40]
+    for group_key in ("commonLabels", "groupLabels"):
+        grp = payload.get(group_key)
+        if isinstance(grp, dict):
+            sv = grp.get("severity")
+            if sv and isinstance(sv, str):
+                return sv.strip()[:40]
+    alerts = payload.get("alerts")
+    if isinstance(alerts, list) and alerts and isinstance(alerts[0], dict):
+        labels = alerts[0].get("labels") or {}
+        if isinstance(labels, dict):
+            sv = labels.get("severity")
+            if sv and isinstance(sv, str):
+                return sv.strip()[:40]
+    labels = payload.get("labels")
+    if isinstance(labels, dict):
+        sv = labels.get("severity")
+        if sv and isinstance(sv, str):
+            return sv.strip()[:40]
+    return ""
+
+
 _config_watch_task: Optional[asyncio.Task] = None
 
 
@@ -346,6 +379,7 @@ async def webhook(source: str, request: Request) -> Response:
         else:
             preview_src = transform_payload(payload, route)
         san_preview = sanitize_payload(preview_src)
+        alert_severity = extract_alert_severity(payload) or extract_alert_severity(san_preview)
         RECENT_FAILED.append(
             {
                 "ts": datetime.now(BANGKOK).isoformat()[:23],
@@ -355,6 +389,7 @@ async def webhook(source: str, request: Request) -> Response:
                 "http_status": http_status,
                 "payload_preview": json.dumps(san_preview)[:200],
                 "error": err_pause,
+                "alert_severity": alert_severity or None,
             }
         )
         if dlq_file_path():
@@ -373,6 +408,7 @@ async def webhook(source: str, request: Request) -> Response:
                     "final_failure": True,
                     "forward_paused": True,
                     "transformed": san_preview,
+                    "alert_severity": alert_severity or None,
                 }
             )
         increment_daily("forward_fail")
@@ -385,6 +421,7 @@ async def webhook(source: str, request: Request) -> Response:
             "http_status": http_status,
             "forwarded": False,
             "alert_summary": alert_summary or None,
+            "alert_severity": alert_severity or None,
         })
         RECENT_PAYLOADS.append({
             "ts": datetime.now(BANGKOK).isoformat()[:23],
@@ -392,6 +429,7 @@ async def webhook(source: str, request: Request) -> Response:
             "route": route.name,
             "request_id": request_id,
             "payload": sanitize_payload(payload),
+            "alert_severity": alert_severity or None,
         })
         return JSONResponse(
             {
@@ -408,13 +446,15 @@ async def webhook(source: str, request: Request) -> Response:
         ok, status_code, err, attempt_meta = await forward_payload(output, route, rid, rules.defaults)
         if ok:
             increment_daily("forward_success")
+            out_san = sanitize_payload(output)
             RECENT_SENT.append({
                 "ts": datetime.now(BANGKOK).isoformat()[:23],
                 "request_id": rid,
                 "base_request_id": request_id,
                 "source": source,
                 "route": route.name,
-                "transformed": sanitize_payload(output),
+                "transformed": out_san,
+                "alert_severity": extract_alert_severity(out_san) or None,
             })
         else:
             all_success = False
@@ -425,6 +465,8 @@ async def webhook(source: str, request: Request) -> Response:
             # When unroll_alerts splits one webhook into N forwards, N lines share base_request_id;
             # suffix -0/-1 on request_id is the shard index, not HTTP retry.
             n_out = len(outputs_to_forward)
+            out_san = sanitize_payload(output)
+            sev = extract_alert_severity(out_san) or extract_alert_severity(payload)
             record_failed_forward(
                 {
                     "ts": datetime.now(BANGKOK).isoformat()[:23],
@@ -443,7 +485,8 @@ async def webhook(source: str, request: Request) -> Response:
                     "retry_count": max(int(attempt_meta.get("attempts_used", 0)) - 1, 0),
                     "circuit_open": bool(attempt_meta.get("circuit_open", False)),
                     "final_failure": True,
-                    "transformed": sanitize_payload(output),
+                    "transformed": out_san,
+                    "alert_severity": sev or None,
                 }
             )
     # Daily forward_fail / dlq: one tick per incoming webhook if any outbound failed (not per unrolled alert).
@@ -483,18 +526,21 @@ async def webhook(source: str, request: Request) -> Response:
                 "sanitized_payload": sanitize_payload(failed_output),
             },
         )
+        failed_san = sanitize_payload(failed_output)
         RECENT_FAILED.append({
             "ts": datetime.now(BANGKOK).isoformat()[:23],
             "request_id": request_id,
             "source": source,
             "route": route.name,
             "http_status": http_status,
-            "payload_preview": json.dumps(sanitize_payload(failed_output))[:200],
+            "payload_preview": json.dumps(failed_san)[:200],
             "error": str(last_error) if last_error else None,
+            "alert_severity": extract_alert_severity(failed_san) or extract_alert_severity(payload) or None,
         })
 
     # Append to live feed for UI (newest at end; API returns reversed)
     alert_summary = extract_alert_summary(payload)
+    alert_severity_live = extract_alert_severity(payload)
     RECENT_WEBHOOKS.append({
         "ts": datetime.now(BANGKOK).isoformat()[:23],
         "request_id": request_id,
@@ -503,6 +549,7 @@ async def webhook(source: str, request: Request) -> Response:
         "http_status": http_status,
         "forwarded": success,
         "alert_summary": alert_summary or None,
+        "alert_severity": alert_severity_live or None,
     })
     # Store sanitized incoming payload so UI can use as source pattern (real traffic shape)
     RECENT_PAYLOADS.append({
@@ -511,6 +558,7 @@ async def webhook(source: str, request: Request) -> Response:
         "route": route.name,
         "request_id": request_id,
         "payload": sanitize_payload(payload),
+        "alert_severity": alert_severity_live or None,
     })
 
     return JSONResponse(
@@ -992,9 +1040,19 @@ async def api_apply_pattern(
             return JSONResponse({"detail": "Provide pattern_id or mappings"}, status_code=400)
         if len(mappings) > 500:
             return JSONResponse({"detail": "Too many mappings"}, status_code=400)
-        # Auto-save pattern when applying from form, so it appears in Saved Patterns
+        # Auto-save pattern when applying from form, so it appears in Saved Patterns.
+        # Reuse existing id by name (or optional pattern_id from editor) so Apply does not duplicate rows.
         pattern_name = (body.get("pattern_name") or "").strip() or f"Applied to {route_name}"
-        saved_pattern = save_pattern_data(name=pattern_name, source_type=source_type, mappings=mappings)
+        explicit_pid = body.get("pattern_id")
+        if explicit_pid and get_pattern(str(explicit_pid)):
+            saved_pattern = save_pattern_data(
+                name=pattern_name,
+                source_type=source_type,
+                mappings=mappings,
+                pattern_id=str(explicit_pid),
+            )
+        else:
+            saved_pattern = save_pattern_data(name=pattern_name, source_type=source_type, mappings=mappings)
 
     try:
         new_transform = build_transform_from_mapping(mappings)

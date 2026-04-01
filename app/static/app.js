@@ -74,7 +74,7 @@ let livePage = 1;
 let failedPage = 1;
 let dlqPage = 1;
 
-const DLQ_TABLE_COLS = 9;
+const DLQ_TABLE_COLS = 10;
 
 function dlqUnrollCell(e) {
   const n = e.unroll_count;
@@ -83,6 +83,17 @@ function dlqUnrollCell(e) {
     return `${idx + 1}/${n}`;
   }
   return "—";
+}
+
+/** Tooltip for UNROLL column: must match the displayed fraction, not a fixed example like 1/2. */
+function dlqUnrollTitle(e) {
+  const n = e.unroll_count;
+  if (typeof n === "number" && n > 1) {
+    const idx = typeof e.unroll_index === "number" ? e.unroll_index : 0;
+    const i = idx + 1;
+    return tr("dlqUnrollHintTpl").replace(/\{i\}/g, String(i)).replace(/\{n\}/g, String(n));
+  }
+  return tr("dlqUnrollHintDash");
 }
 
 /** Stable key for checkbox + purge API: dlq_id, or request_id for legacy rows without dlq_id. */
@@ -117,6 +128,8 @@ let lastTotalRequests = null;
 let configJson = null;
 /** In-cluster webhook base from GET /api/in-cluster-webhook-base (HTTP Service URL). */
 let internalWebhookBase = null;
+/** When set, Save/Apply update this saved pattern row (overwrite / rename) instead of creating duplicates. */
+let editorPatternId = null;
 
 /** Parse JSON into list of paths for mapping. Returns [ { id, label }, ... ]. Handles nested objects; for arrays uses first element. */
 function parseJsonToPaths(obj, prefix = "") {
@@ -467,26 +480,33 @@ function updateMapperActivePatternDisplay() {
   const routeName = mapperApplyRoute.value;
   if (!routeName || !configJson || !Array.isArray(configJson.routes)) {
     el.textContent = "";
+    el.classList.remove("mapper-active-pattern-highlight");
     return;
   }
   const route = configJson.routes.find((r) => r.name === routeName);
   if (!route) {
     el.textContent = "";
+    el.classList.remove("mapper-active-pattern-highlight");
     return;
   }
   const nm = route.active_pattern_name;
   const id = route.active_pattern_id;
   if (nm) {
-    el.innerHTML = `${escapeHtml(tr("mapperActivePattern"))}: <strong>${escapeHtml(nm)}</strong>${
-      id && String(id).length > 8
-        ? ` · <code title="${escapeHtml(String(id))}">${escapeHtml(String(id).slice(0, 8))}…</code>`
-        : id
-          ? ` · <code>${escapeHtml(String(id))}</code>`
-          : ""
-    }`;
+    el.classList.add("mapper-active-pattern-highlight");
+    el.innerHTML =
+      `<span class="mapper-active-route-label">${escapeHtml(tr("mapperActivePatternOnRoutePrefix"))} <strong>${escapeHtml(routeName)}</strong></span> — ` +
+      `${escapeHtml(tr("mapperActivePattern"))}: <strong>${escapeHtml(nm)}</strong>${
+        id && String(id).length > 8
+          ? ` · <code title="${escapeHtml(String(id))}">${escapeHtml(String(id).slice(0, 8))}…</code>`
+          : id
+            ? ` · <code>${escapeHtml(String(id))}</code>`
+            : ""
+      }`;
   } else if (id) {
-    el.innerHTML = `${escapeHtml(tr("mapperActivePattern"))}: <code>${escapeHtml(String(id).slice(0, 8))}…</code> <span class="text-muted">(${escapeHtml(tr("mapperActivePatternNameMissing"))})</span>`;
+    el.classList.add("mapper-active-pattern-highlight");
+    el.innerHTML = `${escapeHtml(tr("mapperActivePatternOnRoutePrefix"))} <strong>${escapeHtml(routeName)}</strong> — ${escapeHtml(tr("mapperActivePattern"))}: <code>${escapeHtml(String(id).slice(0, 8))}…</code> <span class="text-muted">(${escapeHtml(tr("mapperActivePatternNameMissing"))})</span>`;
   } else {
+    el.classList.remove("mapper-active-pattern-highlight");
     el.textContent = tr("mapperActivePatternUnknownShort");
   }
 }
@@ -954,6 +974,7 @@ function renderLiveRequests(list) {
           <td>${escapeHtml(r.source || "")}</td>
           <td>${escapeHtml(r.route || "")}</td>
           <td class="live-alert-summary" title="${escapeHtml(r.alert_summary || "")}">${escapeHtml((r.alert_summary || "-").slice(0, 60))}${(r.alert_summary || "").length > 60 ? "…" : ""}</td>
+          <td class="td-severity">${severityBadgeHtml(r.alert_severity)}</td>
           <td class="status-${r.http_status || ""}">${escapeHtml(String(r.http_status || ""))}</td>
           <td class="${r.forwarded ? "forwarded-ok" : "forwarded-fail"}">${r.forwarded ? "yes" : "no"}</td>
           <td><code>${escapeHtml((r.request_id || "").slice(0, 8))}</code></td>
@@ -969,6 +990,19 @@ function escapeHtml(s) {
   const div = document.createElement("div");
   div.textContent = String(s);
   return div.innerHTML;
+}
+
+/** Severity from alert payload (labels.severity, commonLabels, etc.) for table columns. */
+function severityBadgeHtml(sev) {
+  const s = sev != null ? String(sev).trim() : "";
+  if (!s) return "—";
+  const lower = s.toLowerCase();
+  let cls = "severity-badge severity-default";
+  if (/(critical|emergency|fatal|disaster)/i.test(lower)) cls = "severity-badge severity-critical";
+  else if (/(warning|warn)/i.test(lower)) cls = "severity-badge severity-warning";
+  else if (/info(rmation)?/i.test(lower)) cls = "severity-badge severity-info";
+  else if (/(page|none|normal)/i.test(lower)) cls = "severity-badge severity-low";
+  return `<span class="${cls}" title="${escapeHtml(s)}">${escapeHtml(s)}</span>`;
 }
 
 async function loadLiveRequests() {
@@ -990,7 +1024,8 @@ function filterFailedEvents(list, q) {
     const rid = (r.request_id || "").toLowerCase();
     const err = (r.error || "").toLowerCase();
     const preview = (r.payload_preview || "").toLowerCase();
-    return src.includes(ql) || route.includes(ql) || rid.includes(ql) || err.includes(ql) || preview.includes(ql);
+    const sev = (r.alert_severity || "").toLowerCase();
+    return src.includes(ql) || route.includes(ql) || rid.includes(ql) || err.includes(ql) || preview.includes(ql) || sev.includes(ql);
   });
 }
 
@@ -1025,6 +1060,7 @@ function renderFailedEvents(list) {
         <td>${escapeHtml(r.ts || "")}</td>
         <td>${escapeHtml(r.source || "")}</td>
         <td>${escapeHtml(r.route || "")}</td>
+        <td class="td-severity">${severityBadgeHtml(r.alert_severity)}</td>
         <td class="status-${r.http_status || ""}">${escapeHtml(String(r.http_status || ""))}</td>
         <td><code>${escapeHtml((r.request_id || "").slice(0, 8))}</code></td>
         <td class="failed-error-cell" title="${escapeHtml(r.error || "")}">${escapeHtml((r.error || r.payload_preview || "").slice(0, 60))}${(r.error || r.payload_preview || "").length > 60 ? "…" : ""}</td>
@@ -1256,6 +1292,7 @@ function loadActiveRouteMappingIntoForm() {
   if (!routeName) return;
   const route = configJson.routes.find((r) => r.name === routeName);
   if (!route) return;
+  editorPatternId = route.active_pattern_id || null;
   const mappings = mappingsFromRouteTransform(route);
   if (!mappings.length) return;
 
@@ -1356,6 +1393,7 @@ async function loadOnePattern(patternId) {
     const res = await fetch(`/api/patterns/${patternId}`, { credentials: "include" });
     if (!res.ok) return;
     const p = await res.json();
+    editorPatternId = p.id || null;
     mapperPatternName.value = p.name || "";
     mapperSourceType.value = p.source_type || "";
     const mappings = p.mappings || [];
@@ -1482,15 +1520,19 @@ if (mapperSavePatternBtn) {
       return;
     }
     const mappings = getMappingsFromForm();
+    const payload = { name, source_type: sourceType, mappings };
+    if (editorPatternId) payload.id = editorPatternId;
     try {
       const res = await fetch("/api/patterns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ name, source_type: sourceType, mappings }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error("Save failed");
-      if (mapperStatus) mapperStatus.textContent = "Pattern saved.";
+      const saved = await res.json();
+      if (saved && saved.id) editorPatternId = saved.id;
+      if (mapperStatus) mapperStatus.textContent = tr("mapperPatternSavedOk");
       await loadSavedPatterns();
     } catch (e) {
       if (mapperStatus) mapperStatus.textContent = `Error: ${e.message}`;
@@ -1618,6 +1660,7 @@ async function loadRecentPayloads() {
               <span class="payload-ts">${escapeHtml(item.ts || "")}</span>
               <span class="payload-source">Source: <code>${escapeHtml(item.source || "")}</code></span>
               <span class="payload-route">Route: <strong>${escapeHtml(item.route || "")}</strong></span>
+              <span class="payload-severity">${severityBadgeHtml(item.alert_severity)}</span>
             </div>
             <div class="payload-preview">
               <code class="payload-preview-code">${escapeHtml(JSON.stringify(item.payload || {}, null, 2))}</code>
@@ -1659,6 +1702,7 @@ async function loadRecentSent() {
             <span class="payload-ts">${escapeHtml(item.ts || "")}</span>
             <span class="payload-source">Source: <code>${escapeHtml(item.source || "")}</code></span>
             <span class="payload-route">Route: <strong>${escapeHtml(item.route || "")}</strong></span>
+            <span class="payload-severity">${severityBadgeHtml(item.alert_severity)}</span>
           </div>
           <div class="payload-preview">
             <code class="payload-preview-code">${escapeHtml(JSON.stringify(item.transformed || {}, null, 2))}</code>
@@ -1731,17 +1775,19 @@ if (mapperApplyBtn) {
     }
     const mappings = getMappingsFromForm();
     const pName = (mapperPatternName && mapperPatternName.value.trim()) || "Current mapping";
+    const applyBody = {
+      route_name: routeName,
+      source_type: mapperSourceType?.value || "",
+      mappings,
+      pattern_name: pName,
+    };
+    if (editorPatternId) applyBody.pattern_id = editorPatternId;
     try {
       const res = await fetch("/api/patterns/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          route_name: routeName,
-          source_type: mapperSourceType?.value || "",
-          mappings,
-          pattern_name: pName,
-        }),
+        body: JSON.stringify(applyBody),
       });
       if (!res.ok) {
         let errMsg = "Apply failed";
@@ -1754,7 +1800,9 @@ if (mapperApplyBtn) {
         }
         throw new Error(errMsg);
       }
-      if (mapperStatus) mapperStatus.textContent = `${pName} applied to ${routeName} route. Pattern saved. Reload config to see YAML.`;
+      if (mapperStatus) {
+        mapperStatus.textContent = tr("mapperApplyStatusLine").replace("{name}", pName).replace("{route}", routeName);
+      }
       await loadConfig();
     } catch (e) {
       if (mapperStatus) mapperStatus.textContent = `Error: ${e.message}`;
@@ -1955,8 +2003,9 @@ function renderDlqTable() {
       <td>${escapeHtml(e.ts || "")}</td>
       <td>${escapeHtml(e.source || "")}</td>
       <td>${escapeHtml(e.route || "")}</td>
+      <td class="td-severity">${severityBadgeHtml(e.alert_severity)}</td>
       <td class="status-${escapeHtml(stClass)}">${escapeHtml(stDisp)}</td>
-      <td class="dlq-unroll-cell" title="${escapeHtml(tr("dlqUnrollHint"))}">${escapeHtml(dlqUnrollCell(e))}</td>
+      <td class="dlq-unroll-cell" title="${escapeHtml(dlqUnrollTitle(e))}">${escapeHtml(dlqUnrollCell(e))}</td>
       <td><code>${escapeHtml(e.request_id || "")}</code></td>
       <td class="failed-error-cell" title="${escapeHtml(errFull)}">${escapeHtml(errShort)}${errTrunc ? "…" : ""}</td>
       <td><button type="button" class="btn btn-secondary dlq-detail-btn" data-dlq-toggle="${i}" aria-expanded="${open}">${btnLabel}</button></td>

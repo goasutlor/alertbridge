@@ -147,3 +147,45 @@ def test_save_pattern_includes_timestamps(client):
     body = response.json()
     assert body.get("created_at")
     assert body.get("updated_at")
+
+
+def test_save_pattern_same_name_reuses_same_id(client, monkeypatch):
+    monkeypatch.setattr("app.main.persist_rules", lambda _rules: None)
+    r1 = client.post(
+        "/api/patterns",
+        json={
+            "name": "unique-name-once",
+            "source_type": "ocp-alertmanager-4.20",
+            "mappings": [{"target_field_id": "title", "source_field_id": "groupLabels.alertname"}],
+        },
+    )
+    assert r1.status_code == 200
+    id1 = r1.json()["id"]
+    r2 = client.post(
+        "/api/patterns",
+        json={
+            "name": "unique-name-once",
+            "source_type": "ocp-alertmanager-4.20",
+            "mappings": [{"target_field_id": "message", "source_field_id": "groupLabels.alertname"}],
+        },
+    )
+    assert r2.status_code == 200
+    assert r2.json()["id"] == id1
+    assert len(list_patterns()) == 1
+
+
+def test_apply_from_form_twice_same_pattern_name_one_row(client, monkeypatch):
+    monkeypatch.setattr("app.main.persist_rules", lambda _rules: None)
+    m = [{"target_field_id": "title", "source_field_id": "groupLabels.alertname"}]
+    for _ in range(2):
+        res = client.post(
+            "/api/patterns/apply",
+            json={
+                "route_name": "ocp-alertmanager",
+                "source_type": "ocp-alertmanager-4.20",
+                "pattern_name": "apply-dedup-test",
+                "mappings": m,
+            },
+        )
+        assert res.status_code == 200
+    assert len(list_patterns()) == 1
