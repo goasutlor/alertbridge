@@ -100,7 +100,8 @@ def purge_dlq_all() -> Tuple[bool, Optional[str]]:
 
 def purge_dlq_by_ids(ids: Set[str]) -> Tuple[int, Optional[str]]:
     """
-    Remove JSONL lines whose parsed object has dlq_id in ids.
+    Remove JSONL lines whose parsed object has dlq_id or request_id in ids.
+    (Legacy rows may only have request_id — UI sends that for purge-selected.)
     Returns (removed_count, error_message).
     """
     path = dlq_file_path()
@@ -125,7 +126,9 @@ def purge_dlq_by_ids(ids: Set[str]) -> Tuple[int, Optional[str]]:
                         outf.write(line)
                         continue
                     did = obj.get("dlq_id")
-                    if did and did in ids:
+                    rid = obj.get("request_id")
+                    match = (did and str(did) in ids) or (rid and str(rid) in ids)
+                    if match:
                         removed += 1
                     else:
                         outf.write(line if line.endswith("\n") else line + "\n")

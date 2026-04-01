@@ -84,6 +84,18 @@ function dlqUnrollCell(e) {
   return "—";
 }
 
+/** Stable key for checkbox + purge API: dlq_id, or request_id for legacy rows without dlq_id. */
+function dlqPurgeKey(e) {
+  if (e.dlq_id) return String(e.dlq_id);
+  if (e.request_id) return String(e.request_id);
+  return "";
+}
+
+function dlqPageSize() {
+  const n = Number(document.getElementById("dlqLimit")?.value);
+  return Number.isFinite(n) && n > 0 ? n : 10;
+}
+
 function tr(key) {
   const fn = (typeof window !== "undefined" && window.t) ? window.t : (k => k);
   return fn(key);
@@ -1797,7 +1809,7 @@ function renderDlqTable() {
   const emptyEl = document.getElementById("dlqTableEmpty");
   if (!body || !emptyEl) return;
   const entries = dlqEntriesCache;
-  const pageSize = Number(document.getElementById("dlqLimit")?.value || 10);
+  const pageSize = dlqPageSize();
   const pageInfo = document.getElementById("dlqPageInfo");
   const prevBtn = document.getElementById("dlqPrevBtn");
   const nextBtn = document.getElementById("dlqNextBtn");
@@ -1822,7 +1834,7 @@ function renderDlqTable() {
   const start = (dlqPage - 1) * pageSize;
   const pagedEntries = entries.slice(start, start + pageSize);
   emptyEl.style.display = "none";
-  const pageIds = pagedEntries.map((e) => (e.dlq_id ? String(e.dlq_id) : null)).filter(Boolean);
+  const pageIds = pagedEntries.map((e) => dlqPurgeKey(e)).filter(Boolean);
   const allPageSelected = pageIds.length > 0 && pageIds.every((id) => dlqSelectedIds.has(id));
   const somePageSelected = pageIds.some((id) => dlqSelectedIds.has(id));
   const rows = [];
@@ -1836,11 +1848,11 @@ function renderDlqTable() {
     const st = e.http_status;
     const stDisp = st != null && st !== "" ? String(st) : "—";
     const stClass = st != null && st !== "" ? String(st) : "";
-    const did = e.dlq_id ? String(e.dlq_id) : "";
-    const canSel = !!did;
-    const selChecked = canSel && dlqSelectedIds.has(did);
+    const pkey = dlqPurgeKey(e);
+    const canSel = !!pkey;
+    const selChecked = canSel && dlqSelectedIds.has(pkey);
     const cbCell = canSel
-      ? `<input type="checkbox" class="dlq-row-cb" data-dlq-id="${escapeHtml(did)}" ${selChecked ? "checked" : ""} />`
+      ? `<input type="checkbox" class="dlq-row-cb" data-dlq-key="${escapeHtml(pkey)}" ${selChecked ? "checked" : ""} />`
       : `<input type="checkbox" disabled title="${escapeHtml(tr("dlqNoIdHint"))}" />`;
     rows.push(`<tr class="dlq-row">
       <td class="dlq-cb-cell">${cbCell}</td>
@@ -1886,14 +1898,14 @@ function onDlqTableClick(ev) {
 
 function onDlqListWrapChange(ev) {
   const t = ev.target;
-  const pageSize = Number(document.getElementById("dlqLimit")?.value || 10);
+  const pageSize = dlqPageSize();
   const entries = dlqEntriesCache;
   const start = (dlqPage - 1) * pageSize;
   const pagedEntries = entries.slice(start, start + pageSize);
   if (t && t.id === "dlqSelectPage") {
     const on = !!t.checked;
     pagedEntries.forEach((e) => {
-      const id = e.dlq_id ? String(e.dlq_id) : "";
+      const id = dlqPurgeKey(e);
       if (!id) return;
       if (on) dlqSelectedIds.add(id);
       else dlqSelectedIds.delete(id);
@@ -1901,8 +1913,8 @@ function onDlqListWrapChange(ev) {
     renderDlqTable();
     return;
   }
-  if (t && t.classList && t.classList.contains("dlq-row-cb") && t.dataset.dlqId) {
-    const id = String(t.dataset.dlqId);
+  if (t && t.classList && t.classList.contains("dlq-row-cb") && t.dataset.dlqKey) {
+    const id = String(t.dataset.dlqKey);
     if (t.checked) dlqSelectedIds.add(id);
     else dlqSelectedIds.delete(id);
     renderDlqTable();
@@ -2013,9 +2025,8 @@ async function loadDlqPanel() {
 }
 
 async function refreshDlq() {
-  const limitEl = document.getElementById("dlqLimit");
   const statusEl = document.getElementById("dlqStatus");
-  const pageSize = Number((limitEl && limitEl.value) ? limitEl.value : "10");
+  const pageSize = dlqPageSize();
   const lim = String(Math.min(500, Math.max(50, pageSize * 10)));
   if (statusEl) statusEl.textContent = tr("dlqLoading");
   dlqOpenDetailIndex = null;
@@ -2035,7 +2046,7 @@ async function refreshDlq() {
     }
     const entries = data.entries || [];
     dlqEntriesCache = entries;
-    const presentIds = new Set(entries.map((e) => (e.dlq_id ? String(e.dlq_id) : null)).filter(Boolean));
+    const presentIds = new Set(entries.map((e) => dlqPurgeKey(e)).filter(Boolean));
     dlqSelectedIds.forEach((id) => {
       if (!presentIds.has(id)) dlqSelectedIds.delete(id);
     });

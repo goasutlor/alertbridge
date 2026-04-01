@@ -161,6 +161,38 @@ def test_api_dlq_purge_by_ids(monkeypatch, tmp_path: Path) -> None:
     assert json.loads(lines[0])["n"] == 2
 
 
+def test_api_dlq_purge_by_request_id_legacy_row(monkeypatch, tmp_path: Path) -> None:
+    """Rows without dlq_id are matched by request_id for purge."""
+    p = tmp_path / "q.jsonl"
+    rid_drop = "abc-uuid-0"
+    rid_keep = "abc-uuid-1"
+    p.write_text(
+        "\n".join(
+            [
+                json.dumps({"request_id": rid_drop, "n": 1}),
+                json.dumps({"request_id": rid_keep, "n": 2}),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ALERTBRIDGE_DLQ_FILE", str(p))
+    monkeypatch.setenv("BASIC_AUTH_USER", "u")
+    monkeypatch.setenv("BASIC_AUTH_PASSWORD", "p")
+    hdr = base64.b64encode(b"u:p").decode()
+    with TestClient(app) as ac:
+        r = ac.post(
+            "/api/dlq/purge",
+            headers={"Authorization": f"Basic {hdr}"},
+            json={"ids": [rid_drop]},
+        )
+    assert r.status_code == 200
+    assert r.json().get("removed") == 1
+    lines = [ln for ln in p.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    assert len(lines) == 1
+    assert json.loads(lines[0])["n"] == 2
+
+
 def test_purge_dlq_by_ids_helpers(monkeypatch, tmp_path: Path) -> None:
     p = tmp_path / "q.jsonl"
     monkeypatch.setenv("ALERTBRIDGE_DLQ_FILE", str(p))

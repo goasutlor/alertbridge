@@ -575,7 +575,7 @@ async def api_dlq_purge(
     request: Request,
     _: Optional[str] = Depends(require_basic_auth),
 ) -> Response:
-    """Remove DLQ rows after review. Body: {\"all\": true} or {\"ids\": [\"uuid\", ...]}. Requires Basic Auth."""
+    """Remove DLQ rows after review. Body: {\"all\": true} or {\"ids\": [...]}. Each id may be dlq_id or request_id. Requires Basic Auth."""
     if not dlq_file_path():
         return JSONResponse(
             {"ok": False, "detail": "ALERTBRIDGE_DLQ_FILE not set"},
