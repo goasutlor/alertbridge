@@ -29,7 +29,7 @@ from app.config import (
     watch_and_reload,
 )
 from app.daily_metrics import daily_metrics_file_path, increment_daily, read_daily
-from app.dlq import dlq_file_path, read_recent_dlq, record_failed_forward
+from app.dlq import dlq_file_path, purge_dlq_all, purge_dlq_by_ids, read_recent_dlq, record_failed_forward
 from app.forwarder import check_target_status, close_client, forward_payload, get_client
 from app.logging_conf import configure_logging
 from app.hmac_verify import verify_hmac as verify_hmac_signature
@@ -380,17 +380,21 @@ async def webhook(source: str, request: Request) -> Response:
                 "transformed": sanitize_payload(output),
             })
         else:
-            increment_daily("forward_fail")
-            increment_daily("dlq")
             all_success = False
             last_status_code = status_code
             last_error = err
             last_failed_output = output
+            # One DLQ line per forward outcome after internal retries complete (not per retry attempt).
+            # When unroll_alerts splits one webhook into N forwards, N lines share base_request_id;
+            # suffix -0/-1 on request_id is the shard index, not HTTP retry.
+            n_out = len(outputs_to_forward)
             record_failed_forward(
                 {
                     "ts": datetime.now(BANGKOK).isoformat()[:23],
                     "request_id": rid,
                     "base_request_id": request_id,
+                    "unroll_index": i,
+                    "unroll_count": n_out,
                     "source": source,
                     "route": route.name,
                     "http_status": status_code,
@@ -401,9 +405,15 @@ async def webhook(source: str, request: Request) -> Response:
                     "is_retry": bool(attempt_meta.get("retried", False)),
                     "retry_count": max(int(attempt_meta.get("attempts_used", 0)) - 1, 0),
                     "circuit_open": bool(attempt_meta.get("circuit_open", False)),
+                    "final_failure": True,
                     "transformed": sanitize_payload(output),
                 }
             )
+    # Daily forward_fail / dlq: one tick per incoming webhook if any outbound failed (not per unrolled alert).
+    # DLQ JSONL may still hold one line per failed shard for operations.
+    if forward_enabled and not all_success and outputs_to_forward:
+        increment_daily("forward_fail")
+        increment_daily("dlq")
     success = all_success
     duration = time.monotonic() - start
 
@@ -558,6 +568,38 @@ async def api_dlq_recent(
     lim = max(1, min(int(limit), 200))
     entries = read_recent_dlq(limit=lim)
     return JSONResponse({"configured": True, "entries": entries, "count": len(entries)})
+
+
+@app.post("/api/dlq/purge")
+async def api_dlq_purge(
+    request: Request,
+    _: Optional[str] = Depends(require_basic_auth),
+) -> Response:
+    """Remove DLQ rows after review. Body: {\"all\": true} or {\"ids\": [\"uuid\", ...]}. Requires Basic Auth."""
+    if not dlq_file_path():
+        return JSONResponse(
+            {"ok": False, "detail": "ALERTBRIDGE_DLQ_FILE not set"},
+            status_code=503,
+        )
+    body = await _read_json_with_limit(request, max_bytes=262144)
+    if body.get("all") is True:
+        ok, err = purge_dlq_all()
+        if not ok:
+            return JSONResponse({"ok": False, "detail": err or "purge failed"}, status_code=500)
+        return JSONResponse({"ok": True, "removed": "all"})
+    ids = body.get("ids")
+    if isinstance(ids, list):
+        id_set = {str(x).strip() for x in ids if x}
+        if not id_set:
+            raise HTTPException(status_code=400, detail="ids must be non-empty")
+        removed, err = purge_dlq_by_ids(id_set)
+        if err:
+            return JSONResponse({"ok": False, "detail": err}, status_code=500)
+        return JSONResponse({"ok": True, "removed": removed})
+    raise HTTPException(
+        status_code=400,
+        detail='Expected JSON body: {"all": true} or {"ids": ["..."]}',
+    )
 
 
 @app.get("/api/metrics/daily")

@@ -67,9 +67,22 @@ let targetsCache = [];
 let targetStatusCache = { routes: [] };
 let dlqEntriesCache = [];
 let dlqOpenDetailIndex = null;
+/** @type {Set<string>} Selected dlq_id values for bulk purge */
+let dlqSelectedIds = new Set();
 let livePage = 1;
 let failedPage = 1;
 let dlqPage = 1;
+
+const DLQ_TABLE_COLS = 9;
+
+function dlqUnrollCell(e) {
+  const n = e.unroll_count;
+  if (typeof n === "number" && n > 1) {
+    const idx = typeof e.unroll_index === "number" ? e.unroll_index : 0;
+    return `${idx + 1}/${n}`;
+  }
+  return "—";
+}
 
 function tr(key) {
   const fn = (typeof window !== "undefined" && window.t) ? window.t : (k => k);
@@ -1788,12 +1801,19 @@ function renderDlqTable() {
   const pageInfo = document.getElementById("dlqPageInfo");
   const prevBtn = document.getElementById("dlqPrevBtn");
   const nextBtn = document.getElementById("dlqNextBtn");
+  const purgeSelBtn = document.getElementById("dlqPurgeSelectedBtn");
+  const selPageEl = document.getElementById("dlqSelectPage");
   if (!entries.length) {
     body.innerHTML = "";
     emptyEl.style.display = "block";
     if (pageInfo) pageInfo.textContent = "0/0";
     if (prevBtn) prevBtn.disabled = true;
     if (nextBtn) nextBtn.disabled = true;
+    if (purgeSelBtn) purgeSelBtn.disabled = true;
+    if (selPageEl) {
+      selPageEl.checked = false;
+      selPageEl.indeterminate = false;
+    }
     return;
   }
   const totalPages = Math.max(1, Math.ceil(entries.length / pageSize));
@@ -1802,6 +1822,9 @@ function renderDlqTable() {
   const start = (dlqPage - 1) * pageSize;
   const pagedEntries = entries.slice(start, start + pageSize);
   emptyEl.style.display = "none";
+  const pageIds = pagedEntries.map((e) => (e.dlq_id ? String(e.dlq_id) : null)).filter(Boolean);
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => dlqSelectedIds.has(id));
+  const somePageSelected = pageIds.some((id) => dlqSelectedIds.has(id));
   const rows = [];
   pagedEntries.forEach((e, localIdx) => {
     const i = start + localIdx;
@@ -1813,23 +1836,39 @@ function renderDlqTable() {
     const st = e.http_status;
     const stDisp = st != null && st !== "" ? String(st) : "—";
     const stClass = st != null && st !== "" ? String(st) : "";
+    const did = e.dlq_id ? String(e.dlq_id) : "";
+    const canSel = !!did;
+    const selChecked = canSel && dlqSelectedIds.has(did);
+    const cbCell = canSel
+      ? `<input type="checkbox" class="dlq-row-cb" data-dlq-id="${escapeHtml(did)}" ${selChecked ? "checked" : ""} />`
+      : `<input type="checkbox" disabled title="${escapeHtml(tr("dlqNoIdHint"))}" />`;
     rows.push(`<tr class="dlq-row">
+      <td class="dlq-cb-cell">${cbCell}</td>
       <td>${escapeHtml(e.ts || "")}</td>
       <td>${escapeHtml(e.source || "")}</td>
       <td>${escapeHtml(e.route || "")}</td>
       <td class="status-${escapeHtml(stClass)}">${escapeHtml(stDisp)}</td>
+      <td class="dlq-unroll-cell" title="${escapeHtml(tr("dlqUnrollHint"))}">${escapeHtml(dlqUnrollCell(e))}</td>
       <td><code>${escapeHtml(e.request_id || "")}</code></td>
       <td class="failed-error-cell" title="${escapeHtml(errFull)}">${escapeHtml(errShort)}${errTrunc ? "…" : ""}</td>
       <td><button type="button" class="btn btn-secondary dlq-detail-btn" data-dlq-toggle="${i}" aria-expanded="${open}">${btnLabel}</button></td>
     </tr>`);
     rows.push(
-      `<tr class="dlq-detail-row" data-dlq-detail-for="${i}" style="display:${open ? "table-row" : "none"};"><td colspan="7"><pre class="dlq-detail-pre">${escapeHtml(JSON.stringify(e, null, 2))}</pre></td></tr>`
+      `<tr class="dlq-detail-row" data-dlq-detail-for="${i}" style="display:${open ? "table-row" : "none"};"><td colspan="${DLQ_TABLE_COLS}"><pre class="dlq-detail-pre">${escapeHtml(JSON.stringify(e, null, 2))}</pre></td></tr>`
     );
   });
   body.innerHTML = rows.join("");
   if (pageInfo) pageInfo.textContent = `${dlqPage}/${totalPages}`;
   if (prevBtn) prevBtn.disabled = dlqPage <= 1;
   if (nextBtn) nextBtn.disabled = dlqPage >= totalPages;
+  if (purgeSelBtn) purgeSelBtn.disabled = dlqSelectedIds.size === 0;
+  if (selPageEl) {
+    selPageEl.checked = allPageSelected;
+    selPageEl.indeterminate = somePageSelected && !allPageSelected;
+    const stl = tr("dlqSelectPage");
+    selPageEl.title = stl;
+    selPageEl.setAttribute("aria-label", stl);
+  }
 }
 
 function onDlqTableClick(ev) {
@@ -1843,6 +1882,92 @@ function onDlqTableClick(ev) {
     dlqOpenDetailIndex = idx;
   }
   renderDlqTable();
+}
+
+function onDlqListWrapChange(ev) {
+  const t = ev.target;
+  const pageSize = Number(document.getElementById("dlqLimit")?.value || 10);
+  const entries = dlqEntriesCache;
+  const start = (dlqPage - 1) * pageSize;
+  const pagedEntries = entries.slice(start, start + pageSize);
+  if (t && t.id === "dlqSelectPage") {
+    const on = !!t.checked;
+    pagedEntries.forEach((e) => {
+      const id = e.dlq_id ? String(e.dlq_id) : "";
+      if (!id) return;
+      if (on) dlqSelectedIds.add(id);
+      else dlqSelectedIds.delete(id);
+    });
+    renderDlqTable();
+    return;
+  }
+  if (t && t.classList && t.classList.contains("dlq-row-cb") && t.dataset.dlqId) {
+    const id = String(t.dataset.dlqId);
+    if (t.checked) dlqSelectedIds.add(id);
+    else dlqSelectedIds.delete(id);
+    renderDlqTable();
+  }
+}
+
+async function purgeDlqSelected() {
+  const ids = [...dlqSelectedIds];
+  if (!ids.length) {
+    window.alert(tr("dlqPurgeNoneSelected"));
+    return;
+  }
+  if (!window.confirm(tr("dlqConfirmPurgeSelected"))) return;
+  const statusEl = document.getElementById("dlqStatus");
+  if (statusEl) statusEl.textContent = tr("dlqLoading");
+  try {
+    const res = await fetch("/api/dlq/purge", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      if (statusEl) statusEl.textContent = tr("dlqLogin");
+      return;
+    }
+    if (!res.ok || !data.ok) {
+      if (statusEl) statusEl.textContent = data.detail || `HTTP ${res.status}`;
+      return;
+    }
+    dlqSelectedIds.clear();
+    if (statusEl) statusEl.textContent = `${tr("dlqPurgeOk")} (${data.removed ?? 0})`;
+    await refreshDlq();
+  } catch (e) {
+    if (statusEl) statusEl.textContent = String(e);
+  }
+}
+
+async function purgeDlqAll() {
+  if (!window.confirm(tr("dlqConfirmPurgeAll"))) return;
+  const statusEl = document.getElementById("dlqStatus");
+  if (statusEl) statusEl.textContent = tr("dlqLoading");
+  try {
+    const res = await fetch("/api/dlq/purge", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ all: true }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      if (statusEl) statusEl.textContent = tr("dlqLogin");
+      return;
+    }
+    if (!res.ok || !data.ok) {
+      if (statusEl) statusEl.textContent = data.detail || `HTTP ${res.status}`;
+      return;
+    }
+    dlqSelectedIds.clear();
+    if (statusEl) statusEl.textContent = tr("dlqPurgeOk");
+    await refreshDlq();
+  } catch (e) {
+    if (statusEl) statusEl.textContent = String(e);
+  }
 }
 
 async function loadDlqPanel() {
@@ -1860,6 +1985,7 @@ async function loadDlqPanel() {
       if (statusEl) statusEl.textContent = "";
       dlqEntriesCache = [];
       dlqOpenDetailIndex = null;
+      dlqSelectedIds.clear();
       return;
     }
     const data = await res.json().catch(() => ({}));
@@ -1870,6 +1996,7 @@ async function loadDlqPanel() {
       if (statusEl) statusEl.textContent = "";
       dlqEntriesCache = [];
       dlqOpenDetailIndex = null;
+      dlqSelectedIds.clear();
       return;
     }
     disabled.style.display = "none";
@@ -1881,6 +2008,7 @@ async function loadDlqPanel() {
     if (disabledMsg) disabledMsg.textContent = tr("dlqOff");
     dlqEntriesCache = [];
     dlqOpenDetailIndex = null;
+    dlqSelectedIds.clear();
   }
 }
 
@@ -1907,6 +2035,10 @@ async function refreshDlq() {
     }
     const entries = data.entries || [];
     dlqEntriesCache = entries;
+    const presentIds = new Set(entries.map((e) => (e.dlq_id ? String(e.dlq_id) : null)).filter(Boolean));
+    dlqSelectedIds.forEach((id) => {
+      if (!presentIds.has(id)) dlqSelectedIds.delete(id);
+    });
     if (statusEl) statusEl.textContent = `${tr("dlqDone")} · ${entries.length}`;
     renderDlqTable();
   } catch (e) {
@@ -1945,7 +2077,10 @@ loadDailyMetrics();
 
 document.getElementById("dlqRefreshBtn")?.addEventListener("click", () => { refreshDlq(); });
 document.getElementById("dlqLimit")?.addEventListener("change", () => { refreshDlq(); });
+document.getElementById("dlqPurgeSelectedBtn")?.addEventListener("click", () => { purgeDlqSelected(); });
+document.getElementById("dlqPurgeAllBtn")?.addEventListener("click", () => { purgeDlqAll(); });
 document.getElementById("dlqListWrap")?.addEventListener("click", onDlqTableClick);
+document.getElementById("dlqListWrap")?.addEventListener("change", onDlqListWrapChange);
 document.getElementById("dlqPrevBtn")?.addEventListener("click", () => { dlqPage = Math.max(1, dlqPage - 1); renderDlqTable(); });
 document.getElementById("dlqNextBtn")?.addEventListener("click", () => { dlqPage += 1; renderDlqTable(); });
 document.getElementById("livePageSize")?.addEventListener("change", () => { livePage = 1; renderLiveRequests(liveRequestsCache); });

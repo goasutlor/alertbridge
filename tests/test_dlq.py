@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.config import set_rules
-from app.dlq import read_recent_dlq
+from app.dlq import purge_dlq_all, purge_dlq_by_ids, read_recent_dlq
 from app.main import app
 from app.rules import Defaults, MatchConfig, RouteConfig, RuleSet, TargetConfig, TransformConfig
 
@@ -46,6 +46,10 @@ def test_dlq_appends_line_on_forward_failure(monkeypatch, tmp_path: Path) -> Non
     row = json.loads(lines[-1])
     assert row["route"] == "trivial"
     assert row["source"] == "probe"
+    assert row.get("final_failure") is True
+    assert row.get("dlq_id")
+    assert row.get("unroll_index") == 0
+    assert row.get("unroll_count") == 1
     assert "base_request_id" in row
     assert "transformed" in row
     assert row.get("error") is not None
@@ -99,6 +103,76 @@ def test_api_dlq_recent_503_when_unconfigured(monkeypatch) -> None:
         r = ac.get("/api/dlq/recent")
     assert r.status_code == 503
     assert r.json().get("configured") is False
+
+
+def test_api_dlq_purge_all_requires_auth(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("ALERTBRIDGE_DLQ_FILE", str(tmp_path / "q.jsonl"))
+    monkeypatch.setenv("BASIC_AUTH_USER", "u")
+    monkeypatch.setenv("BASIC_AUTH_PASSWORD", "p")
+    with TestClient(app) as ac:
+        r = ac.post("/api/dlq/purge", json={"all": True})
+    assert r.status_code == 401
+
+
+def test_api_dlq_purge_all_ok(monkeypatch, tmp_path: Path) -> None:
+    p = tmp_path / "q.jsonl"
+    p.write_text(json.dumps({"a": 1}) + "\n", encoding="utf-8")
+    monkeypatch.setenv("ALERTBRIDGE_DLQ_FILE", str(p))
+    monkeypatch.setenv("BASIC_AUTH_USER", "u")
+    monkeypatch.setenv("BASIC_AUTH_PASSWORD", "p")
+    hdr = base64.b64encode(b"u:p").decode()
+    with TestClient(app) as ac:
+        r = ac.post("/api/dlq/purge", headers={"Authorization": f"Basic {hdr}"}, json={"all": True})
+    assert r.status_code == 200
+    assert r.json().get("ok") is True
+    assert p.read_text(encoding="utf-8") == ""
+
+
+def test_api_dlq_purge_by_ids(monkeypatch, tmp_path: Path) -> None:
+    p = tmp_path / "q.jsonl"
+    id_keep = "00000000-0000-0000-0000-000000000001"
+    id_drop = "00000000-0000-0000-0000-000000000002"
+    p.write_text(
+        "\n".join(
+            [
+                json.dumps({"dlq_id": id_drop, "n": 1}),
+                json.dumps({"dlq_id": id_keep, "n": 2}),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ALERTBRIDGE_DLQ_FILE", str(p))
+    monkeypatch.setenv("BASIC_AUTH_USER", "u")
+    monkeypatch.setenv("BASIC_AUTH_PASSWORD", "p")
+    hdr = base64.b64encode(b"u:p").decode()
+    with TestClient(app) as ac:
+        r = ac.post(
+            "/api/dlq/purge",
+            headers={"Authorization": f"Basic {hdr}"},
+            json={"ids": [id_drop]},
+        )
+    assert r.status_code == 200
+    body = r.json()
+    assert body.get("ok") is True
+    assert body.get("removed") == 1
+    lines = [ln for ln in p.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    assert len(lines) == 1
+    assert json.loads(lines[0])["n"] == 2
+
+
+def test_purge_dlq_by_ids_helpers(monkeypatch, tmp_path: Path) -> None:
+    p = tmp_path / "q.jsonl"
+    monkeypatch.setenv("ALERTBRIDGE_DLQ_FILE", str(p))
+    p.write_text(json.dumps({"dlq_id": "x"}) + "\n" + json.dumps({"dlq_id": "y"}) + "\n", encoding="utf-8")
+    n, err = purge_dlq_by_ids({"x"})
+    assert err is None
+    assert n == 1
+    rest = p.read_text(encoding="utf-8").strip()
+    assert "y" in rest and "x" not in rest
+    ok, err2 = purge_dlq_all()
+    assert ok and err2 is None
+    assert p.read_text(encoding="utf-8") == ""
 
 
 def test_webhook_forward_paused_skips_outbound(monkeypatch, tmp_path: Path) -> None:

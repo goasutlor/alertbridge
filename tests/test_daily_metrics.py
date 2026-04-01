@@ -3,8 +3,10 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from app.config import set_rules
 from app.daily_metrics import increment_daily, read_daily
 from app.main import app
+from app.rules import Defaults, MatchConfig, RouteConfig, RuleSet, TargetConfig, TransformConfig
 
 
 def test_daily_metrics_persist_counts(monkeypatch, tmp_path: Path) -> None:
@@ -25,6 +27,55 @@ def test_daily_metrics_persist_counts(monkeypatch, tmp_path: Path) -> None:
     # file should be json object keyed by day
     loaded = json.loads(p.read_text(encoding="utf-8"))
     assert isinstance(loaded, dict)
+
+
+def test_daily_forward_fail_and_dlq_once_per_webhook_with_unroll(monkeypatch, tmp_path: Path) -> None:
+    """Two unrolled alerts both fail → 2 DLQ lines but 1 daily forward_fail / dlq tick."""
+    dlq = tmp_path / "failures.jsonl"
+    mpath = tmp_path / "metrics" / "daily.json"
+    monkeypatch.setenv("ALERTBRIDGE_DLQ_FILE", str(dlq))
+    monkeypatch.setenv("ALERTBRIDGE_DAILY_METRICS_FILE", str(mpath))
+
+    rules = RuleSet(
+        version=1,
+        defaults=Defaults(target_timeout_connect_sec=1, target_timeout_read_sec=1),
+        routes=[
+            RouteConfig(
+                name="unroll-route",
+                match=MatchConfig(source="probe"),
+                target=TargetConfig(
+                    url_env="UNUSED_UNROLL_METRICS",
+                    url="http://127.0.0.1:9/",
+                ),
+                transform=TransformConfig(),
+                unroll_alerts=True,
+            )
+        ],
+    )
+
+    async def fail_fast(*args, **kwargs):
+        return (
+            False,
+            None,
+            OSError("fast"),
+            {"attempts_used": 1, "max_attempts": 4, "retried": False, "circuit_open": False},
+        )
+
+    monkeypatch.setattr("app.main.forward_payload", fail_fast)
+
+    with TestClient(app) as ac:
+        set_rules(rules)
+        ac.post(
+            "/webhook/probe",
+            json={"alerts": [{"status": "firing", "labels": {}}, {"status": "firing", "labels": {}}]},
+        )
+
+    assert len([ln for ln in dlq.read_text(encoding="utf-8").splitlines() if ln.strip()]) == 2
+    rows = read_daily(1)
+    assert rows[0]["incoming"] == 1
+    assert rows[0]["forward_fail"] == 1
+    assert rows[0]["dlq"] == 1
+    assert rows[0].get("forward_success", 0) == 0
 
 
 def test_api_metrics_daily_returns_entries(monkeypatch, tmp_path: Path) -> None:

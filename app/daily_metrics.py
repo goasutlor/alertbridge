@@ -55,6 +55,14 @@ def increment_daily(metric: str, amount: int = 1, when: Optional[datetime] = Non
     """
     Increment one daily counter. No-op when no persistent path is configured.
     metric: incoming | forward_success | forward_fail | dlq
+
+    Semantics (main webhook handler):
+    - incoming: one per POST webhook accepted
+    - forward_success: one per successful outbound forward (may exceed incoming when unroll_alerts)
+    - forward_fail: one per incoming webhook that had at least one failed forward
+    - dlq: same as forward_fail (aligned with “event” side); DLQ file lines may be higher when unrolling
+    If every webhook fails all outbounds that day, incoming = forward_fail = dlq for the day.
+    If some webhooks have partial or full success, those totals differ — by design.
     """
     if metric not in {"incoming", "forward_success", "forward_fail", "dlq"}:
         return

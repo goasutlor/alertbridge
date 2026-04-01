@@ -198,7 +198,9 @@ async def forward_payload(
                     "circuit_open": False,
                     "retried": attempt > 1,
                 }
-            except httpx.ConnectTimeout as exc:
+            except httpx.RequestError as exc:
+                # DNS, connection refused, timeouts, TLS, etc. — retry until backoff exhausted.
+                # (Previously only ConnectTimeout retried; ConnectError e.g. name resolution failed on attempt 1.)
                 last_error = exc
                 if attempt < len(BACKOFF_SCHEDULE):
                     continue

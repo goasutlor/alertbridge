@@ -1068,6 +1068,20 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   gap: 10px 14px;
   margin-bottom: 12px;
 }
+.dlq-th-select,
+.dlq-cb-cell {
+  width: 2.25rem;
+  text-align: center;
+  vertical-align: middle;
+}
+.dlq-cb-cell input[type="checkbox"]:not(:disabled) {
+  cursor: pointer;
+}
+.dlq-unroll-cell {
+  text-align: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 .dlq-table tbody tr.dlq-detail-row td {
   background: var(--bg-input);
   border-bottom: 1px solid var(--border);

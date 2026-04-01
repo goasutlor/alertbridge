@@ -138,7 +138,7 @@
 
       <section class="card card-dlq" id="dlqCard">
         <h2 class="card-title" data-i18n="dlqTitle">Dead letter queue</h2>
-        <p class="card-subtitle" data-i18n="dlqSub">Summary table; expand a row for full JSON. Requires Basic Auth.</p>
+        <p class="card-subtitle" data-i18n="dlqSub">One row per failed forward after retries. Same UUID prefix = unrolled alerts from one webhook, not retries. Purge after review. Requires Basic Auth.</p>
         <div id="dlqDisabled" class="dlq-disabled" style="display:none;">
           <p class="text-muted" id="dlqDisabledMsg" data-i18n="dlqOff">DLQ is not configured. Set ALERTBRIDGE_DLQ_FILE and mount a volume (see install-ocp-pull.yaml).</p>
         </div>
@@ -151,16 +151,20 @@
               <option value="100">100</option>
             </select>
             <button type="button" id="dlqRefreshBtn" class="btn btn-primary" data-i18n="dlqRefresh">Refresh</button>
+            <button type="button" id="dlqPurgeSelectedBtn" class="btn btn-secondary" data-i18n="dlqPurgeSelected" disabled>Purge selected</button>
+            <button type="button" id="dlqPurgeAllBtn" class="btn btn-secondary" data-i18n="dlqPurgeAll">Purge all</button>
             <span id="dlqStatus" class="status"></span>
           </div>
           <div id="dlqListWrap" class="live-requests">
             <table class="live-table dlq-table">
               <thead>
                 <tr>
+                  <th class="dlq-th-select" scope="col"><input type="checkbox" id="dlqSelectPage" aria-label="Select all rows on this page" title="" /></th>
                   <th data-i18n="dlqColTime">Time (GMT+7)</th>
                   <th data-i18n="dlqColSource">Source</th>
                   <th data-i18n="dlqColRoute">Route</th>
                   <th data-i18n="dlqColHttp">HTTP</th>
+                  <th data-i18n="dlqColUnroll" title="">Unroll</th>
                   <th data-i18n="dlqColReq">Request ID</th>
                   <th data-i18n="dlqColError">Error</th>
                   <th data-i18n="dlqColAction">Detail</th>
@@ -180,7 +184,7 @@
 
       <section class="card" id="dailyMetricsCard">
         <h2 class="card-title" data-i18n="dailyTitle">Daily Metrics</h2>
-        <p class="card-subtitle" data-i18n="dailySub">Persisted daily counters on PVC (no details).</p>
+        <p class="card-subtitle" data-i18n="dailySub">When all forwards fail, Incoming = Fwd Fail = DLQ; mixed success/failure → counts differ as expected.</p>
         <div class="table-pager" style="justify-content:flex-start; margin-bottom: 8px;">
           <label for="dailyDays" data-i18n="dailyDaysLabel">Range</label>
           <select id="dailyDays" class="select select-compact">
