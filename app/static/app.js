@@ -74,27 +74,7 @@ let livePage = 1;
 let failedPage = 1;
 let dlqPage = 1;
 
-const DLQ_TABLE_COLS = 10;
-
-function dlqUnrollCell(e) {
-  const n = e.unroll_count;
-  if (typeof n === "number" && n > 1) {
-    const idx = typeof e.unroll_index === "number" ? e.unroll_index : 0;
-    return `${idx + 1}/${n}`;
-  }
-  return "—";
-}
-
-/** Tooltip for UNROLL column: must match the displayed fraction, not a fixed example like 1/2. */
-function dlqUnrollTitle(e) {
-  const n = e.unroll_count;
-  if (typeof n === "number" && n > 1) {
-    const idx = typeof e.unroll_index === "number" ? e.unroll_index : 0;
-    const i = idx + 1;
-    return tr("dlqUnrollHintTpl").replace(/\{i\}/g, String(i)).replace(/\{n\}/g, String(n));
-  }
-  return tr("dlqUnrollHintDash");
-}
+const DLQ_TABLE_COLS = 8;
 
 /** Stable key for checkbox + purge API: dlq_id, or request_id for legacy rows without dlq_id. */
 function dlqPurgeKey(e) {
@@ -1989,9 +1969,6 @@ function renderDlqTable() {
     const errTrunc = errFull.length > 72;
     const open = dlqOpenDetailIndex === i;
     const btnLabel = open ? tr("dlqHideDetail") : tr("dlqShowDetail");
-    const st = e.http_status;
-    const stDisp = st != null && st !== "" ? String(st) : "—";
-    const stClass = st != null && st !== "" ? String(st) : "";
     const pkey = dlqPurgeKey(e);
     const canSel = !!pkey;
     const selChecked = canSel && dlqSelectedIds.has(pkey);
@@ -2004,8 +1981,6 @@ function renderDlqTable() {
       <td>${escapeHtml(e.source || "")}</td>
       <td>${escapeHtml(e.route || "")}</td>
       <td class="td-severity">${severityBadgeHtml(e.alert_severity)}</td>
-      <td class="status-${escapeHtml(stClass)}">${escapeHtml(stDisp)}</td>
-      <td class="dlq-unroll-cell" title="${escapeHtml(dlqUnrollTitle(e))}">${escapeHtml(dlqUnrollCell(e))}</td>
       <td><code>${escapeHtml(e.request_id || "")}</code></td>
       <td class="failed-error-cell" title="${escapeHtml(errFull)}">${escapeHtml(errShort)}${errTrunc ? "…" : ""}</td>
       <td><button type="button" class="btn btn-secondary dlq-detail-btn" data-dlq-toggle="${i}" aria-expanded="${open}">${btnLabel}</button></td>

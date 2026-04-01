@@ -68,12 +68,6 @@ const LANG = {
     dlqColTime: "Time (GMT+7)",
     dlqColSource: "Source",
     dlqColRoute: "Route",
-    dlqColHttp: "HTTP",
-    dlqColUnroll: "Unroll",
-    dlqUnrollHintTpl:
-      "{i}/{n} = forward {i} of {n} from one webhook (unroll_alerts). Not HTTP retries.",
-    dlqUnrollHintDash:
-      "Not split from a multi-alert webhook (unroll_alerts), or a single alert in the batch.",
     dlqColReq: "Request ID",
     dlqColError: "Error",
     dlqColAction: "Detail",
@@ -215,12 +209,6 @@ const LANG = {
     dlqColTime: "เวลา (GMT+7)",
     dlqColSource: "Source",
     dlqColRoute: "Route",
-    dlqColHttp: "HTTP",
-    dlqColUnroll: "แยก alert",
-    dlqUnrollHintTpl:
-      "{i}/{n} = การส่งลำดับที่ {i} จาก {n} รายการใน webhook เดียว (unroll_alerts) ไม่ใช่จำนวนครั้งที่ retry HTTP",
-    dlqUnrollHintDash:
-      "ไม่ได้แยกมาจาก webhook หลาย alert (unroll_alerts) หรือมี alert เดียวใน batch",
     dlqColReq: "Request ID",
     dlqColError: "ข้อผิดพลาด",
     dlqColAction: "รายละเอียด",

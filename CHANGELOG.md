@@ -6,6 +6,10 @@ All notable changes to this project are documented in this file. The format is i
 
 <!-- Upcoming changes go here before release tagging. -->
 
+### Changed
+
+- **DLQ table:** Removed **HTTP** and **Unroll** columns to simplify the grid; `http_status`, `unroll_index`, and `unroll_count` remain visible in the row **Detail** JSON.
+
 ## [2026-04-02]
 
 ### Added
