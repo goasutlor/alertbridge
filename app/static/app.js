@@ -538,6 +538,7 @@ saveTargetUrlsBtn.addEventListener("click", async () => {
   if (!configJson || !configJson.routes) return;
   targetUrlsStatus.textContent = "Saving...";
   try {
+    const warnings = [];
     configJson.routes.forEach((route) => {
       if (!route.target) route.target = {};
       const routeName = route.name;
@@ -548,15 +549,28 @@ saveTargetUrlsBtn.addEventListener("click", async () => {
       
       // API Key Header
       const headerSelect = targetUrlsPanel.querySelector(`select[data-route-name="${routeName}"][data-field="api_key_header"]`);
-      route.target.api_key_header = headerSelect && headerSelect.value ? headerSelect.value : null;
+      const selectedHeader = headerSelect && headerSelect.value ? headerSelect.value : "";
+      route.target.api_key_header = selectedHeader || null;
       
       // API Key Value
       const apiKeyInput = targetUrlsPanel.querySelector(`input[data-route-name="${routeName}"][data-field="api_key"]`);
-      route.target.api_key = apiKeyInput && apiKeyInput.value.trim() ? apiKeyInput.value.trim() : null;
+      const apiKeyValue = apiKeyInput && apiKeyInput.value.trim() ? apiKeyInput.value.trim() : null;
       
       // API Key Env Var
       const apiKeyEnvInput = targetUrlsPanel.querySelector(`input[data-route-name="${routeName}"][data-field="api_key_env"]`);
-      route.target.api_key_env = apiKeyEnvInput && apiKeyEnvInput.value.trim() ? apiKeyEnvInput.value.trim() : null;
+      const apiKeyEnvValue = apiKeyEnvInput && apiKeyEnvInput.value.trim() ? apiKeyEnvInput.value.trim() : null;
+
+      if (!selectedHeader) {
+        // Explicitly disable outbound API key auth for this route.
+        route.target.api_key = null;
+        route.target.api_key_env = null;
+      } else {
+        route.target.api_key = apiKeyValue;
+        route.target.api_key_env = apiKeyEnvValue;
+        if (!apiKeyValue && !apiKeyEnvValue) {
+          warnings.push(`${routeName}: API key header selected but key/env is empty`);
+        }
+      }
 
       // TLS
       const verifySelect = targetUrlsPanel.querySelector(`select[data-route-name="${routeName}"][data-field="verify_tls"]`);
@@ -579,9 +593,11 @@ saveTargetUrlsBtn.addEventListener("click", async () => {
     targetUrlsStatus.textContent = "Saving... reloading rules...";
     const reloadRes = await fetch("/admin/reload", { method: "POST", credentials: "include" });
     if (reloadRes.ok) {
-      targetUrlsStatus.textContent = "Saved & reloaded. If forward still fails, run: python scripts/mock_receiver.py";
+      const warnTxt = warnings.length ? ` Warning: ${warnings.join(" | ")}` : "";
+      targetUrlsStatus.textContent = `Saved & reloaded. If forward still fails, run: python scripts/mock_receiver.py${warnTxt}`;
     } else {
-      targetUrlsStatus.textContent = "Saved (reload failed). Try Reload button.";
+      const warnTxt = warnings.length ? ` Warning: ${warnings.join(" | ")}` : "";
+      targetUrlsStatus.textContent = `Saved (reload failed). Try Reload button.${warnTxt}`;
     }
     await loadEffectiveTargets();
     await loadConfig();
