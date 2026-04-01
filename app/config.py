@@ -67,16 +67,21 @@ def persist_rules(rules: RuleSet) -> None:
         raise
 
 
-def load_rules_from_file(path: Path = RULES_PATH) -> RuleSet:
+def load_rules_from_yaml_text(yaml_text: str) -> RuleSet:
+    """Parse rules.yaml content (includes optional `patterns` list)."""
     from app.patterns import init_patterns
 
-    if not path.exists():
-        return RuleSet(version=1, defaults=Defaults(), routes=[])
-    with path.open("r", encoding="utf-8") as handle:
-        data = yaml.safe_load(handle) or {}
+    data = yaml.safe_load(yaml_text) or {}
     patterns = data.pop("patterns", None)
     init_patterns(patterns)
     return RuleSet.model_validate(data)
+
+
+def load_rules_from_file(path: Path = RULES_PATH) -> RuleSet:
+    if not path.exists():
+        return RuleSet(version=1, defaults=Defaults(), routes=[])
+    with path.open("r", encoding="utf-8") as handle:
+        return load_rules_from_yaml_text(handle.read())
 
 
 def save_rules_to_file(rules: RuleSet, path: Path = RULES_PATH) -> None:
@@ -102,6 +107,26 @@ def get_rules() -> RuleSet:
 
 
 def reload_rules() -> RuleSet:
+    """
+    Reload rules from storage. When ALERTBRIDGE_CONFIGMAP_NAME is set, read rules.yaml from the
+    ConfigMap via the Kubernetes API so we do not read a stale mounted file right after persist
+    (which would wipe in-memory patterns and recent route edits).
+    """
+    configmap_name = os.getenv("ALERTBRIDGE_CONFIGMAP_NAME", "").strip()
+    if configmap_name:
+        from app.k8s_configmap import read_rules_yaml_from_configmap
+
+        yaml_text, cm_err = read_rules_yaml_from_configmap()
+        if yaml_text:
+            try:
+                rules = load_rules_from_yaml_text(yaml_text)
+                set_rules(rules)
+                return rules
+            except Exception as exc:
+                logger.warning("Failed to parse ConfigMap rules.yaml: %s", exc)
+        else:
+            logger.warning("ConfigMap rules read skipped or failed: %s", cm_err)
+
     rules = load_rules_from_file()
     set_rules(rules)
     return rules

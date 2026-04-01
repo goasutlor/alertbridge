@@ -8,6 +8,27 @@ from app.rules import (
 )
 
 
+def test_load_rules_from_yaml_text_restores_patterns():
+    from app.config import load_rules_from_yaml_text
+    from app.patterns import list_patterns
+
+    yaml_text = """
+version: 1
+defaults:
+  target_timeout_connect_sec: 2
+  target_timeout_read_sec: 5
+routes: []
+patterns:
+  - id: test-pattern-id
+    name: MyPattern
+    source_type: ocp-alertmanager-4.20
+    mappings: []
+"""
+    load_rules_from_yaml_text(yaml_text)
+    names = [p["name"] for p in list_patterns()]
+    assert "MyPattern" in names
+
+
 def _route(transform: TransformConfig) -> RouteConfig:
     return RouteConfig(
         name="test",
