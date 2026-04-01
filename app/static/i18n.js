@@ -124,6 +124,23 @@ const LANG = {
     mapperSelectSavedPatternFirst: "Select a saved pattern in the dropdown first.",
     mapperApplyToRouteBtn: "Apply to route",
     mapperSelectPatternPlaceholder: "— Select pattern —",
+    mapperCardSubtitle:
+      "Map fields from source to target. Saving and applying are two separate steps: Save stores a reusable preset in the library below; Apply sets which preset is live for one route (one active pattern per route).",
+    mapperStepSaveHeading: "1. Save pattern",
+    mapperStepSaveHint:
+      "Stores the current mapping under a name. It appears in Saved patterns — this alone does not change live forwarding.",
+    mapperStepApplyHeading: "2. Apply to route",
+    mapperStepApplyHint:
+      "Picks the live transform for the selected route. That route forwards using this mapping until you apply a different pattern.",
+    mapperPatternNameLabel: "Pattern name",
+    mapperSavePatternBtn: "Save as pattern",
+    savedPatternsHeading: "Saved patterns (library)",
+    savedPatternsListHint:
+      "You can keep many presets. The Active for route(s) badge shows which route(s) currently use that preset. Duplicate names are allowed — use the badge and timestamps to tell rows apart.",
+    savedPatternsEmpty: "No saved patterns yet. Map fields above, enter a name, and use Save as pattern.",
+    patternActiveBadge: "Active for route(s)",
+    patternActiveBadgeTitle: "This preset is the active transform for these route(s).",
+    mapperApplyToRouteBtnCurrent: "Current for selected route",
   },
   th: {
     liveEvents: "Live Events (Webhooks ที่เข้ามา)",
@@ -247,6 +264,23 @@ const LANG = {
     mapperSelectSavedPatternFirst: "เลือก pattern จาก dropdown ก่อน",
     mapperApplyToRouteBtn: "นำไปใช้กับ route",
     mapperSelectPatternPlaceholder: "— เลือก pattern —",
+    mapperCardSubtitle:
+      "Map จาก source ไป target — การบันทึกกับการนำไปใช้เป็นคนละขั้น: Save เก็บ preset ไว้ในรายการด้านล่าง; Apply เลือกว่า route ไหนใช้ preset ไหนเป็นของจริง (route ละได้หนึ่ง active pattern)",
+    mapperStepSaveHeading: "1. บันทึก pattern",
+    mapperStepSaveHint:
+      "เก็บ mapping ปัจจุบันเป็นชื่อ — จะไปโผล่ใน Saved patterns — ยังไม่เปลี่ยนการ forward จริง",
+    mapperStepApplyHeading: "2. นำไปใช้กับ route",
+    mapperStepApplyHint:
+      "กำหนด transform ที่ route ที่เลือกจะใช้จริง จนกว่าจะ Apply pattern อื่น",
+    mapperPatternNameLabel: "ชื่อ pattern",
+    mapperSavePatternBtn: "บันทึกเป็น pattern",
+    savedPatternsHeading: "Saved patterns (คลัง preset)",
+    savedPatternsListHint:
+      "เก็บได้หลาย preset — ป้าย Active for route(s) บอกว่า route ไหนใช้ preset นี้อยู่ — ชื่อซ้ำได้ ใช้ป้ายและเวลาอัปเดตแยกแถว",
+    savedPatternsEmpty: "ยังไม่มี pattern ที่บันทึก — Map ด้านบน ใส่ชื่อ แล้วกดบันทึกเป็น pattern",
+    patternActiveBadge: "ใช้งานกับ route",
+    patternActiveBadgeTitle: "Preset นี้เป็น transform ที่ route เหล่านี้ใช้อยู่",
+    mapperApplyToRouteBtnCurrent: "ตรงกับ route ที่เลือก",
   },
 };
 

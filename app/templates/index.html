@@ -255,7 +255,7 @@
 
       <section class="card card-mapper">
         <h2 class="card-title">Field Mapper</h2>
-        <p class="card-subtitle">Map alarm fields from source (left) to target (right). Save as pattern and apply to route.</p>
+        <p class="card-subtitle" data-i18n="mapperCardSubtitle">Map fields from source to target. Saving and applying are two steps: save adds a library entry; apply picks the live pattern for one route.</p>
         <div class="mapper-two-modes">
           <p class="mapper-modes-desc" data-i18n="sourceModes"><strong>Source pattern options:</strong></p>
           <ul class="mapper-modes-list">
@@ -312,19 +312,33 @@
             </table>
           </div>
         </div>
-        <div class="mapper-actions actions">
-          <label for="mapperPatternName">Pattern name</label>
-          <input type="text" id="mapperPatternName" class="input-inline" placeholder="e.g. OCP to standard (required)" style="min-width: 200px;" />
-          <button id="mapperSavePatternBtn" class="btn btn-primary">Save as pattern</button>
-          <span class="mapper-actions-sep">|</span>
-          <label for="mapperApplyRoute" data-i18n="mapperApplyToRouteBtn">Apply to route</label>
-          <select id="mapperApplyRoute" class="select"></select>
-          <button id="mapperApplyBtn" class="btn btn-primary" data-i18n="mapperApplyToRouteBtn">Apply to route</button>
-          <span id="mapperStatus" class="status"></span>
+        <div class="mapper-actions mapper-actions-split">
+          <div class="mapper-actions-row">
+            <div class="mapper-actions-group mapper-actions-group-save">
+              <div class="mapper-actions-group-heading" data-i18n="mapperStepSaveHeading">1. Save pattern</div>
+              <p class="mapper-actions-group-hint text-muted" data-i18n="mapperStepSaveHint"></p>
+              <div class="mapper-actions-group-controls">
+                <label for="mapperPatternName" data-i18n="mapperPatternNameLabel">Pattern name</label>
+                <input type="text" id="mapperPatternName" class="input-inline" placeholder="e.g. OCP to standard (required)" style="min-width: 200px;" />
+                <button id="mapperSavePatternBtn" class="btn btn-primary" data-i18n="mapperSavePatternBtn">Save as pattern</button>
+              </div>
+            </div>
+            <div class="mapper-actions-group mapper-actions-group-apply">
+              <div class="mapper-actions-group-heading" data-i18n="mapperStepApplyHeading">2. Apply to route</div>
+              <p class="mapper-actions-group-hint text-muted" data-i18n="mapperStepApplyHint"></p>
+              <div class="mapper-actions-group-controls">
+                <label for="mapperApplyRoute" data-i18n="mapperApplyToRouteBtn">Apply to route</label>
+                <select id="mapperApplyRoute" class="select"></select>
+                <button id="mapperApplyBtn" class="btn btn-primary" data-i18n="mapperApplyToRouteBtn">Apply to route</button>
+              </div>
+            </div>
+          </div>
+          <span id="mapperStatus" class="status mapper-actions-status"></span>
         </div>
         <p id="mapperActivePatternLine" class="mapper-active-pattern text-muted" style="margin-top:8px;font-size:13px;"></p>
         <div id="savedPatternsSection" class="saved-patterns">
-          <h3 class="mapper-col-title">Saved patterns</h3>
+          <h3 class="mapper-col-title" data-i18n="savedPatternsHeading">Saved patterns</h3>
+          <p class="saved-patterns-sub text-muted" data-i18n="savedPatternsListHint"></p>
           <ul id="savedPatternsList" class="saved-patterns-list"></ul>
         </div>
       </section>

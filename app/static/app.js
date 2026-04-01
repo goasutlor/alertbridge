@@ -189,6 +189,10 @@ async function loadConfig() {
     configStatus.textContent = "Loaded";
   } catch (error) {
     configStatus.textContent = `Error: ${error.message}`;
+  } finally {
+    try {
+      await loadSavedPatterns();
+    } catch (_) {}
   }
 }
 
@@ -427,6 +431,16 @@ function renderTargetUrls(routes) {
     
     targetUrlsPanel.appendChild(routeContainer);
   });
+}
+
+/** Route names where this saved pattern id is the active transform (from config). */
+function routesWherePatternActive(patternId) {
+  if (!patternId || !configJson || !Array.isArray(configJson.routes)) return [];
+  const sid = String(patternId);
+  return configJson.routes
+    .filter((r) => r.active_pattern_id != null && String(r.active_pattern_id) === sid)
+    .map((r) => r.name)
+    .filter(Boolean);
 }
 
 function formatRouteActivePattern(route) {
@@ -1272,21 +1286,37 @@ async function loadSavedPatterns() {
       mapperLoadPatternSelect.innerHTML = `<option value="">${escapeHtml(tr("mapperSelectPatternPlaceholder"))}</option>` +
         list.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("");
     }
+    const curRoute = mapperApplyRoute && mapperApplyRoute.value;
     savedPatternsList.innerHTML = list.length === 0
-      ? "<li class=\"text-muted\">No saved patterns. Map fields above, enter a name, and click Save as pattern.</li>"
-      : list.map((p) => `
-        <li>
-          <span class="pattern-name">${escapeHtml(p.name)}</span>
-          <span class="pattern-meta">${escapeHtml(p.source_type)}${p.updated_at ? ` · ${escapeHtml(fmtPatternTime(p.updated_at))}` : ""}</span>
+      ? `<li class="text-muted">${escapeHtml(tr("savedPatternsEmpty"))}</li>`
+      : list.map((p) => {
+          const activeRoutes = routesWherePatternActive(p.id);
+          const badgeHtml = activeRoutes.length
+            ? `<span class="pattern-active-badge" title="${escapeHtml(tr("patternActiveBadgeTitle"))}">${escapeHtml(tr("patternActiveBadge"))}: ${escapeHtml(activeRoutes.join(", "))}</span>`
+            : "";
+          const isLiveForDropdown = Boolean(curRoute && activeRoutes.includes(curRoute));
+          const applyBtnClass = isLiveForDropdown
+            ? "btn btn-secondary btn-apply-pattern btn-apply-is-live-for-route"
+            : "btn btn-primary btn-apply-pattern";
+          const applyLabel = isLiveForDropdown ? tr("mapperApplyToRouteBtnCurrent") : tr("mapperApplyToRouteBtn");
+          return `
+        <li class="saved-pattern-row">
+          <div class="pattern-list-info">
+            <div class="pattern-line-top">
+              <span class="pattern-name">${escapeHtml(p.name)}</span>
+              <span class="pattern-meta">${escapeHtml(p.source_type)}${p.updated_at ? ` · ${escapeHtml(fmtPatternTime(p.updated_at))}` : ""}</span>
+            </div>
+            ${badgeHtml ? `<div class="pattern-status-line">${badgeHtml}</div>` : ""}
+          </div>
           <span class="pattern-actions">
             <button type="button" class="btn btn-secondary btn-display-pattern" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}" title="Show mapping">Display</button>
             <button type="button" class="btn btn-secondary btn-download-pattern" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}" title="Download as JSON">Download</button>
             <button type="button" class="btn btn-secondary btn-load-pattern" data-id="${escapeHtml(p.id)}">${escapeHtml(tr("mapperLoadIntoEditorBtn"))}</button>
-            <button type="button" class="btn btn-primary btn-apply-pattern" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}">${escapeHtml(tr("mapperApplyToRouteBtn"))}</button>
+            <button type="button" class="${applyBtnClass}" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}">${escapeHtml(applyLabel)}</button>
             <button type="button" class="btn btn-danger btn-delete-pattern" data-id="${escapeHtml(p.id)}" title="Delete pattern">Delete</button>
           </span>
-        </li>
-      `).join("");
+        </li>`;
+        }).join("");
     savedPatternsList.querySelectorAll(".btn-display-pattern").forEach((btn) => {
       btn.addEventListener("click", () => showPatternModal(btn.getAttribute("data-id"), btn.getAttribute("data-name")));
     });
@@ -1726,7 +1756,6 @@ if (mapperApplyBtn) {
       }
       if (mapperStatus) mapperStatus.textContent = `${pName} applied to ${routeName} route. Pattern saved. Reload config to see YAML.`;
       await loadConfig();
-      await loadSavedPatterns();
     } catch (e) {
       if (mapperStatus) mapperStatus.textContent = `Error: ${e.message}`;
     }
@@ -1736,6 +1765,7 @@ if (mapperApplyBtn) {
 if (mapperApplyRoute) {
   mapperApplyRoute.addEventListener("change", () => {
     loadActiveRouteMappingIntoForm();
+    loadSavedPatterns();
   });
 }
 
@@ -2134,7 +2164,6 @@ document.querySelector(".lang-toggle")?.addEventListener("click", (e) => {
 
 loadConfig();
 loadPatternSchemas();
-loadSavedPatterns();
 loadRecentPayloads();
 loadApiKeys();
 loadHeaderVersion();
