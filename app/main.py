@@ -326,6 +326,46 @@ async def webhook(source: str, request: Request) -> Response:
     last_status_code: Optional[int] = None
     last_error: Optional[Exception] = None
     last_failed_output: Any = None
+    forward_enabled = getattr(route, "forward_enabled", True)
+
+    if not forward_enabled:
+        duration = time.monotonic() - start
+        FORWARD_TOTAL.labels(route=route.name, result="skipped").inc()
+        FORWARD_LATENCY_SECONDS.labels(route=route.name).observe(duration)
+        request.state.forward_result = "skipped"
+        http_status = 200
+        REQUESTS_TOTAL.labels(
+            source=source,
+            route=route.name,
+            status=str(http_status),
+        ).inc()
+        alert_summary = extract_alert_summary(payload)
+        RECENT_WEBHOOKS.append({
+            "ts": datetime.now(BANGKOK).isoformat()[:23],
+            "request_id": request_id,
+            "source": source,
+            "route": route.name,
+            "http_status": http_status,
+            "forwarded": False,
+            "alert_summary": alert_summary or None,
+        })
+        RECENT_PAYLOADS.append({
+            "ts": datetime.now(BANGKOK).isoformat()[:23],
+            "source": source,
+            "route": route.name,
+            "request_id": request_id,
+            "payload": sanitize_payload(payload),
+        })
+        return JSONResponse(
+            {
+                "status": "ok",
+                "request_id": request_id,
+                "forwarded": False,
+                "forward_paused": True,
+            },
+            status_code=http_status,
+        )
+
     for i, output in enumerate(outputs_to_forward):
         rid = f"{request_id}-{i}" if len(outputs_to_forward) > 1 else request_id
         ok, status_code, err, attempt_meta = await forward_payload(output, route, rid, rules.defaults)
@@ -570,24 +610,51 @@ async def api_config_targets() -> Response:
     return JSONResponse(out)
 
 
+def _paused_route_status(route) -> Dict[str, Any]:
+    """Status row when forwarding is paused (no outbound probe)."""
+    url = (route.target.url or "").strip() or os.getenv(route.target.url_env) or None
+    return {
+        "route": route.name,
+        "target_url": url or "(not set)",
+        "phase1_ok": True,
+        "phase2_ok": True,
+        "error": None,
+        "forward_paused": True,
+    }
+
+
 async def _compute_target_status() -> Dict[str, Any]:
     """Two-phase check per route; same shape as /api/target-status response."""
     rules = get_rules()
     defaults = rules.defaults if rules.defaults is not None else Defaults()
-    tasks = [check_target_status(r, defaults) for r in rules.routes]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    out = []
-    for i, r in enumerate(results):
-        if isinstance(r, Exception):
-            route_name = rules.routes[i].name if i < len(rules.routes) else "?"
-            out.append({"route": route_name, "phase1_ok": False, "phase2_ok": False, "error": str(r)})
+    out: List[Dict[str, Any]] = []
+    probe_routes: List[Any] = []
+    probe_indices: List[int] = []
+
+    for route in rules.routes:
+        if not getattr(route, "forward_enabled", True):
+            out.append(_paused_route_status(route))
         else:
-            out.append(r)
+            probe_indices.append(len(out))
+            out.append({})  # placeholder
+            probe_routes.append(route)
+
+    results = await asyncio.gather(
+        *[check_target_status(r, defaults) for r in probe_routes],
+        return_exceptions=True,
+    )
+    for j, idx in enumerate(probe_indices):
+        r = results[j]
+        if isinstance(r, Exception):
+            rn = probe_routes[j].name if j < len(probe_routes) else "?"
+            out[idx] = {"route": rn, "phase1_ok": False, "phase2_ok": False, "error": str(r)}
+        else:
+            out[idx] = r
+
     configured = [x for x in out if x.get("target_url") and x.get("target_url") != "(not set)"]
     has_any_target = len(configured) > 0
-    all_ok = has_any_target and all(
-        x.get("phase1_ok") and x.get("phase2_ok") for x in configured
-    )
+    active = [x for x in configured if not x.get("forward_paused")]
+    all_ok = len(active) > 0 and all(x.get("phase1_ok") and x.get("phase2_ok") for x in active)
     return {"routes": out, "has_any_target": has_any_target, "all_ok": all_ok}
 
 
@@ -674,16 +741,35 @@ async def api_portal_status() -> Response:
         has_any = ts["has_any_target"]
         all_ok = ts["all_ok"]
         configured = [x for x in routes_out if x.get("target_url") and x.get("target_url") != "(not set)"]
-        ok_cnt = sum(1 for x in configured if x.get("phase1_ok") and x.get("phase2_ok"))
+        active_cf = [x for x in configured if not x.get("forward_paused")]
+        paused_n = len(configured) - len(active_cf)
+        ok_cnt = sum(1 for x in active_cf if x.get("phase1_ok") and x.get("phase2_ok"))
+        tot_active = len(active_cf)
         tot = len(configured)
         if not has_any:
             forward = {"state": "disabled", "detail": "no targets", "ok_count": 0, "total": 0}
-        elif all_ok:
-            forward = {"state": "ok", "detail": f"{ok_cnt}/{tot} OK", "ok_count": ok_cnt, "total": tot}
+        elif tot and paused_n == tot:
+            forward = {
+                "state": "partial",
+                "detail": f"{paused_n} forwarding paused",
+                "ok_count": 0,
+                "total": tot,
+            }
+        elif all_ok and tot_active:
+            detail = f"{ok_cnt}/{tot_active} OK"
+            if paused_n:
+                detail += f" · {paused_n} paused"
+            forward = {"state": "ok", "detail": detail, "ok_count": ok_cnt, "total": tot_active}
         elif ok_cnt > 0:
-            forward = {"state": "partial", "detail": f"{ok_cnt}/{tot} OK", "ok_count": ok_cnt, "total": tot}
+            detail = f"{ok_cnt}/{tot_active} OK" if tot_active else f"{ok_cnt} OK"
+            if paused_n:
+                detail += f" · {paused_n} paused"
+            forward = {"state": "partial", "detail": detail, "ok_count": ok_cnt, "total": tot_active or tot}
         else:
-            forward = {"state": "down", "detail": f"{ok_cnt}/{tot} OK", "ok_count": ok_cnt, "total": tot}
+            detail = f"{ok_cnt}/{tot_active} OK" if tot_active else "0 OK"
+            if paused_n:
+                detail += f" · {paused_n} paused"
+            forward = {"state": "down", "detail": detail, "ok_count": ok_cnt, "total": tot_active or tot}
     except Exception as exc:
         logger.warning("portal_status_forward: %s", exc)
         routes_out = []

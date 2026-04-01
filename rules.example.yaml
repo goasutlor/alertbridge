@@ -63,6 +63,7 @@ routes:
         data.alert_details.0.time: $.data.alert_details.0.time
   verify_hmac: null
   unroll_alerts: true
+  forward_enabled: true
 - name: confluent-alerts
   match:
     source: confluent
@@ -93,6 +94,7 @@ routes:
         severity: $.severity
   verify_hmac: null
   unroll_alerts: false
+  forward_enabled: true
 auth:
   basic: null
   api_keys:

@@ -49,10 +49,13 @@ def get_request_stats() -> dict:
             by_status[st] = by_status.get(st, 0) + val
     for labels, metric in FORWARD_TOTAL._metrics.items():
         val = int(metric._value.get())
-        if len(labels) >= 2 and labels[1] == "success":
-            forward_ok += val
-        else:
-            forward_fail += val
+        if len(labels) >= 2:
+            res = labels[1]
+            if res == "success":
+                forward_ok += val
+            elif res == "fail":
+                forward_fail += val
+            # "skipped" (forward paused) does not count as success or fail
     return {
         "total_requests": total_requests,
         "by_source": by_source,

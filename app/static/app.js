@@ -180,7 +180,9 @@ function renderTargetUrlsEffective(targets, statusByRoute) {
     const cls = (r.target_url === "(not set)") ? "not-set" : "effective-url";
     const st = statusMap[r.route];
     let badge = "";
-    if (st && r.target_url !== "(not set)") {
+    if (st && st.forward_paused) {
+      badge = ` <span class="target-status-badge target-paused" title="${escapeHtml(tr("forwardPaused"))}">${escapeHtml(tr("forwardPausedBadge"))}</span>`;
+    } else if (st && r.target_url !== "(not set)") {
       const ok = st.phase1_ok && st.phase2_ok;
       const errText = st.error ? ` <span class="target-status-err">${escapeHtml(st.error)}</span>` : "";
       badge = ` <span class="target-status-badge ${ok ? "target-ok" : "target-fail"}" title="${escapeHtml(st.error || "")}">${ok ? tr("targetOk") : tr("targetFail")}</span>${errText}`;
@@ -202,6 +204,38 @@ async function loadEffectiveTargets() {
   }
 }
 
+async function persistRouteForwardEnabled(routeName, enabled, checkboxEl) {
+  if (!configJson || !configJson.routes) return;
+  const route = configJson.routes.find((x) => x.name === routeName);
+  if (route) route.forward_enabled = enabled;
+  if (targetUrlsStatus) targetUrlsStatus.textContent = tr("saving");
+  try {
+    const response = await fetch("/api/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(configJson),
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.detail || "Save failed");
+    }
+    const reloadRes = await fetch("/admin/reload", { method: "POST", credentials: "include" });
+    if (!reloadRes.ok) {
+      throw new Error("Reload failed");
+    }
+    if (targetUrlsStatus) {
+      targetUrlsStatus.textContent = enabled ? tr("forwardResumed") : tr("forwardPaused");
+    }
+    await loadPortalStatus();
+    await loadEffectiveTargets();
+    await loadConfig();
+  } catch (error) {
+    if (targetUrlsStatus) targetUrlsStatus.textContent = `Error: ${error.message}`;
+    if (checkboxEl) checkboxEl.checked = !enabled;
+  }
+}
+
 function renderTargetUrls(routes) {
   if (!targetUrlsPanel) return;
   targetUrlsPanel.innerHTML = "";
@@ -219,6 +253,27 @@ function renderTargetUrls(routes) {
     header.className = "target-route-header";
     header.innerHTML = `<strong>${escapeHtml(routeName)}</strong> <span class="text-muted">(${escapeHtml(source)})</span>`;
     routeContainer.appendChild(header);
+
+    const fwdRow = document.createElement("div");
+    fwdRow.className = "target-forward-toggle-row";
+    const fwdLabel = document.createElement("label");
+    fwdLabel.className = "target-forward-label";
+    fwdLabel.textContent = tr("forwardingEnabled");
+    const fwdCheck = document.createElement("input");
+    fwdCheck.type = "checkbox";
+    fwdCheck.checked = route.forward_enabled !== false;
+    fwdCheck.setAttribute("data-route-name", routeName);
+    fwdCheck.setAttribute("data-field", "forward_enabled");
+    fwdCheck.addEventListener("change", () => {
+      persistRouteForwardEnabled(routeName, fwdCheck.checked, fwdCheck);
+    });
+    const fwdHint = document.createElement("span");
+    fwdHint.className = "text-muted target-forward-hint";
+    fwdHint.textContent = tr("forwardingHint");
+    fwdRow.appendChild(fwdLabel);
+    fwdRow.appendChild(fwdCheck);
+    fwdRow.appendChild(fwdHint);
+    routeContainer.appendChild(fwdRow);
     
     // URL row
     const urlRow = document.createElement("div");
@@ -542,6 +597,9 @@ saveTargetUrlsBtn.addEventListener("click", async () => {
     configJson.routes.forEach((route) => {
       if (!route.target) route.target = {};
       const routeName = route.name;
+
+      const fwdEnabled = targetUrlsPanel.querySelector(`input[data-route-name="${routeName}"][data-field="forward_enabled"]`);
+      route.forward_enabled = fwdEnabled ? fwdEnabled.checked : true;
       
       // URL
       const urlInput = targetUrlsPanel.querySelector(`input[data-route-name="${routeName}"][data-field="url"]`);

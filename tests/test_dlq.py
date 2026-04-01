@@ -99,3 +99,40 @@ def test_api_dlq_recent_503_when_unconfigured(monkeypatch) -> None:
         r = ac.get("/api/dlq/recent")
     assert r.status_code == 503
     assert r.json().get("configured") is False
+
+
+def test_webhook_forward_paused_skips_outbound(monkeypatch, tmp_path: Path) -> None:
+    dlq = tmp_path / "paused.jsonl"
+    monkeypatch.setenv("ALERTBRIDGE_DLQ_FILE", str(dlq))
+
+    async def should_not_call(*args, **kwargs):
+        raise AssertionError("forward_payload must not be called when forward_enabled is false")
+
+    monkeypatch.setattr("app.main.forward_payload", should_not_call)
+
+    rules = RuleSet(
+        version=1,
+        defaults=Defaults(target_timeout_connect_sec=1, target_timeout_read_sec=1),
+        routes=[
+            RouteConfig(
+                name="trivial",
+                match=MatchConfig(source="probe"),
+                target=TargetConfig(
+                    url_env="UNUSED_PAUSE_TEST",
+                    url="http://127.0.0.1:9/",
+                ),
+                transform=TransformConfig(),
+                forward_enabled=False,
+            )
+        ],
+    )
+
+    with TestClient(app) as ac:
+        set_rules(rules)
+        r = ac.post("/webhook/probe", json={"alerts": [{"status": "firing", "labels": {}}]})
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body.get("forward_paused") is True
+    assert body.get("forwarded") is False
+    assert not dlq.exists()

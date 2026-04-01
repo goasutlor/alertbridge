@@ -67,6 +67,8 @@ class RouteConfig(BaseModel):
     verify_hmac: Optional[VerifyHmac] = None
     unroll_alerts: bool = False
     """If True, split payload.alerts[] and forward each alert separately (OCP Alertmanager)."""
+    forward_enabled: bool = True
+    """If False, accept webhooks and transform in-process but do not POST to the target (pause forwarding)."""
 
 
 class BasicAuthUser(BaseModel):

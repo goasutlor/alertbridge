@@ -205,6 +205,7 @@ body {
 .target-status-badge { margin-left: 6px; font-size: 10px; }
 .target-status-badge.target-ok { color: var(--accent); }
 .target-status-badge.target-fail { color: var(--danger); }
+.target-status-badge.target-paused { color: var(--text-muted); font-weight: 600; font-size: 11px; }
 .target-status-err { margin-left: 8px; font-size: 11px; color: var(--text-muted); font-weight: normal; }
 
 /* Cards */
@@ -332,6 +333,34 @@ body {
 }
 
 .target-route-header { margin-bottom: 12px; font-size: 15px; color: var(--text); }
+
+.target-forward-toggle-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.target-forward-toggle-row .target-forward-label {
+  font-size: 14px;
+  color: var(--text-muted);
+  font-weight: 500;
+  min-width: 140px;
+}
+.target-forward-toggle-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.target-forward-hint {
+  flex: 1;
+  min-width: 200px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .target-url-row, .target-api-key-header-row {
   display: flex;
   align-items: center;
