@@ -1282,7 +1282,7 @@ function onMapperSourceTypeChange() {
   if (!mapperSourceDescription || !mapperSourceFields) return;
   if (mapperSourceCustomWrap) mapperSourceCustomWrap.style.display = id === "custom-paste" ? "flex" : "none";
   const mergeWrap = document.getElementById("mapperMergeSchemasWrap");
-  if (mergeWrap) mergeWrap.style.display = id === "custom-paste" ? "flex" : "none";
+  if (mergeWrap) mergeWrap.style.display = id ? "flex" : "none";
   if (!id) {
     mapperSourceDescription.textContent = "";
     mapperSourceFields.innerHTML = "";
@@ -1305,9 +1305,12 @@ function onMapperSourceTypeChange() {
   const schema = (patternSchemas.source_schemas || {})[id];
   if (schema) {
     mapperSourceDescription.textContent = schema.description || "";
-    mapperSourceFields.innerHTML = (schema.fields || []).map((f) =>
-      `<li data-field-id="${escapeHtml(f.id)}">${escapeHtml(f.label)}</li>`
-    ).join("");
+    const merged = getMapperSourceFieldsList();
+    mapperSourceFields.innerHTML = merged.length
+      ? merged.map((f) => `<li data-field-id="${escapeHtml(f.id)}">${escapeHtml(f.label)}</li>`).join("")
+      : (schema.fields || []).map((f) =>
+          `<li data-field-id="${escapeHtml(f.id)}">${escapeHtml(f.label)}</li>`
+        ).join("");
     fillMapperSourceOptionSelects();
   } else {
     mapperSourceDescription.textContent = "";
@@ -1329,6 +1332,10 @@ function getMapperSourceFieldsList() {
   if (!id) return [];
   if (id === "custom-paste") {
     (customSourceFields || []).forEach(addField);
+  } else {
+    ((patternSchemas.source_schemas || {})[id]?.fields || []).forEach(addField);
+  }
+  if (id && id !== "") {
     const mergeOcp = document.getElementById("mapperMergeOcp");
     const mergeCf = document.getElementById("mapperMergeConfluent");
     if (mergeOcp && mergeOcp.checked) {
@@ -1337,8 +1344,6 @@ function getMapperSourceFieldsList() {
     if (mergeCf && mergeCf.checked) {
       ((patternSchemas.source_schemas || {})["confluent-8.10"]?.fields || []).forEach(addField);
     }
-  } else {
-    ((patternSchemas.source_schemas || {})[id]?.fields || []).forEach(addField);
   }
   out.sort((a, b) => a.id.localeCompare(b.id));
   return out;
@@ -1527,6 +1532,10 @@ function fillMapperSourceOptionSelects() {
     sel.innerHTML = "<option value=\"\">—</option>" + sourceFields.map((f) =>
       `<option value="${escapeHtml(f.id)}" ${f.id === current ? "selected" : ""}>${escapeHtml(f.label)}</option>`
     ).join("");
+    if (current && String(current).trim() !== "") {
+      mapperEnsureSourceOption(sel, current);
+      sel.value = current;
+    }
   });
 }
 
