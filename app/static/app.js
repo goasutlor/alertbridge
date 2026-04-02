@@ -268,6 +268,7 @@ async function loadHeaderVersion() {
     const v = data.version;
     const ns = data.namespace;
     const site = data.site;
+    document.title = site ? `AlertBridge-${String(site)}` : "AlertBridge";
     if (v) {
       const plain = [`v${v}`, site ? `site:${site}` : null, ns ? `ns:${ns}` : null].filter(Boolean).join(" · ");
       el.setAttribute("aria-label", plain);
