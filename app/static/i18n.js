@@ -131,14 +131,16 @@ const LANG = {
     mapperApplyToRouteBtn: "Apply to route",
     mapperSelectPatternPlaceholder: "— Select pattern —",
     mapperCardSubtitle:
-      "Map fields from source to target. Save stores one row per name in the library (saving again with the same name overwrites). Apply sets which preset is live for the selected route. Each target has Option 1, 2, … — same merged source list; first non-empty wins. Custom mode can merge OCP/Confluent preset fields into the list.",
+      "Map fields from source to target. Save stores one row per name in the library (saving again with the same name overwrites). Apply sets which preset is live for the selected route. Each target row has horizontal Source columns (1, 2, …) — same merged field list in every dropdown; first non-empty wins left to right. Custom mode can merge OCP/Confluent preset fields into the list.",
     mapperCustomPasteDesc: "Paste an example incoming log (JSON), then Use as source fields. Optionally tick preset schemas below to merge more paths into every dropdown.",
     mapperCustomPasteEmpty: "Paste JSON and click \"Use as source fields\".",
     mapperMergeSchemasLabel: "Merge preset fields:",
     mapperSourceOptionLabel: "Option {n}",
     mapperAddSourceOption: "+ Add source option",
+    mapperAddSourceColumnAria: "Add source column after this slot",
+    mapperRemoveSourceColumnAria: "Remove this source column",
     mapperDesignHint:
-      "Design: One target field, several source options (Option 1, 2…). The engine uses the first non-empty value from top to bottom.\nUse + Add source option for fallbacks. In Custom mode, tick OCP / Confluent to merge those preset paths into every dropdown.\nAfter Load: merge checkboxes turn on automatically if a saved path belongs to a preset you did not paste field-for-field.",
+      "Design: Each target row has Source columns 1…n (left to right). The engine tries each dropdown in order; the first non-empty value wins (coalesce).\nUse + under a column to insert another field slot after it; use − to remove a column (at least one column stays). In Custom mode, tick OCP / Confluent to merge preset paths into every dropdown.\nAfter Load: merge checkboxes turn on automatically if a saved path belongs to a preset you did not paste field-for-field.",
     mapperPatternLoadedOk: "Pattern loaded.",
     mapperPatternLoadedWithMerge:
       "Pattern loaded — OCP/Confluent merge was enabled so every saved path appears in the dropdowns.",
@@ -160,7 +162,7 @@ const LANG = {
     patternActiveBadgeTitle: "This preset is the active transform for these route(s).",
     mapperApplyToRouteBtnCurrent: "Current for selected route",
     mapperColTarget: "Target",
-    mapperColSource: "Source (Option 1…n)",
+    mapperColSource: "Source (columns 1…n)",
     mapperColStatic: "Or static value",
   },
   th: {
@@ -292,20 +294,22 @@ const LANG = {
     mapperApplyToRouteBtn: "นำไปใช้กับ route",
     mapperSelectPatternPlaceholder: "— เลือก pattern —",
     mapperCardSubtitle:
-      "Map จาก source ไป target — บันทึกได้หนึ่งแถวต่อชื่อ (บันทึกซ้ำชื่อเดิม = เขียนทับ); Apply กำหนดว่า route ไหนใช้ preset ไหนเป็นของจริง — แต่ละ target มี Option 1, 2, … จากรายการ source เดียวกัน (ค่าแรกที่ไม่ว่างชนะ) — โหมด Custom ติ๊กรวม OCP/Confluent เพื่อรวม path ใน dropdown",
+      "Map จาก source ไป target — บันทึกได้หนึ่งแถวต่อชื่อ (บันทึกซ้ำชื่อเดิม = เขียนทับ); Apply กำหนดว่า route ไหนใช้ preset ไหนเป็นของจริง — แต่ละแถว target มีคอลัมน์ Source แนวนอน (1, 2, …) รายการ field เดียวกันทุก dropdown ค่าแรกที่ไม่ว่างจากซ้ายไปขวาชนะ — โหมด Custom ติ๊กรวม OCP/Confluent เพื่อรวม path ใน dropdown",
     mapperCustomPasteDesc: "วางตัวอย่าง incoming log (JSON) แล้วกด Use as source fields — ติ๊กเพิ่ม preset ด้านล่างเพื่อรวม path จาก OCP/Confluent เข้า dropdown",
     mapperCustomPasteEmpty: "วาง JSON แล้วกด \"Use as source fields\"",
     mapperMergeSchemasLabel: "รวม field จาก preset:",
     mapperSourceOptionLabel: "ตัวเลือก {n}",
     mapperAddSourceOption: "+ เพิ่มตัวเลือกแหล่งข้อมูล",
+    mapperAddSourceColumnAria: "เพิ่มคอลัมน์ source ถัดจากช่องนี้",
+    mapperRemoveSourceColumnAria: "ลบคอลัมน์ source นี้",
     mapperDesignHint:
-      "การออกแบบ: หนึ่งช่อง target แต่มีหลายตัวเลือก source (ตัวเลือก 1, 2…) — ระบบใช้ค่าแรกที่ไม่ว่างจากบนลงล่าง\nใช้ปุ่ม + เพิ่มตัวเลือกสำหรับ fallback — โหมด Custom ติ๊ก OCP / Confluent เพื่อรวม path จาก preset เข้าทุก dropdown\nหลังโหลด pattern: ระบบจะเปิด merge ให้อัตโนมัติถ้า path ที่บันทึกไว้ต้องใช้ preset ที่คุณยังไม่ได้วางใน paste",
+      "การออกแบบ: แต่ละแถว target มีคอลัมน์ Source 1…n (ซ้ายไปขวา) — ระบบลองแต่ละ dropdown ตามลำดับ ค่าแรกที่ไม่ว่างชนะ (coalesce)\nกด + ใต้คอลัมน์เพื่อแทรกช่องเลือก field ถัดจากช่องนั้น กด − เพื่อลบคอลัมน์ (ต้องเหลืออย่างน้อยหนึ่งคอลัมน์) — โหมด Custom ติ๊ก OCP / Confluent เพื่อรวม path จาก preset เข้าทุก dropdown\nหลังโหลด pattern: ระบบจะเปิด merge ให้อัตโนมัติถ้า path ที่บันทึกไว้ต้องใช้ preset ที่คุณยังไม่ได้วางใน paste",
     mapperPatternLoadedOk: "โหลด pattern แล้ว",
     mapperPatternLoadedWithMerge:
       "โหลดแล้ว — เปิด merge OCP/Confluent ให้แล้วเพื่อให้ทุก path ที่บันทึกไว้แสดงใน dropdown",
     mapperDuplicatePathInRow: "path ซ้ำสำหรับ target «{target}» — ลบตัวเลือกที่ซ้ำออก",
     mapperColTarget: "Target",
-    mapperColSource: "Source (ตัวเลือก 1…n)",
+    mapperColSource: "Source (คอลัมน์ 1…n)",
     mapperColStatic: "หรือค่าคงที่",
     mapperStepSaveHeading: "1. บันทึก pattern",
     mapperStepSaveHint:

@@ -1012,31 +1012,69 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   align-items: stretch;
   min-width: 12rem;
   vertical-align: top;
+  overflow-x: auto;
 }
 .mapper-src-opt-rows {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.mapper-src-opt-row {
+.mapper-src-opt-rows.mapper-src-grid {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 12px;
+}
+.mapper-src-col {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  flex: 0 1 auto;
+  min-width: 6.5rem;
+  max-width: 13rem;
 }
-.mapper-opt-label {
+.mapper-src-col-num {
+  display: block;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
+  text-align: center;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.14);
+  border: 1px solid rgba(59, 130, 246, 0.38);
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
 }
-.mapper-add-src-opt {
-  align-self: flex-start;
-  margin-top: 2px;
-  position: relative;
-  z-index: 2;
+.mapper-src-col-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+.mapper-src-col-btn {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 16px;
+  line-height: 1;
   cursor: pointer;
-  pointer-events: auto;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  transition: background var(--transition), border-color var(--transition);
+}
+.mapper-src-col-btn:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.45);
+}
+.mapper-src-col-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.mapper-src-grid .mapper-src-opt {
+  max-width: 100%;
+  min-width: 0;
 }
 .mapper-src-opts {
   position: relative;

@@ -9,7 +9,7 @@ All notable changes to this project are documented in this file. The format is i
 ### Added
 
 - **Pattern mapping fallbacks:** Optional `source_field_ids` array on each mapping row — ordered source paths; the engine uses the first **non-empty** value (skips `null` and blank strings), then falls back to the first path that exists. Builds `TransformConfig.coalesce_sources` for Alertmanager payloads where `alerts[0]` vs `commonLabels` / `groupLabels` differ.
-- **Field Mapper UI:** Per target row, **Option 1, 2, …** as multiple `<select>`s (same merged source list), **+ Add source option** (up to 12), first non-empty wins. **Custom** mode: checkboxes to merge **OCP Alertmanager** and/or **Confluent** preset fields into every dropdown. Save/Apply sends `source_field_ids` when multiple options are set; loading restores from pattern or route `coalesce_sources`.
+- **Field Mapper UI:** Per target row, **Source columns 1…n** (horizontal): numbered badges, field `<select>`s (same merged list), **+** inserts a column after that slot, **−** removes a column (minimum one), up to 12 columns — first non-empty value left-to-right wins. **Custom** mode: checkboxes to merge **OCP Alertmanager** and/or **Confluent** preset fields into every dropdown. Save/Apply sends `source_field_ids` when multiple options are set; loading restores from pattern or route `coalesce_sources`.
 - **Mapper safety / design:** In-page hint explains option order and merge behavior; **duplicate path in the same target row** blocks Save/Apply with row highlight; **Load pattern (Custom)** auto-enables OCP/Confluent merge when saved paths reference preset fields not present in the pasted custom list.
 
 ### Fixed

@@ -1229,6 +1229,66 @@ function getMapperSourceFieldsList() {
   return out;
 }
 
+function mapperApplyColumnButtonI18n(addBtn, rmBtn) {
+  if (addBtn) {
+    const t = tr("mapperAddSourceColumnAria");
+    addBtn.setAttribute("aria-label", t);
+    addBtn.title = t;
+  }
+  if (rmBtn) {
+    const t = tr("mapperRemoveSourceColumnAria");
+    rmBtn.setAttribute("aria-label", t);
+    rmBtn.title = t;
+  }
+}
+
+/** One horizontal source column: index badge, field select, + / − chrome. */
+function mapperBuildSourceColumnElement(tid, idx) {
+  const div = document.createElement("div");
+  div.className = "mapper-src-col";
+  div.setAttribute("data-opt-idx", String(idx));
+  const num = document.createElement("span");
+  num.className = "mapper-src-col-num";
+  num.textContent = String(idx + 1);
+  num.setAttribute("aria-hidden", "true");
+  const sel = document.createElement("select");
+  sel.className = "mapper-src-opt";
+  sel.setAttribute("data-target-id", tid);
+  sel.innerHTML = "<option value=\"\">—</option>";
+  const actions = document.createElement("div");
+  actions.className = "mapper-src-col-actions";
+  const addBtn = document.createElement("button");
+  addBtn.type = "button";
+  addBtn.className = "mapper-src-col-btn mapper-src-add-col";
+  addBtn.textContent = "+";
+  const rmBtn = document.createElement("button");
+  rmBtn.type = "button";
+  rmBtn.className = "mapper-src-col-btn mapper-src-remove-col";
+  rmBtn.textContent = "−";
+  mapperApplyColumnButtonI18n(addBtn, rmBtn);
+  actions.appendChild(addBtn);
+  actions.appendChild(rmBtn);
+  div.appendChild(num);
+  div.appendChild(sel);
+  div.appendChild(actions);
+  return div;
+}
+
+function mapperSyncColumnChrome(wrap) {
+  if (!wrap) return;
+  const cols = wrap.querySelectorAll(".mapper-src-col");
+  const n = cols.length;
+  cols.forEach((col, i) => {
+    col.setAttribute("data-opt-idx", String(i));
+    const num = col.querySelector(".mapper-src-col-num");
+    if (num) num.textContent = String(i + 1);
+    const addBtn = col.querySelector(".mapper-src-add-col");
+    const rmBtn = col.querySelector(".mapper-src-remove-col");
+    if (rmBtn) rmBtn.hidden = n <= 1;
+    if (addBtn) addBtn.disabled = n >= MAPPER_MAX_SRC_OPTS;
+  });
+}
+
 function mapperSetOptionRowCount(rowEl, count) {
   const wrap = rowEl.querySelector(".mapper-src-opt-rows");
   if (!wrap) return;
@@ -1236,59 +1296,48 @@ function mapperSetOptionRowCount(rowEl, count) {
   const max = MAPPER_MAX_SRC_OPTS;
   const n = Math.max(min, Math.min(max, count));
   const tid = rowEl.getAttribute("data-target-id");
-  let rows = wrap.querySelectorAll(".mapper-src-opt-row");
-  while (rows.length < n) {
-    const idx = rows.length;
-    const div = document.createElement("div");
-    div.className = "mapper-src-opt-row";
-    div.setAttribute("data-opt-idx", String(idx));
-    const lab = document.createElement("span");
-    lab.className = "mapper-opt-label";
-    lab.textContent = tr("mapperSourceOptionLabel").replace("{n}", String(idx + 1));
-    const sel = document.createElement("select");
-    sel.className = "mapper-src-opt";
-    sel.setAttribute("data-target-id", tid);
-    sel.innerHTML = "<option value=\"\">—</option>";
-    div.appendChild(lab);
-    div.appendChild(sel);
-    wrap.appendChild(div);
-    rows = wrap.querySelectorAll(".mapper-src-opt-row");
+  let cols = wrap.querySelectorAll(".mapper-src-col");
+  while (cols.length < n) {
+    wrap.appendChild(mapperBuildSourceColumnElement(tid, cols.length));
+    cols = wrap.querySelectorAll(".mapper-src-col");
   }
-  while (rows.length > n) {
-    wrap.removeChild(rows[rows.length - 1]);
-    rows = wrap.querySelectorAll(".mapper-src-opt-row");
+  while (cols.length > n) {
+    wrap.removeChild(cols[cols.length - 1]);
+    cols = wrap.querySelectorAll(".mapper-src-col");
   }
-  wrap.querySelectorAll(".mapper-src-opt-row").forEach((row, i) => {
-    const lab = row.querySelector(".mapper-opt-label");
-    if (lab) lab.textContent = tr("mapperSourceOptionLabel").replace("{n}", String(i + 1));
-  });
+  mapperSyncColumnChrome(wrap);
 }
 
-function onMapperAddSrcOptClick(ev) {
-  const btn = ev.target.closest(".mapper-add-src-opt");
-  if (!btn) return;
-  const rowEl = btn.closest("tr[data-target-id]");
+function onMapperSrcGridClick(ev) {
+  const addBtn = ev.target.closest(".mapper-src-add-col");
+  const rmBtn = ev.target.closest(".mapper-src-remove-col");
+  if (!addBtn && !rmBtn) return;
+  const trigger = addBtn || rmBtn;
+  const col = trigger.closest(".mapper-src-col");
+  const wrap = col && col.closest(".mapper-src-opt-rows");
+  if (!col || !wrap) return;
+  const rowEl = wrap.closest("tr[data-target-id]");
   if (!rowEl) return;
-  const wrap = rowEl.querySelector(".mapper-src-opt-rows");
-  if (!wrap) return;
-  const rows = wrap.querySelectorAll(".mapper-src-opt-row");
-  if (rows.length >= MAPPER_MAX_SRC_OPTS) return;
   const tid = rowEl.getAttribute("data-target-id");
-  const idx = rows.length;
-  const div = document.createElement("div");
-  div.className = "mapper-src-opt-row";
-  div.setAttribute("data-opt-idx", String(idx));
-  const lab = document.createElement("span");
-  lab.className = "mapper-opt-label";
-  lab.textContent = tr("mapperSourceOptionLabel").replace("{n}", String(idx + 1));
-  const sel = document.createElement("select");
-  sel.className = "mapper-src-opt";
-  sel.setAttribute("data-target-id", tid);
-  sel.innerHTML = "<option value=\"\">—</option>";
-  div.appendChild(lab);
-  div.appendChild(sel);
-  wrap.appendChild(div);
-  fillMapperSourceOptionSelects();
+  const cols = [...wrap.querySelectorAll(".mapper-src-col")];
+  const idx = cols.indexOf(col);
+  if (idx < 0) return;
+
+  if (addBtn) {
+    if (cols.length >= MAPPER_MAX_SRC_OPTS) return;
+    const neu = mapperBuildSourceColumnElement(tid, idx + 1);
+    col.insertAdjacentElement("afterend", neu);
+    mapperSyncColumnChrome(wrap);
+    fillMapperSourceOptionSelects();
+    neu.querySelector(".mapper-src-opt")?.focus();
+    return;
+  }
+  if (rmBtn) {
+    if (cols.length <= 1) return;
+    col.remove();
+    mapperSyncColumnChrome(wrap);
+    fillMapperSourceOptionSelects();
+  }
 }
 
 function attachMapperMergeAndOptionListeners() {
@@ -1299,19 +1348,16 @@ function attachMapperMergeAndOptionListeners() {
       onMapperSourceTypeChange();
     });
   });
-  mapperMappingBody?.addEventListener("click", onMapperAddSrcOptClick);
+  mapperMappingBody?.addEventListener("click", onMapperSrcGridClick);
   mapperMappingBody?.addEventListener("change", (ev) => {
     const rowEl = ev.target.closest("tr[data-target-id]");
     if (rowEl) rowEl.classList.remove("mapper-row-invalid");
   });
 }
 
-function mapperSourceOptionRowHtml(tid, optionIndex0) {
-  const n = optionIndex0 + 1;
-  return `<div class="mapper-src-opt-row" data-opt-idx="${optionIndex0}">
-    <span class="mapper-opt-label">${escapeHtml(tr("mapperSourceOptionLabel").replace("{n}", String(n)))}</span>
-    <select class="mapper-src-opt" data-target-id="${escapeHtml(tid)}"><option value="">—</option></select>
-  </div>`;
+function mapperSourceColumnHtmlString(tid, idx) {
+  const el = mapperBuildSourceColumnElement(tid, idx);
+  return el.outerHTML;
 }
 
 function mapperRowByTargetId(targetId) {
@@ -1345,15 +1391,15 @@ function renderMapperMappingTable() {
       <td><strong>${escapeHtml(t.label)}</strong></td>
       <td class="mapper-src-cell">
         <div class="mapper-src-opts" data-target-id="${escapeHtml(t.id)}">
-          <div class="mapper-src-opt-rows">
-            ${mapperSourceOptionRowHtml(t.id, 0)}
+          <div class="mapper-src-opt-rows mapper-src-grid">
+            ${mapperSourceColumnHtmlString(t.id, 0)}
           </div>
-          <button type="button" class="btn btn-secondary btn-compact mapper-add-src-opt" data-target-id="${escapeHtml(t.id)}">${escapeHtml(tr("mapperAddSourceOption"))}</button>
         </div>
       </td>
       <td><input type="text" id="${vid}" class="mapper-static-input" data-target-id="${escapeHtml(t.id)}" placeholder="optional static" /></td>
     </tr>`;
   }).join("");
+  mapperMappingBody.querySelectorAll(".mapper-src-opt-rows").forEach((w) => mapperSyncColumnChrome(w));
   onMapperSourceTypeChange();
   fillMapperSourceOptionSelects();
 }
@@ -2245,13 +2291,16 @@ window.onLangChange = () => {
   }
   updateMapperActivePatternDisplay();
   document.querySelectorAll(".mapper-src-opt-rows").forEach((wrap) => {
-    wrap.querySelectorAll(".mapper-src-opt-row").forEach((row, i) => {
-      const lab = row.querySelector(".mapper-opt-label");
-      if (lab) lab.textContent = tr("mapperSourceOptionLabel").replace("{n}", String(i + 1));
+    wrap.querySelectorAll(".mapper-src-add-col").forEach((b) => {
+      const t = tr("mapperAddSourceColumnAria");
+      b.setAttribute("aria-label", t);
+      b.title = t;
     });
-  });
-  document.querySelectorAll(".mapper-add-src-opt").forEach((btn) => {
-    btn.textContent = tr("mapperAddSourceOption");
+    wrap.querySelectorAll(".mapper-src-remove-col").forEach((b) => {
+      const t = tr("mapperRemoveSourceColumnAria");
+      b.setAttribute("aria-label", t);
+      b.title = t;
+    });
   });
   loadSavedPatterns();
   loadDlqPanel();
