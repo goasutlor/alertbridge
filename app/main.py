@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 # Bangkok (GMT+7) for all displayed timestamps
 BANGKOK = timezone(timedelta(hours=7))
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import yaml
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
@@ -49,6 +49,7 @@ from app.api_key import (
 )
 from app.patterns import (
     build_transform_from_mapping,
+    find_pattern_id_by_name,
     get_pattern,
     list_patterns,
     list_schemas,
@@ -1008,9 +1009,12 @@ async def api_apply_pattern(
     _: Optional[str] = Depends(require_basic_auth),
 ) -> Response:
     """
-    Apply a pattern to a route. Body: { route_name, pattern_id? } or { route_name, source_type, mappings[, pattern_name] }.
-    When applying from form (mappings), optional pattern_name will save the pattern so it appears in Saved Patterns.
-    Updates the route's transform and saves config if writable.
+    Apply a pattern to a route.
+
+    - Body ``{ route_name, pattern_id }`` (no mappings): use the saved pattern's mappings as the route transform.
+    - Body ``{ route_name, mappings, pattern_name [, pattern_id] }``: use **mappings from the request** for the
+      transform; **does not** create or update the pattern library. The named pattern must already exist (Save first).
+      Optional ``pattern_id`` disambiguates when multiple legacy rows share a name.
     """
     try:
         body = await _read_json_with_limit(request)
@@ -1026,46 +1030,60 @@ async def api_apply_pattern(
     if not route:
         return JSONResponse({"detail": "Route not found"}, status_code=404)
 
+    raw_mappings = body.get("mappings")
     pattern_id = body.get("pattern_id")
-    source_type = body.get("source_type") or ""
-    saved_pattern: Optional[dict] = None
-    if pattern_id:
+
+    active_id: Optional[str] = None
+    active_nm: Optional[str] = None
+    mappings: List[Dict[str, Any]] = []
+
+    # Form apply: non-empty mappings — route transform from form; library row must exist (Save first).
+    if raw_mappings is not None and len(raw_mappings) > 0:
+        if len(raw_mappings) > 500:
+            return JSONResponse({"detail": "Too many mappings"}, status_code=400)
+        mappings = raw_mappings
+        pattern_name = (body.get("pattern_name") or "").strip()
+        if not pattern_name:
+            return JSONResponse(
+                {"detail": "pattern_name required — save your pattern to the library first, then apply."},
+                status_code=400,
+            )
+        optional_pid = body.get("pattern_id")
+        if optional_pid:
+            p = get_pattern(str(optional_pid))
+            if not p:
+                return JSONResponse({"detail": "Pattern not found"}, status_code=404)
+            if (p.get("name") or "").strip() != pattern_name:
+                return JSONResponse({"detail": "pattern_name does not match the selected pattern"}, status_code=400)
+            active_id = str(optional_pid)
+            active_nm = p.get("name")
+        else:
+            existing_id = find_pattern_id_by_name(pattern_name)
+            if not existing_id:
+                return JSONResponse(
+                    {
+                        "detail": "No saved pattern with this name. Save the pattern in the library first, "
+                        "then apply."
+                    },
+                    status_code=400,
+                )
+            p = get_pattern(existing_id)
+            if not p:
+                return JSONResponse({"detail": "Pattern not found"}, status_code=404)
+            active_id = existing_id
+            active_nm = p.get("name")
+    elif pattern_id:
         pattern = get_pattern(pattern_id)
         if not pattern:
             return JSONResponse({"detail": "Pattern not found"}, status_code=404)
         mappings = pattern["mappings"]
+        active_id = pattern_id
+        active_nm = pattern.get("name")
     else:
-        mappings = body.get("mappings") or []
-        if not mappings:
-            return JSONResponse({"detail": "Provide pattern_id or mappings"}, status_code=400)
-        if len(mappings) > 500:
-            return JSONResponse({"detail": "Too many mappings"}, status_code=400)
-        # Auto-save pattern when applying from form, so it appears in Saved Patterns.
-        # Reuse existing id by name (or optional pattern_id from editor) so Apply does not duplicate rows.
-        pattern_name = (body.get("pattern_name") or "").strip() or f"Applied to {route_name}"
-        explicit_pid = body.get("pattern_id")
-        if explicit_pid and get_pattern(str(explicit_pid)):
-            saved_pattern = save_pattern_data(
-                name=pattern_name,
-                source_type=source_type,
-                mappings=mappings,
-                pattern_id=str(explicit_pid),
-            )
-        else:
-            saved_pattern = save_pattern_data(name=pattern_name, source_type=source_type, mappings=mappings)
+        return JSONResponse({"detail": "Provide pattern_id or non-empty mappings"}, status_code=400)
 
     try:
         new_transform = build_transform_from_mapping(mappings)
-        active_id: Optional[str] = None
-        active_nm: Optional[str] = None
-        if pattern_id:
-            pmeta = get_pattern(pattern_id)
-            if pmeta:
-                active_id = pattern_id
-                active_nm = pmeta.get("name")
-        elif saved_pattern:
-            active_id = saved_pattern.get("id")
-            active_nm = saved_pattern.get("name")
         new_route = route.model_copy(
             update={
                 "transform": new_transform,
@@ -1079,15 +1097,11 @@ async def api_apply_pattern(
             persist_rules(new_rules)
         except PermissionError as exc:
             CONFIG_RELOAD_TOTAL.labels(result="fail").inc()
-            if saved_pattern:
-                delete_pattern_data(saved_pattern["id"])
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         set_rules(new_rules)
         CONFIG_RELOAD_TOTAL.labels(result="success").inc()
 
-        out = {"applied": True, "route_name": route_name}
-        if saved_pattern:
-            out["pattern_saved"] = saved_pattern.get("name", "")
+        out: Dict[str, Any] = {"applied": True, "route_name": route_name}
         return JSONResponse(out)
     except HTTPException:
         raise

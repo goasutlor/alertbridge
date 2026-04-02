@@ -14,6 +14,7 @@ All notable changes to this project are documented in this file. The format is i
 
 ### Changed
 
+- **POST `/api/patterns/apply` (form with mappings):** Requires an existing saved pattern — `pattern_name` must match a library row (Save first). Apply updates the route transform only; it no longer auto-creates or updates the pattern library on apply. Optional `pattern_id` must match that name.
 - **DLQ table:** Removed **HTTP** and **Unroll** columns to simplify the grid; `http_status`, `unroll_index`, and `unroll_count` remain visible in the row **Detail** JSON.
 
 ## [2026-04-02]

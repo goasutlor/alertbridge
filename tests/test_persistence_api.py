@@ -76,6 +76,16 @@ def test_delete_pattern_returns_409_and_restores_on_persist_failure(client, monk
 def test_apply_pattern_sets_active_pattern_metadata(client, monkeypatch):
     monkeypatch.setattr("app.main.persist_rules", lambda _rules: None)
 
+    save_res = client.post(
+        "/api/patterns",
+        json={
+            "name": "my-applied-pattern",
+            "source_type": "ocp-alertmanager-4.20",
+            "mappings": [{"target_field_id": "title", "source_field_id": "groupLabels.alertname"}],
+        },
+    )
+    assert save_res.status_code == 200
+
     response = client.post(
         "/api/patterns/apply",
         json={
@@ -112,6 +122,18 @@ def test_apply_pattern_by_pattern_id_sets_active_metadata(client, monkeypatch):
 
 
 def test_apply_pattern_returns_409_and_keeps_rules_unchanged(client, monkeypatch):
+    monkeypatch.setattr("app.main.persist_rules", lambda _rules: None)
+    save_ok = client.post(
+        "/api/patterns",
+        json={
+            "name": "temp-pattern",
+            "source_type": "ocp-alertmanager-4.20",
+            "mappings": [{"target_field_id": "title", "source_field_id": "groupLabels.alertname"}],
+        },
+    )
+    assert save_ok.status_code == 200
+    assert len(list_patterns()) == 1
+
     monkeypatch.setattr("app.main.persist_rules", _raise_permission_error)
 
     response = client.post(
@@ -125,7 +147,7 @@ def test_apply_pattern_returns_409_and_keeps_rules_unchanged(client, monkeypatch
     )
 
     assert response.status_code == 409
-    assert list_patterns() == []
+    assert len(list_patterns()) == 1
 
     rules = get_rules()
     route = next(r for r in rules.routes if r.name == "ocp-alertmanager")
@@ -177,6 +199,14 @@ def test_save_pattern_same_name_reuses_same_id(client, monkeypatch):
 def test_apply_from_form_twice_same_pattern_name_one_row(client, monkeypatch):
     monkeypatch.setattr("app.main.persist_rules", lambda _rules: None)
     m = [{"target_field_id": "title", "source_field_id": "groupLabels.alertname"}]
+    assert client.post(
+        "/api/patterns",
+        json={
+            "name": "apply-dedup-test",
+            "source_type": "ocp-alertmanager-4.20",
+            "mappings": m,
+        },
+    ).status_code == 200
     for _ in range(2):
         res = client.post(
             "/api/patterns/apply",
@@ -189,3 +219,16 @@ def test_apply_from_form_twice_same_pattern_name_one_row(client, monkeypatch):
         )
         assert res.status_code == 200
     assert len(list_patterns()) == 1
+
+
+def test_apply_from_form_without_prior_save_returns_400(client):
+    res = client.post(
+        "/api/patterns/apply",
+        json={
+            "route_name": "ocp-alertmanager",
+            "pattern_name": "never-saved-pattern",
+            "mappings": [{"target_field_id": "title", "source_field_id": "groupLabels.alertname"}],
+        },
+    )
+    assert res.status_code == 400
+    assert "Save" in (res.json().get("detail") or "")
