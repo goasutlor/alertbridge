@@ -8,6 +8,7 @@ All notable changes to this project are documented in this file. The format is i
 
 ### Added
 
+- **Portal header site label:** `/version` returns optional `site` from `ALERTBRIDGE_SITE` or infers `cwdc` / `tls2` from the Route hostname (`Host` or `X-Forwarded-Host` when `Host` is not `*.apps.*`). UI shows `v… · site:cwdc · ns:alertbridge`. Deployment env in `install-ocp-pull.yaml`; tests in `tests/test_version_site.py`.
 - **`/api/recent-sent`:** Returns up to **15** successful forwards sorted by **`ts` descending** (true “latest” first). In-memory `RECENT_SENT` holds up to 50. UI badges the top row as “Latest”. Fixes the old `maxlen=1` case where only the **last** unroll shard survived vs Live Events (first alert summary).
 - **Custom source JSON:** Multiple stacked sample rows (`+ Add JSON sample`, up to 8); **Use as source fields** merges parsed paths from every non-empty row into one Source field list (unique paths) for mapping dropdowns.
 - **Pattern mapping fallbacks:** Optional `source_field_ids` array on each mapping row — ordered source paths; the engine uses the first **non-empty** value (skips `null` and blank strings), then falls back to the first path that exists. Builds `TransformConfig.coalesce_sources` for Alertmanager payloads where `alerts[0]` vs `commonLabels` / `groupLabels` differ.
@@ -23,6 +24,7 @@ All notable changes to this project are documented in this file. The format is i
 
 ### Changed
 
+- **Deploy `install-ocp-pull.yaml`:** Route now sets `spec.host` to the short CWDC-style URL `alertbridge-lite.apps.cwdc.esb-kafka-prod.intra.ais` (edit the `cwdc` segment for tls2 or other shards before apply).
 - **Outbound target probes / logs:** `httpx` and `httpcore` loggers default to WARNING so health probes no longer print one INFO JSON line per HTTP request. **Target status cache** default TTL raised from 12s to **30s** (`ALERTBRIDGE_TARGET_STATUS_CACHE_SEC`) to reduce how often each forward URL is probed (GET + POST per active route per refresh).
 - **POST `/api/patterns/apply` (form with mappings):** Requires an existing saved pattern — `pattern_name` must match a library row (Save first). Apply updates the route transform only; it no longer auto-creates or updates the pattern library on apply. Optional `pattern_id` must match that name.
 - **DLQ table:** Removed **HTTP** and **Unroll** columns to simplify the grid; `http_status`, `unroll_index`, and `unroll_count` remain visible in the row **Detail** JSON.

@@ -581,9 +581,42 @@ async def healthz() -> Response:
     return JSONResponse({"ok": True})
 
 
+def _request_hostname_for_site(request: Request) -> str:
+    """
+    Prefer Host when it looks like the external Route (*.apps.<shard>.*).
+    Otherwise use X-Forwarded-Host (edge / proxy in front of the pod).
+    """
+    h = (request.headers.get("host") or "").strip()
+    if "," in h:
+        h = h.split(",")[0].strip()
+    h_only = h.split(":")[0].lower()
+    if ".apps." in h_only:
+        return h
+    xf = (request.headers.get("x-forwarded-host") or "").strip()
+    if "," in xf:
+        xf = xf.split(",")[0].strip()
+    return xf or h
+
+
+def _infer_site_from_request_host(host: str) -> Optional[str]:
+    """
+    When ALERTBRIDGE_SITE is unset, derive a short site label from the Route hostname
+    (e.g. ...apps.cwdc... -> cwdc). Matches the same shard embedded in node names
+    (*.cwdc.* vs *.tls2.*) but does not call the Kubernetes API.
+    """
+    if not host:
+        return None
+    h = host.split(":")[0].lower()
+    if ".apps.cwdc." in h:
+        return "cwdc"
+    if ".apps.tls2." in h:
+        return "tls2"
+    return None
+
+
 @app.get("/version")
-async def version() -> Response:
-    """Return app version, author, and git commit (for deploy verification)."""
+async def version(request: Request) -> Response:
+    """Return app version, author, git commit, namespace, and optional deploy site label."""
     git_sha = os.getenv("GIT_SHA", "unknown")
     ns = os.getenv("ALERTBRIDGE_K8S_NAMESPACE", "").strip()
     if not ns:
@@ -592,11 +625,15 @@ async def version() -> Response:
                 ns = handle.read().strip()
         except OSError:
             ns = ""
+    site = os.getenv("ALERTBRIDGE_SITE", "").strip()
+    if not site:
+        site = _infer_site_from_request_host(_request_hostname_for_site(request)) or ""
     return JSONResponse({
         "version": APP_VERSION,
         "author": "Sontas Jiamsripong",
         "git_sha": git_sha,
         "namespace": ns or None,
+        "site": site or None,
     })
 
 

@@ -73,6 +73,10 @@ For the image from GitHub Container Registry plus in-cluster rules, DLQ PVC, and
 oc apply -f deploy/install-ocp-pull.yaml
 ```
 
+The manifest pins the Route to the **short** hostname `https://alertbridge-lite.apps.cwdc.esb-kafka-prod.intra.ais` (same style as CWDC). For another cluster shard (e.g. **tls2**), edit `spec.host` in `deploy/install-ocp-pull.yaml` to `alertbridge-lite.apps.tls2.esb-kafka-prod.intra.ais` before apply.
+
+**Site label in the portal header (`site:cwdc` / `site:tls2`):** the Deployment sets `ALERTBRIDGE_SITE` (default `cwdc` in the manifest). Set it to `tls2` on the TLS2 cluster. If unset, `/version` infers the label from the browser `Host` (`.apps.cwdc.` vs `.apps.tls2.`) — the same shard string appears in node FQDNs (`oc get node`: `*.cwdc.*` vs `*.tls2.*`), but AlertBridge does not query nodes; it uses env + hostname.
+
 **ConfigMap save / Saved patterns from the UI:** the Deployment sets `automountServiceAccountToken: true` on `alertbridge-lite` so the Kubernetes API client can use the projected service-account token.
 
 **PVC `alertbridge-dlq` Pending with `WaitForFirstConsumer`:** normal until the AlertBridge Pod is scheduled; ensure your default StorageClass can provision `20Gi` (increase the request in the manifest if you need more headroom).
@@ -87,11 +91,13 @@ In Alertmanager config (Secret or ConfigMap):
 receivers:
   - name: webhook-alertbridge
     webhook_configs:
-      - url: 'https://alertbridge-lite-alertbridge.apps.cluster.domain/webhook/ocp'
+      - url: 'https://alertbridge-lite.apps.cwdc.esb-kafka-prod.intra.ais/webhook/ocp'
         send_resolved: true
         http_config:
           bearer_token: '<API_KEY>'
 ```
+
+If you use the router’s auto hostname instead, URL shape is `https://alertbridge-lite-alertbridge.apps.<shard>.esb-kafka-prod.intra.ais/webhook/ocp`.
 
 Or with `authorization` header:
 ```yaml
@@ -106,7 +112,7 @@ Ensure API Key matches the one generated in alertbridge-lite (API Keys section).
 ## Config Confluent Platform
 
 In Confluent notification / webhook config:
-- URL: `https://alertbridge-lite-alertbridge.apps.cluster.domain/webhook/confluent`
+- URL: `https://alertbridge-lite.apps.cwdc.esb-kafka-prod.intra.ais/webhook/confluent` (or your cluster’s Route host + `/webhook/confluent`)
 - Headers: `X-API-Key: <API_KEY>` or `Authorization: Bearer <API_KEY>`
 - Content-Type: `application/json`
 

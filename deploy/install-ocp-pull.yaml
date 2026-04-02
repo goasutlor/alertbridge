@@ -16,8 +16,10 @@
 # 4. oc apply -f deploy/install-ocp-pull.yaml
 # 5. alertbridge-lite has automountServiceAccountToken: true so ConfigMap save / patterns work (in-cluster API).
 # 6. PVC alertbridge-dlq may stay Pending until the app pod schedules (WaitForFirstConsumer + default StorageClass).
-# 7. oc get route -n alertbridge   # external URL (hostname auto-assigned if spec.host omitted)
-# 8. Test: curl -k https://<route>/healthz
+# 7. Route uses spec.host short form (CWDC-style). For another shard (e.g. tls2), edit host:
+#    alertbridge-lite.apps.tls2.esb-kafka-prod.intra.ais
+# 8. oc get route -n alertbridge
+# 9. Test: curl -k https://<route>/healthz
 #
 # Single manifest: AlertBridge + ServiceMonitor + Route + DLQ PVC (20Gi, default StorageClass).
 # Failed forwards append JSON lines to ALERTBRIDGE_DLQ_FILE (mounted from the PVC) for operations trace-back.
@@ -192,6 +194,9 @@ spec:
                   fieldPath: metadata.namespace
             - name: ALERTBRIDGE_K8S_SERVICE_NAME
               value: "alertbridge-lite"
+            # Header badge: distinguish CWDC vs TLS2 when namespace is the same (tls2: set value to "tls2")
+            - name: ALERTBRIDGE_SITE
+              value: "cwdc"
           volumeMounts:
             - name: rules
               mountPath: /etc/alertbridge/rules.yaml
@@ -264,8 +269,9 @@ metadata:
   name: alertbridge-lite
   namespace: alertbridge
 spec:
-  # Omit host to let the OpenShift router assign a hostname (see `oc get route -n alertbridge`).
-  # To pin a name: set host: alertbridge-lite.apps.<your-cluster-apps-domain>
+  # Short URL (CWDC-style): alertbridge-lite.apps.<shard>.esb-kafka-prod.intra.ais
+  # If omitted, OCP generates alertbridge-lite-alertbridge.apps.<shard>... — edit shard for tls2 / other.
+  host: alertbridge-lite.apps.cwdc.esb-kafka-prod.intra.ais
   to:
     kind: Service
     name: alertbridge-lite

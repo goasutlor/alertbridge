@@ -267,8 +267,12 @@ async function loadHeaderVersion() {
     const data = await res.json();
     const v = data.version;
     const ns = data.namespace;
+    const site = data.site;
     if (v) {
-      el.textContent = ns ? `v${v} · ns:${ns}` : `v${v}`;
+      const parts = [`v${v}`];
+      if (site) parts.push(`site:${site}`);
+      if (ns) parts.push(`ns:${ns}`);
+      el.textContent = parts.join(" · ");
     }
   } catch (_) {}
 }
