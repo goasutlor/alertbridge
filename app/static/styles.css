@@ -1002,19 +1002,53 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   min-width: 12rem;
   vertical-align: top;
 }
-.mapper-src-fallback {
-  width: 100%;
-  max-width: 240px;
-  min-height: 44px;
+.mapper-src-opt-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mapper-src-opt-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mapper-opt-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.mapper-add-src-opt {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+.mapper-merge-schemas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  flex-basis: 100%;
+  margin-top: 4px;
   padding: 8px 10px;
-  font-size: 12px;
-  line-height: 1.35;
-  border-radius: 6px;
+  border-radius: 8px;
   border: 1px solid var(--border);
-  background: var(--bg-input);
+  background: rgba(15, 23, 42, 0.03);
+  font-size: 12px;
+}
+.mapper-merge-label {
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+.mapper-merge-cb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
   color: var(--text);
-  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-  resize: vertical;
+}
+.mapper-merge-cb input {
+  cursor: pointer;
 }
 .mapper-table input[type="text"] {
   width: 100%;

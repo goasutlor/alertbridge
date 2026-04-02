@@ -122,8 +122,11 @@ function fmtPatternTime(ts) {
 
 const RATE_HISTORY_MAX = 90;
 let patternSchemas = { source_schemas: {}, target_fields: [] };
+/** Max source path options (Option 1…N) per target row. */
+const MAPPER_MAX_SRC_OPTS = 12;
 let targetFieldsFromUpload = [];
 let customSourceFields = [];
+let mapperMergeListenersAttached = false;
 let rateHistory = [];
 let lastTotalRequests = null;
 let configJson = null;
@@ -1155,6 +1158,7 @@ async function loadPatternSchemas() {
     optCustom.textContent = "Custom (paste example log)";
     mapperSourceType.appendChild(optCustom);
     mapperSourceType.addEventListener("change", onMapperSourceTypeChange);
+    attachMapperMergeAndOptionListeners();
     renderMapperMappingTable();
   } catch (err) {}
 }
@@ -1163,21 +1167,25 @@ function onMapperSourceTypeChange() {
   const id = mapperSourceType.value;
   if (!mapperSourceDescription || !mapperSourceFields) return;
   if (mapperSourceCustomWrap) mapperSourceCustomWrap.style.display = id === "custom-paste" ? "flex" : "none";
+  const mergeWrap = document.getElementById("mapperMergeSchemasWrap");
+  if (mergeWrap) mergeWrap.style.display = id === "custom-paste" ? "flex" : "none";
   if (!id) {
     mapperSourceDescription.textContent = "";
     mapperSourceFields.innerHTML = "";
+    fillMapperSourceOptionSelects();
     return;
   }
   if (id === "custom-paste") {
-    mapperSourceDescription.textContent = "Paste an example incoming log (JSON) below, then click Use as source fields.";
-    if (customSourceFields.length) {
-      mapperSourceFields.innerHTML = customSourceFields.map((f) =>
+    mapperSourceDescription.textContent = tr("mapperCustomPasteDesc");
+    const merged = getMapperSourceFieldsList();
+    if (merged.length) {
+      mapperSourceFields.innerHTML = merged.map((f) =>
         `<li data-field-id="${escapeHtml(f.id)}">${escapeHtml(f.label)}</li>`
       ).join("");
     } else {
-      mapperSourceFields.innerHTML = "<li class=\"text-muted\">Paste JSON and click \"Use as source fields\".</li>";
+      mapperSourceFields.innerHTML = `<li class="text-muted">${escapeHtml(tr("mapperCustomPasteEmpty"))}</li>`;
     }
-    fillMapperSourceDropdowns();
+    fillMapperSourceOptionSelects();
     return;
   }
   const schema = (patternSchemas.source_schemas || {})[id];
@@ -1186,11 +1194,121 @@ function onMapperSourceTypeChange() {
     mapperSourceFields.innerHTML = (schema.fields || []).map((f) =>
       `<li data-field-id="${escapeHtml(f.id)}">${escapeHtml(f.label)}</li>`
     ).join("");
-    fillMapperSourceDropdowns();
+    fillMapperSourceOptionSelects();
   } else {
     mapperSourceDescription.textContent = "";
     mapperSourceFields.innerHTML = "";
+    fillMapperSourceOptionSelects();
   }
+}
+
+/** Merged field list for dropdowns: custom paths + optional built-in schemas (Custom mode only). */
+function getMapperSourceFieldsList() {
+  const id = mapperSourceType && mapperSourceType.value;
+  const seen = new Set();
+  const out = [];
+  function addField(f) {
+    if (!f || !f.id || seen.has(f.id)) return;
+    seen.add(f.id);
+    out.push(f);
+  }
+  if (!id) return [];
+  if (id === "custom-paste") {
+    (customSourceFields || []).forEach(addField);
+    const mergeOcp = document.getElementById("mapperMergeOcp");
+    const mergeCf = document.getElementById("mapperMergeConfluent");
+    if (mergeOcp && mergeOcp.checked) {
+      ((patternSchemas.source_schemas || {})["ocp-alertmanager-4.20"]?.fields || []).forEach(addField);
+    }
+    if (mergeCf && mergeCf.checked) {
+      ((patternSchemas.source_schemas || {})["confluent-8.10"]?.fields || []).forEach(addField);
+    }
+  } else {
+    ((patternSchemas.source_schemas || {})[id]?.fields || []).forEach(addField);
+  }
+  out.sort((a, b) => a.id.localeCompare(b.id));
+  return out;
+}
+
+function mapperSetOptionRowCount(tr, count) {
+  const wrap = tr.querySelector(".mapper-src-opt-rows");
+  if (!wrap) return;
+  const min = 1;
+  const max = MAPPER_MAX_SRC_OPTS;
+  const n = Math.max(min, Math.min(max, count));
+  const tid = tr.getAttribute("data-target-id");
+  let rows = wrap.querySelectorAll(".mapper-src-opt-row");
+  while (rows.length < n) {
+    const idx = rows.length;
+    const div = document.createElement("div");
+    div.className = "mapper-src-opt-row";
+    div.setAttribute("data-opt-idx", String(idx));
+    const lab = document.createElement("span");
+    lab.className = "mapper-opt-label";
+    lab.textContent = tr("mapperSourceOptionLabel").replace("{n}", String(idx + 1));
+    const sel = document.createElement("select");
+    sel.className = "mapper-src-opt";
+    sel.setAttribute("data-target-id", tid);
+    sel.innerHTML = "<option value=\"\">—</option>";
+    div.appendChild(lab);
+    div.appendChild(sel);
+    wrap.appendChild(div);
+    rows = wrap.querySelectorAll(".mapper-src-opt-row");
+  }
+  while (rows.length > n) {
+    wrap.removeChild(rows[rows.length - 1]);
+    rows = wrap.querySelectorAll(".mapper-src-opt-row");
+  }
+  wrap.querySelectorAll(".mapper-src-opt-row").forEach((row, i) => {
+    const lab = row.querySelector(".mapper-opt-label");
+    if (lab) lab.textContent = tr("mapperSourceOptionLabel").replace("{n}", String(i + 1));
+  });
+}
+
+function onMapperAddSrcOptClick(ev) {
+  const btn = ev.target.closest(".mapper-add-src-opt");
+  if (!btn) return;
+  const tr = btn.closest("tr[data-target-id]");
+  if (!tr) return;
+  const wrap = tr.querySelector(".mapper-src-opt-rows");
+  if (!wrap) return;
+  const rows = wrap.querySelectorAll(".mapper-src-opt-row");
+  if (rows.length >= MAPPER_MAX_SRC_OPTS) return;
+  const tid = tr.getAttribute("data-target-id");
+  const idx = rows.length;
+  const div = document.createElement("div");
+  div.className = "mapper-src-opt-row";
+  div.setAttribute("data-opt-idx", String(idx));
+  const lab = document.createElement("span");
+  lab.className = "mapper-opt-label";
+  lab.textContent = tr("mapperSourceOptionLabel").replace("{n}", String(idx + 1));
+  const sel = document.createElement("select");
+  sel.className = "mapper-src-opt";
+  sel.setAttribute("data-target-id", tid);
+  sel.innerHTML = "<option value=\"\">—</option>";
+  div.appendChild(lab);
+  div.appendChild(sel);
+  wrap.appendChild(div);
+  fillMapperSourceOptionSelects();
+}
+
+function attachMapperMergeAndOptionListeners() {
+  if (mapperMergeListenersAttached) return;
+  mapperMergeListenersAttached = true;
+  ["mapperMergeOcp", "mapperMergeConfluent"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("change", () => {
+      onMapperSourceTypeChange();
+    });
+  });
+  mapperMappingBody?.addEventListener("click", onMapperAddSrcOptClick);
+}
+
+function mapperSourceOptionRowHtml(tid, optionIndex0) {
+  const n = optionIndex0 + 1;
+  return `<div class="mapper-src-opt-row" data-opt-idx="${optionIndex0}">
+    <span class="mapper-opt-label">${escapeHtml(tr("mapperSourceOptionLabel").replace("{n}", String(n)))}</span>
+    <select class="mapper-src-opt" data-target-id="${escapeHtml(tid)}"><option value="">—</option></select>
+  </div>`;
 }
 
 function mapperRowByTargetId(targetId) {
@@ -1218,29 +1336,29 @@ function mapperEnsureSourceOption(sel, value) {
 function renderMapperMappingTable() {
   if (!mapperMappingBody) return;
   const targets = targetFieldsFromUpload.length > 0 ? targetFieldsFromUpload : (patternSchemas.target_fields || []);
-  const fbPh = escapeHtml(tr("mapperFallbackPlaceholder"));
   mapperMappingBody.innerHTML = targets.map((t) => {
-    const sid = `map-src-${t.id}`;
     const vid = `map-val-${t.id}`;
     return `<tr data-target-id="${escapeHtml(t.id)}">
       <td><strong>${escapeHtml(t.label)}</strong></td>
       <td class="mapper-src-cell">
-        <select id="${sid}" class="mapper-src-select" data-target-id="${escapeHtml(t.id)}"><option value="">—</option></select>
-        <textarea class="mapper-src-fallback" data-target-id="${escapeHtml(t.id)}" rows="2" placeholder="${fbPh}"></textarea>
+        <div class="mapper-src-opts" data-target-id="${escapeHtml(t.id)}">
+          <div class="mapper-src-opt-rows">
+            ${mapperSourceOptionRowHtml(t.id, 0)}
+          </div>
+          <button type="button" class="btn btn-secondary btn-compact mapper-add-src-opt" data-target-id="${escapeHtml(t.id)}">${escapeHtml(tr("mapperAddSourceOption"))}</button>
+        </div>
       </td>
       <td><input type="text" id="${vid}" class="mapper-static-input" data-target-id="${escapeHtml(t.id)}" placeholder="optional static" /></td>
     </tr>`;
   }).join("");
   onMapperSourceTypeChange();
-  fillMapperSourceDropdowns();
+  fillMapperSourceOptionSelects();
 }
 
-function fillMapperSourceDropdowns() {
-  const id = mapperSourceType.value;
-  const sourceFields = id === "custom-paste" ? customSourceFields : ((patternSchemas.source_schemas || {})[id]?.fields || []);
+function fillMapperSourceOptionSelects() {
+  const sourceFields = getMapperSourceFieldsList();
   if (!mapperMappingBody) return;
-  mapperMappingBody.querySelectorAll(".mapper-src-select").forEach((sel) => {
-    const targetId = sel.getAttribute("data-target-id");
+  mapperMappingBody.querySelectorAll(".mapper-src-opt").forEach((sel) => {
     const current = sel.value;
     sel.innerHTML = "<option value=\"\">—</option>" + sourceFields.map((f) =>
       `<option value="${escapeHtml(f.id)}" ${f.id === current ? "selected" : ""}>${escapeHtml(f.label)}</option>`
@@ -1253,8 +1371,6 @@ function getMappingsFromForm() {
   if (!mapperMappingBody) return mappings;
   mapperMappingBody.querySelectorAll("tr[data-target-id]").forEach((tr) => {
     const targetId = tr.getAttribute("data-target-id");
-    const sel = tr.querySelector(".mapper-src-select");
-    const fb = tr.querySelector(".mapper-src-fallback");
     const input = tr.querySelector(".mapper-static-input");
     const staticVal = input ? input.value.trim() : "";
     if (staticVal) {
@@ -1265,14 +1381,11 @@ function getMappingsFromForm() {
       });
       return;
     }
-    const primary = sel ? sel.value.trim() : "";
-    const extraLines = (fb && fb.value ? fb.value : "")
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
     const paths = [];
-    if (primary) paths.push(primary);
-    paths.push(...extraLines);
+    tr.querySelectorAll(".mapper-src-opt").forEach((sel) => {
+      const v = sel.value.trim();
+      if (v) paths.push(v);
+    });
     if (paths.length > 1) {
       mappings.push({
         target_field_id: targetId,
@@ -1303,25 +1416,26 @@ function setMappingsToForm(mappings) {
     const tid = m.target_field_id;
     const tr = mapperRowByTargetId(tid);
     if (!tr) return;
-    const sel = tr.querySelector(".mapper-src-select");
-    const fb = tr.querySelector(".mapper-src-fallback");
     const input = tr.querySelector(".mapper-static-input");
     const staticVal = m.static_value != null && m.static_value !== "" ? String(m.static_value) : "";
     if (input) input.value = staticVal;
     if (staticVal) {
-      if (sel) sel.value = "";
-      if (fb) fb.value = "";
+      mapperSetOptionRowCount(tr, 1);
+      tr.querySelectorAll(".mapper-src-opt").forEach((s) => { s.value = ""; });
       return;
     }
     const ids = Array.isArray(m.source_field_ids) ? m.source_field_ids : null;
-    if (ids && ids.length > 0) {
-      mapperEnsureSourceOption(sel, ids[0]);
-      if (sel) sel.value = ids[0];
-      if (fb) fb.value = ids.length > 1 ? ids.slice(1).join("\n") : "";
-    } else {
-      if (m.source_field_id) mapperEnsureSourceOption(sel, m.source_field_id);
-      if (sel) sel.value = m.source_field_id || "";
-      if (fb) fb.value = "";
+    const paths = ids && ids.length ? ids : (m.source_field_id ? [m.source_field_id] : []);
+    mapperSetOptionRowCount(tr, Math.max(1, paths.length));
+    const sels = tr.querySelectorAll(".mapper-src-opt");
+    paths.forEach((p, i) => {
+      if (sels[i]) {
+        mapperEnsureSourceOption(sels[i], p);
+        sels[i].value = p;
+      }
+    });
+    for (let i = paths.length; i < sels.length; i++) {
+      sels[i].value = "";
     }
   });
 }
@@ -1402,7 +1516,6 @@ function loadActiveRouteMappingIntoForm() {
   }
 
   renderMapperMappingTable();
-  fillMapperSourceDropdowns();
   setMappingsToForm(mappings);
   if (mapperStatus) mapperStatus.textContent = `Loaded active mapping from route: ${routeName}`;
 }
@@ -1495,7 +1608,6 @@ async function loadOnePattern(patternId) {
     if (fromMappings.length) targetFieldsFromUpload = fromMappings;
     onMapperSourceTypeChange();
     renderMapperMappingTable();
-    fillMapperSourceDropdowns();
     setMappingsToForm(mappings);
     if (mapperStatus) mapperStatus.textContent = "Pattern loaded.";
   } catch (err) {
@@ -1842,7 +1954,7 @@ function usePayloadAsSource(idx) {
   onMapperSourceTypeChange();
   // If user already parsed a target, re-render table so dropdowns get live payload options
   if (targetFieldsFromUpload.length > 0) renderMapperMappingTable();
-  else fillMapperSourceDropdowns();
+  else fillMapperSourceOptionSelects();
   if (mapperStatus) mapperStatus.textContent = `Using ${customSourceFields.length} fields from live payload (${item.ts}, ${item.route}).`;
 }
 
@@ -2047,8 +2159,14 @@ window.onLangChange = () => {
     renderTargetUrls(configJson.routes || []);
   }
   updateMapperActivePatternDisplay();
-  document.querySelectorAll(".mapper-src-fallback").forEach((el) => {
-    el.placeholder = tr("mapperFallbackPlaceholder");
+  document.querySelectorAll(".mapper-src-opt-rows").forEach((wrap) => {
+    wrap.querySelectorAll(".mapper-src-opt-row").forEach((row, i) => {
+      const lab = row.querySelector(".mapper-opt-label");
+      if (lab) lab.textContent = tr("mapperSourceOptionLabel").replace("{n}", String(i + 1));
+    });
+  });
+  document.querySelectorAll(".mapper-add-src-opt").forEach((btn) => {
+    btn.textContent = tr("mapperAddSourceOption");
   });
   loadSavedPatterns();
   loadDlqPanel();

@@ -9,7 +9,7 @@ All notable changes to this project are documented in this file. The format is i
 ### Added
 
 - **Pattern mapping fallbacks:** Optional `source_field_ids` array on each mapping row — ordered source paths; the engine uses the first **non-empty** value (skips `null` and blank strings), then falls back to the first path that exists. Builds `TransformConfig.coalesce_sources` for Alertmanager payloads where `alerts[0]` vs `commonLabels` / `groupLabels` differ.
-- **Field Mapper UI:** Per target row, a **fallback textarea** (one JSON path per line) under the source dropdown; Save/Apply sends `source_field_ids` when multiple paths are set. Loading a saved pattern or **active route transform** restores `source_field_ids` and `coalesce_sources` from config.
+- **Field Mapper UI:** Per target row, **Option 1, 2, …** as multiple `<select>`s (same merged source list), **+ Add source option** (up to 12), first non-empty wins. **Custom** mode: checkboxes to merge **OCP Alertmanager** and/or **Confluent** preset fields into every dropdown. Save/Apply sends `source_field_ids` when multiple options are set; loading restores from pattern or route `coalesce_sources`.
 
 ### Changed
 

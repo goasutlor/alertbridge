@@ -286,6 +286,11 @@
             <textarea id="mapperSourceExample" class="textarea mapper-paste-json-small" placeholder="Paste example incoming log JSON"></textarea>
             <button id="mapperParseSourceBtn" class="btn btn-secondary">Use as source fields</button>
           </div>
+          <div id="mapperMergeSchemasWrap" class="mapper-merge-schemas" style="display:none;" title="">
+            <span class="mapper-merge-label" data-i18n="mapperMergeSchemasLabel">Also merge preset fields:</span>
+            <label class="mapper-merge-cb"><input type="checkbox" id="mapperMergeOcp" /> OCP Alertmanager</label>
+            <label class="mapper-merge-cb"><input type="checkbox" id="mapperMergeConfluent" /> Confluent</label>
+          </div>
           <span class="mapper-toolbar-saved-label" data-i18n="mapperSavedPatternLabel">Saved pattern</span>
           <select id="mapperLoadPatternSelect" class="select"><option value="">— Select pattern —</option></select>
           <button id="mapperLoadPatternBtn" class="btn btn-secondary" data-i18n="mapperLoadIntoEditorBtn">Load into editor</button>
@@ -415,6 +420,6 @@
     </div>
 
     <script src="/static/i18n.js"></script>
-    <script src="/static/app.js?v=21"></script>
+    <script src="/static/app.js?v=22"></script>
   </body>
 </html>

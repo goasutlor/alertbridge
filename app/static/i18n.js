@@ -131,8 +131,12 @@ const LANG = {
     mapperApplyToRouteBtn: "Apply to route",
     mapperSelectPatternPlaceholder: "— Select pattern —",
     mapperCardSubtitle:
-      "Map fields from source to target. Save stores one row per name in the library (saving again with the same name overwrites). Apply sets which preset is live for the selected route. Under each source dropdown, optional extra lines = fallback paths (first non-empty wins).",
-    mapperFallbackPlaceholder: "Fallback paths — one per line (optional)",
+      "Map fields from source to target. Save stores one row per name in the library (saving again with the same name overwrites). Apply sets which preset is live for the selected route. Each target has Option 1, 2, … — same merged source list; first non-empty wins. Custom mode can merge OCP/Confluent preset fields into the list.",
+    mapperCustomPasteDesc: "Paste an example incoming log (JSON), then Use as source fields. Optionally tick preset schemas below to merge more paths into every dropdown.",
+    mapperCustomPasteEmpty: "Paste JSON and click \"Use as source fields\".",
+    mapperMergeSchemasLabel: "Merge preset fields:",
+    mapperSourceOptionLabel: "Option {n}",
+    mapperAddSourceOption: "+ Add source option",
     mapperStepSaveHeading: "1. Save pattern",
     mapperStepSaveHint:
       "Stores the mapping under a name in Saved patterns. Same name overwrites the existing row — this does not change live forwarding until you Apply.",
@@ -150,7 +154,7 @@ const LANG = {
     patternActiveBadgeTitle: "This preset is the active transform for these route(s).",
     mapperApplyToRouteBtnCurrent: "Current for selected route",
     mapperColTarget: "Target",
-    mapperColSource: "Source",
+    mapperColSource: "Source (Option 1…n)",
     mapperColStatic: "Or static value",
   },
   th: {
@@ -282,10 +286,14 @@ const LANG = {
     mapperApplyToRouteBtn: "นำไปใช้กับ route",
     mapperSelectPatternPlaceholder: "— เลือก pattern —",
     mapperCardSubtitle:
-      "Map จาก source ไป target — บันทึกได้หนึ่งแถวต่อชื่อ (บันทึกซ้ำชื่อเดิม = เขียนทับ); Apply กำหนดว่า route ไหนใช้ preset ไหนเป็นของจริง — ใต้ dropdown แต่ละแถว ใส่ path สำรองได้หลายบรรทัด (ค่าแรกที่ไม่ว่างชนะ)",
-    mapperFallbackPlaceholder: "Path สำรอง — หนึ่งบรรทัดต่อหนึ่ง path (ไม่บังคับ)",
+      "Map จาก source ไป target — บันทึกได้หนึ่งแถวต่อชื่อ (บันทึกซ้ำชื่อเดิม = เขียนทับ); Apply กำหนดว่า route ไหนใช้ preset ไหนเป็นของจริง — แต่ละ target มี Option 1, 2, … จากรายการ source เดียวกัน (ค่าแรกที่ไม่ว่างชนะ) — โหมด Custom ติ๊กรวม OCP/Confluent เพื่อรวม path ใน dropdown",
+    mapperCustomPasteDesc: "วางตัวอย่าง incoming log (JSON) แล้วกด Use as source fields — ติ๊กเพิ่ม preset ด้านล่างเพื่อรวม path จาก OCP/Confluent เข้า dropdown",
+    mapperCustomPasteEmpty: "วาง JSON แล้วกด \"Use as source fields\"",
+    mapperMergeSchemasLabel: "รวม field จาก preset:",
+    mapperSourceOptionLabel: "ตัวเลือก {n}",
+    mapperAddSourceOption: "+ เพิ่มตัวเลือกแหล่งข้อมูล",
     mapperColTarget: "Target",
-    mapperColSource: "Source",
+    mapperColSource: "Source (ตัวเลือก 1…n)",
     mapperColStatic: "หรือค่าคงที่",
     mapperStepSaveHeading: "1. บันทึก pattern",
     mapperStepSaveHint:
