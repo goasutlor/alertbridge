@@ -87,6 +87,12 @@ RECENT_SENT: deque = deque(maxlen=1)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 
+@app.get("/favicon.ico")
+async def favicon() -> FileResponse:
+    """Browsers request /favicon.ico by default; serve the same icon as /static/favicon.svg."""
+    return FileResponse(BASE_DIR / "static" / "favicon.svg", media_type="image/svg+xml")
+
+
 def extract_alert_summary(payload: Any) -> str:
     """Extract alert name/summary from OCP Alertmanager or Confluent payload."""
     if not payload or not isinstance(payload, dict):

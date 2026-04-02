@@ -14,7 +14,9 @@ All notable changes to this project are documented in this file. The format is i
 
 ### Fixed
 
+- **Field Mapper:** `tr is not a function` when adding source options — DOM row variables named `tr` shadowed the i18n helper `tr()`; renamed to `rowEl` in `mapperSetOptionRowCount`, `onMapperAddSrcOptClick`, and `setMappingsToForm`.
 - **Field Mapper:** `+ Add source option` click handler is attached even when `/api/pattern-schemas` fails (e.g. Basic Auth not ready yet); previously the listener only ran after a successful schema fetch.
+- **Favicon:** `/favicon.ico` and `<link rel="icon" href="/static/favicon.svg">` to stop 404 noise in the console.
 
 ### Changed
 

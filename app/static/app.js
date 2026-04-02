@@ -1229,13 +1229,13 @@ function getMapperSourceFieldsList() {
   return out;
 }
 
-function mapperSetOptionRowCount(tr, count) {
-  const wrap = tr.querySelector(".mapper-src-opt-rows");
+function mapperSetOptionRowCount(rowEl, count) {
+  const wrap = rowEl.querySelector(".mapper-src-opt-rows");
   if (!wrap) return;
   const min = 1;
   const max = MAPPER_MAX_SRC_OPTS;
   const n = Math.max(min, Math.min(max, count));
-  const tid = tr.getAttribute("data-target-id");
+  const tid = rowEl.getAttribute("data-target-id");
   let rows = wrap.querySelectorAll(".mapper-src-opt-row");
   while (rows.length < n) {
     const idx = rows.length;
@@ -1267,13 +1267,13 @@ function mapperSetOptionRowCount(tr, count) {
 function onMapperAddSrcOptClick(ev) {
   const btn = ev.target.closest(".mapper-add-src-opt");
   if (!btn) return;
-  const tr = btn.closest("tr[data-target-id]");
-  if (!tr) return;
-  const wrap = tr.querySelector(".mapper-src-opt-rows");
+  const rowEl = btn.closest("tr[data-target-id]");
+  if (!rowEl) return;
+  const wrap = rowEl.querySelector(".mapper-src-opt-rows");
   if (!wrap) return;
   const rows = wrap.querySelectorAll(".mapper-src-opt-row");
   if (rows.length >= MAPPER_MAX_SRC_OPTS) return;
-  const tid = tr.getAttribute("data-target-id");
+  const tid = rowEl.getAttribute("data-target-id");
   const idx = rows.length;
   const div = document.createElement("div");
   div.className = "mapper-src-opt-row";
@@ -1301,8 +1301,8 @@ function attachMapperMergeAndOptionListeners() {
   });
   mapperMappingBody?.addEventListener("click", onMapperAddSrcOptClick);
   mapperMappingBody?.addEventListener("change", (ev) => {
-    const tr = ev.target.closest("tr[data-target-id]");
-    if (tr) tr.classList.remove("mapper-row-invalid");
+    const rowEl = ev.target.closest("tr[data-target-id]");
+    if (rowEl) rowEl.classList.remove("mapper-row-invalid");
   });
 }
 
@@ -1410,7 +1410,7 @@ function mapperAutoMergePresetsForMappings(mappings) {
 
 function mapperClearMappingValidationVisual() {
   if (!mapperMappingBody) return;
-  mapperMappingBody.querySelectorAll("tr.mapper-row-invalid").forEach((tr) => tr.classList.remove("mapper-row-invalid"));
+  mapperMappingBody.querySelectorAll("tr.mapper-row-invalid").forEach((rowEl) => rowEl.classList.remove("mapper-row-invalid"));
 }
 
 /** Reject duplicate paths in the same target row (same path in Option 1 and 2, etc.). */
@@ -1437,9 +1437,9 @@ function mapperValidateMappingsForSave(mappings) {
 function getMappingsFromForm() {
   const mappings = [];
   if (!mapperMappingBody) return mappings;
-  mapperMappingBody.querySelectorAll("tr[data-target-id]").forEach((tr) => {
-    const targetId = tr.getAttribute("data-target-id");
-    const input = tr.querySelector(".mapper-static-input");
+  mapperMappingBody.querySelectorAll("tr[data-target-id]").forEach((rowEl) => {
+    const targetId = rowEl.getAttribute("data-target-id");
+    const input = rowEl.querySelector(".mapper-static-input");
     const staticVal = input ? input.value.trim() : "";
     if (staticVal) {
       mappings.push({
@@ -1450,7 +1450,7 @@ function getMappingsFromForm() {
       return;
     }
     const paths = [];
-    tr.querySelectorAll(".mapper-src-opt").forEach((sel) => {
+    rowEl.querySelectorAll(".mapper-src-opt").forEach((sel) => {
       const v = sel.value.trim();
       if (v) paths.push(v);
     });
@@ -1482,20 +1482,20 @@ function setMappingsToForm(mappings) {
   if (!mapperMappingBody) return;
   (mappings || []).forEach((m) => {
     const tid = m.target_field_id;
-    const tr = mapperRowByTargetId(tid);
-    if (!tr) return;
-    const input = tr.querySelector(".mapper-static-input");
+    const rowEl = mapperRowByTargetId(tid);
+    if (!rowEl) return;
+    const input = rowEl.querySelector(".mapper-static-input");
     const staticVal = m.static_value != null && m.static_value !== "" ? String(m.static_value) : "";
     if (input) input.value = staticVal;
     if (staticVal) {
-      mapperSetOptionRowCount(tr, 1);
-      tr.querySelectorAll(".mapper-src-opt").forEach((s) => { s.value = ""; });
+      mapperSetOptionRowCount(rowEl, 1);
+      rowEl.querySelectorAll(".mapper-src-opt").forEach((s) => { s.value = ""; });
       return;
     }
     const ids = Array.isArray(m.source_field_ids) ? m.source_field_ids : null;
     const paths = ids && ids.length ? ids : (m.source_field_id ? [m.source_field_id] : []);
-    mapperSetOptionRowCount(tr, Math.max(1, paths.length));
-    const sels = tr.querySelectorAll(".mapper-src-opt");
+    mapperSetOptionRowCount(rowEl, Math.max(1, paths.length));
+    const sels = rowEl.querySelectorAll(".mapper-src-opt");
     paths.forEach((p, i) => {
       if (sels[i]) {
         mapperEnsureSourceOption(sels[i], p);
