@@ -68,6 +68,11 @@ const LANG = {
     dlqColTime: "Time (GMT+7)",
     dlqColSource: "Source",
     dlqColRoute: "Route",
+    dlqColHttp: "HTTP",
+    dlqColUnroll: "Unroll",
+    dlqUnrollHintDynamic:
+      "Forward {pos} of {n} from one webhook (unroll_alerts). Not HTTP retries.",
+    dlqUnrollHintDash: "No unroll metadata on this row (single forward or legacy DLQ row).",
     dlqColReq: "Request ID",
     dlqColError: "Error",
     dlqColAction: "Detail",
@@ -126,13 +131,15 @@ const LANG = {
     mapperApplyToRouteBtn: "Apply to route",
     mapperSelectPatternPlaceholder: "— Select pattern —",
     mapperCardSubtitle:
-      "Map fields from source to target. Save stores one row per name in the library (saving again with the same name overwrites). Apply sets which preset is live for the selected route.",
+      "Map fields from source to target. Save stores one row per name in the library (saving again with the same name overwrites). Apply sets which preset is live for the selected route. Under each source dropdown, optional extra lines = fallback paths (first non-empty wins).",
+    mapperFallbackPlaceholder: "Fallback paths — one per line (optional)",
     mapperStepSaveHeading: "1. Save pattern",
     mapperStepSaveHint:
       "Stores the mapping under a name in Saved patterns. Same name overwrites the existing row — this does not change live forwarding until you Apply.",
     mapperStepApplyHeading: "2. Apply to route",
     mapperStepApplyHint:
-      "Picks the live transform for the selected route. That route forwards using this mapping until you apply a different pattern.",
+      "The pattern name must already exist in Saved patterns (Save first with that name). This sets the selected route’s live transform from the form; it does not add a new library row.",
+    mapperApplyPatternNameRequired: "Enter a pattern name that you have already saved, then apply.",
     mapperPatternNameLabel: "Pattern name",
     mapperSavePatternBtn: "Save pattern",
     savedPatternsHeading: "Saved patterns (library)",
@@ -142,6 +149,9 @@ const LANG = {
     patternActiveBadge: "Active for route(s)",
     patternActiveBadgeTitle: "This preset is the active transform for these route(s).",
     mapperApplyToRouteBtnCurrent: "Current for selected route",
+    mapperColTarget: "Target",
+    mapperColSource: "Source",
+    mapperColStatic: "Or static value",
   },
   th: {
     liveEvents: "Live Events (Webhooks ที่เข้ามา)",
@@ -209,6 +219,11 @@ const LANG = {
     dlqColTime: "เวลา (GMT+7)",
     dlqColSource: "Source",
     dlqColRoute: "Route",
+    dlqColHttp: "HTTP",
+    dlqColUnroll: "แยก alert",
+    dlqUnrollHintDynamic:
+      "การส่งลำดับที่ {pos} จาก {n} รายการใน webhook เดียว (unroll_alerts) ไม่ใช่จำนวนครั้งที่ retry HTTP",
+    dlqUnrollHintDash: "ไม่มีข้อมูล unroll ในแถวนี้ (ส่งครั้งเดียวหรือแถวเก่า)",
     dlqColReq: "Request ID",
     dlqColError: "ข้อผิดพลาด",
     dlqColAction: "รายละเอียด",
@@ -267,13 +282,18 @@ const LANG = {
     mapperApplyToRouteBtn: "นำไปใช้กับ route",
     mapperSelectPatternPlaceholder: "— เลือก pattern —",
     mapperCardSubtitle:
-      "Map จาก source ไป target — บันทึกได้หนึ่งแถวต่อชื่อ (บันทึกซ้ำชื่อเดิม = เขียนทับ); Apply กำหนดว่า route ไหนใช้ preset ไหนเป็นของจริง",
+      "Map จาก source ไป target — บันทึกได้หนึ่งแถวต่อชื่อ (บันทึกซ้ำชื่อเดิม = เขียนทับ); Apply กำหนดว่า route ไหนใช้ preset ไหนเป็นของจริง — ใต้ dropdown แต่ละแถว ใส่ path สำรองได้หลายบรรทัด (ค่าแรกที่ไม่ว่างชนะ)",
+    mapperFallbackPlaceholder: "Path สำรอง — หนึ่งบรรทัดต่อหนึ่ง path (ไม่บังคับ)",
+    mapperColTarget: "Target",
+    mapperColSource: "Source",
+    mapperColStatic: "หรือค่าคงที่",
     mapperStepSaveHeading: "1. บันทึก pattern",
     mapperStepSaveHint:
       "เก็บ mapping เป็นชื่อใน Saved patterns — ชื่อซ้ำจะเขียนทับแถวเดิม — ยังไม่เปลี่ยนการ forward จนกว่าจะ Apply",
     mapperStepApplyHeading: "2. นำไปใช้กับ route",
     mapperStepApplyHint:
-      "กำหนด transform ที่ route ที่เลือกจะใช้จริง จนกว่าจะ Apply pattern อื่น",
+      "ชื่อ pattern ต้องมีใน Saved patterns แล้ว (บันทึกก่อนด้วยชื่อนั้น) — ขั้นนี้กำหนด transform ของ route จากฟอร์ม ไม่สร้างแถวใหม่ในคลัง",
+    mapperApplyPatternNameRequired: "ใส่ชื่อ pattern ที่บันทึกไว้แล้ว แล้วค่อย Apply",
     mapperPatternNameLabel: "ชื่อ pattern",
     mapperSavePatternBtn: "บันทึก pattern",
     savedPatternsHeading: "Saved patterns (คลัง preset)",

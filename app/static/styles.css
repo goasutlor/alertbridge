@@ -994,6 +994,28 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   padding: 8px 12px;
   font-size: 13px;
 }
+.mapper-src-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+  min-width: 12rem;
+  vertical-align: top;
+}
+.mapper-src-fallback {
+  width: 100%;
+  max-width: 240px;
+  min-height: 44px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.35;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  resize: vertical;
+}
 .mapper-table input[type="text"] {
   width: 100%;
   max-width: 160px;
@@ -1216,6 +1238,11 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .dlq-cb-cell input[type="checkbox"]:not(:disabled) {
   cursor: pointer;
+}
+.dlq-unroll-cell {
+  cursor: help;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .dlq-table tbody tr.dlq-detail-row td {
   background: var(--bg-input);

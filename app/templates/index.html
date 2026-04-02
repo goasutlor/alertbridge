@@ -166,6 +166,8 @@
                   <th data-i18n="dlqColSource">Source</th>
                   <th data-i18n="dlqColRoute">Route</th>
                   <th data-i18n="colSeverity">Severity</th>
+                  <th data-i18n="dlqColHttp">HTTP</th>
+                  <th data-i18n="dlqColUnroll">Unroll</th>
                   <th data-i18n="dlqColReq">Request ID</th>
                   <th data-i18n="dlqColError">Error</th>
                   <th data-i18n="dlqColAction">Detail</th>
@@ -307,7 +309,11 @@
             <h3 class="mapper-col-title">Target fields (forward output)</h3>
             <table id="mapperMappingTable" class="mapper-table">
               <thead>
-                <tr><th>Target</th><th>Map from source</th><th>Or static value</th></tr>
+                <tr>
+                  <th data-i18n="mapperColTarget">Target</th>
+                  <th data-i18n="mapperColSource">Source</th>
+                  <th data-i18n="mapperColStatic">Or static value</th>
+                </tr>
               </thead>
               <tbody id="mapperMappingBody"></tbody>
             </table>
@@ -409,6 +415,6 @@
     </div>
 
     <script src="/static/i18n.js"></script>
-    <script src="/static/app.js?v=20"></script>
+    <script src="/static/app.js?v=21"></script>
   </body>
 </html>

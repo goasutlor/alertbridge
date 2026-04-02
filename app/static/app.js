@@ -74,7 +74,28 @@ let livePage = 1;
 let failedPage = 1;
 let dlqPage = 1;
 
-const DLQ_TABLE_COLS = 8;
+const DLQ_TABLE_COLS = 10;
+
+/** Unroll fraction e.g. 1/4 from unroll_index (0-based) and unroll_count. */
+function dlqUnrollCell(e) {
+  const n = e.unroll_count;
+  const idx = e.unroll_index;
+  if (typeof n !== "number" || n < 1) return "—";
+  const i = typeof idx === "number" && idx >= 0 ? idx : 0;
+  return `${Math.min(i + 1, n)}/${n}`;
+}
+
+/** Tooltip matches the cell: "Forward 1 of 4 from one webhook…" not a fixed 1/2 example. */
+function dlqUnrollTitle(e) {
+  const n = e.unroll_count;
+  const idx = e.unroll_index;
+  if (typeof n !== "number" || n < 1) {
+    return tr("dlqUnrollHintDash");
+  }
+  const i = typeof idx === "number" && idx >= 0 ? idx : 0;
+  const pos = Math.min(i + 1, n);
+  return tr("dlqUnrollHintDynamic").replace("{pos}", String(pos)).replace("{n}", String(n));
+}
 
 /** Stable key for checkbox + purge API: dlq_id, or request_id for legacy rows without dlq_id. */
 function dlqPurgeKey(e) {
@@ -1172,15 +1193,41 @@ function onMapperSourceTypeChange() {
   }
 }
 
+function mapperRowByTargetId(targetId) {
+  if (!mapperMappingBody) return null;
+  const rows = mapperMappingBody.querySelectorAll("tr[data-target-id]");
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i].getAttribute("data-target-id") === targetId) return rows[i];
+  }
+  return null;
+}
+
+/** If path is not in the schema dropdown, add it so Load / route round-trip works. */
+function mapperEnsureSourceOption(sel, value) {
+  if (!sel || value == null || String(value).trim() === "") return;
+  const v = String(value).trim();
+  const exists = Array.from(sel.options).some((o) => o.value === v);
+  if (exists) return;
+  const opt = document.createElement("option");
+  opt.value = v;
+  opt.textContent = v;
+  if (sel.options.length > 1) sel.insertBefore(opt, sel.options[1]);
+  else sel.appendChild(opt);
+}
+
 function renderMapperMappingTable() {
   if (!mapperMappingBody) return;
   const targets = targetFieldsFromUpload.length > 0 ? targetFieldsFromUpload : (patternSchemas.target_fields || []);
+  const fbPh = escapeHtml(tr("mapperFallbackPlaceholder"));
   mapperMappingBody.innerHTML = targets.map((t) => {
     const sid = `map-src-${t.id}`;
     const vid = `map-val-${t.id}`;
     return `<tr data-target-id="${escapeHtml(t.id)}">
       <td><strong>${escapeHtml(t.label)}</strong></td>
-      <td><select id="${sid}" class="mapper-src-select" data-target-id="${escapeHtml(t.id)}"><option value="">—</option></select></td>
+      <td class="mapper-src-cell">
+        <select id="${sid}" class="mapper-src-select" data-target-id="${escapeHtml(t.id)}"><option value="">—</option></select>
+        <textarea class="mapper-src-fallback" data-target-id="${escapeHtml(t.id)}" rows="2" placeholder="${fbPh}"></textarea>
+      </td>
       <td><input type="text" id="${vid}" class="mapper-static-input" data-target-id="${escapeHtml(t.id)}" placeholder="optional static" /></td>
     </tr>`;
   }).join("");
@@ -1207,14 +1254,45 @@ function getMappingsFromForm() {
   mapperMappingBody.querySelectorAll("tr[data-target-id]").forEach((tr) => {
     const targetId = tr.getAttribute("data-target-id");
     const sel = tr.querySelector(".mapper-src-select");
+    const fb = tr.querySelector(".mapper-src-fallback");
     const input = tr.querySelector(".mapper-static-input");
-    const sourceId = sel ? sel.value : "";
     const staticVal = input ? input.value.trim() : "";
-    mappings.push({
-      target_field_id: targetId,
-      source_field_id: sourceId || null,
-      static_value: staticVal || null,
-    });
+    if (staticVal) {
+      mappings.push({
+        target_field_id: targetId,
+        source_field_id: null,
+        static_value: staticVal,
+      });
+      return;
+    }
+    const primary = sel ? sel.value.trim() : "";
+    const extraLines = (fb && fb.value ? fb.value : "")
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const paths = [];
+    if (primary) paths.push(primary);
+    paths.push(...extraLines);
+    if (paths.length > 1) {
+      mappings.push({
+        target_field_id: targetId,
+        source_field_ids: paths,
+        source_field_id: null,
+        static_value: null,
+      });
+    } else if (paths.length === 1) {
+      mappings.push({
+        target_field_id: targetId,
+        source_field_id: paths[0],
+        static_value: null,
+      });
+    } else {
+      mappings.push({
+        target_field_id: targetId,
+        source_field_id: null,
+        static_value: null,
+      });
+    }
   });
   return mappings;
 }
@@ -1222,10 +1300,29 @@ function getMappingsFromForm() {
 function setMappingsToForm(mappings) {
   if (!mapperMappingBody) return;
   (mappings || []).forEach((m) => {
-    const sel = mapperMappingBody.querySelector(`.mapper-src-select[data-target-id="${m.target_field_id}"]`);
-    const input = mapperMappingBody.querySelector(`.mapper-static-input[data-target-id="${m.target_field_id}"]`);
-    if (sel) sel.value = m.source_field_id || "";
-    if (input) input.value = m.static_value || "";
+    const tid = m.target_field_id;
+    const tr = mapperRowByTargetId(tid);
+    if (!tr) return;
+    const sel = tr.querySelector(".mapper-src-select");
+    const fb = tr.querySelector(".mapper-src-fallback");
+    const input = tr.querySelector(".mapper-static-input");
+    const staticVal = m.static_value != null && m.static_value !== "" ? String(m.static_value) : "";
+    if (input) input.value = staticVal;
+    if (staticVal) {
+      if (sel) sel.value = "";
+      if (fb) fb.value = "";
+      return;
+    }
+    const ids = Array.isArray(m.source_field_ids) ? m.source_field_ids : null;
+    if (ids && ids.length > 0) {
+      mapperEnsureSourceOption(sel, ids[0]);
+      if (sel) sel.value = ids[0];
+      if (fb) fb.value = ids.length > 1 ? ids.slice(1).join("\n") : "";
+    } else {
+      if (m.source_field_id) mapperEnsureSourceOption(sel, m.source_field_id);
+      if (sel) sel.value = m.source_field_id || "";
+      if (fb) fb.value = "";
+    }
   });
 }
 
@@ -1239,6 +1336,7 @@ function guessSourceTypeByRouteSource(source) {
 function mappingsFromRouteTransform(route) {
   const t = (route && route.transform) || {};
   const rename = t.rename || {};
+  const coalesce = t.coalesce_sources || {};
   const enrich = t.enrich_static || {};
   const template = (t.output_template && t.output_template.fields) || {};
   const reverseRename = {};
@@ -1250,6 +1348,22 @@ function mappingsFromRouteTransform(route) {
   const mappings = targets.map((targetId) => {
     const selector = template[targetId];
     const staticVal = Object.prototype.hasOwnProperty.call(enrich, targetId) ? enrich[targetId] : null;
+    if (staticVal != null && staticVal !== "") {
+      return {
+        target_field_id: targetId,
+        source_field_id: null,
+        static_value: staticVal,
+      };
+    }
+    const coal = coalesce[targetId];
+    if (Array.isArray(coal) && coal.length > 0) {
+      return {
+        target_field_id: targetId,
+        source_field_ids: coal,
+        source_field_id: null,
+        static_value: null,
+      };
+    }
     let sourceId = reverseRename[targetId] || null;
     if (!sourceId && typeof selector === "string" && selector.startsWith("$.")) {
       const p = selector.slice(2);
@@ -1258,7 +1372,7 @@ function mappingsFromRouteTransform(route) {
     return {
       target_field_id: targetId,
       source_field_id: sourceId,
-      static_value: staticVal,
+      static_value: null,
     };
   });
   return mappings;
@@ -1411,8 +1525,14 @@ async function showPatternModal(patternId, patternName) {
       ? "<tr><td colspan=\"3\" class=\"text-muted\">No mappings.</td></tr>"
       : mappings.map((m) => {
           const target = escapeHtml(m.target_field_id || "—");
-          const src = m.source_field_id ? `<code>${escapeHtml(m.source_field_id)}</code>` : "—";
-          const stat = m.static_value ? `<code>${escapeHtml(m.static_value)}</code>` : "—";
+          let src = "—";
+          if (m.static_value != null && m.static_value !== "") src = "—";
+          else if (Array.isArray(m.source_field_ids) && m.source_field_ids.length) {
+            src = m.source_field_ids.map((p) => `<code>${escapeHtml(String(p))}</code>`).join(" → ");
+          } else if (m.source_field_id) src = `<code>${escapeHtml(m.source_field_id)}</code>`;
+          const stat = m.static_value != null && m.static_value !== ""
+            ? `<code>${escapeHtml(String(m.static_value))}</code>`
+            : "—";
           return `<tr><td><code>${target}</code></td><td>${src}</td><td>${stat}</td></tr>`;
         }).join("");
     modal.style.display = "flex";
@@ -1753,8 +1873,12 @@ if (mapperApplyBtn) {
       if (mapperStatus) mapperStatus.textContent = "Select a route first.";
       return;
     }
+    const pName = (mapperPatternName && mapperPatternName.value.trim()) || "";
+    if (!pName) {
+      if (mapperStatus) mapperStatus.textContent = tr("mapperApplyPatternNameRequired");
+      return;
+    }
     const mappings = getMappingsFromForm();
-    const pName = (mapperPatternName && mapperPatternName.value.trim()) || "Current mapping";
     const applyBody = {
       route_name: routeName,
       source_type: mapperSourceType?.value || "",
@@ -1923,6 +2047,9 @@ window.onLangChange = () => {
     renderTargetUrls(configJson.routes || []);
   }
   updateMapperActivePatternDisplay();
+  document.querySelectorAll(".mapper-src-fallback").forEach((el) => {
+    el.placeholder = tr("mapperFallbackPlaceholder");
+  });
   loadSavedPatterns();
   loadDlqPanel();
   loadPortalStatus();
@@ -1975,12 +2102,19 @@ function renderDlqTable() {
     const cbCell = canSel
       ? `<input type="checkbox" class="dlq-row-cb" data-dlq-key="${escapeHtml(pkey)}" ${selChecked ? "checked" : ""} />`
       : `<input type="checkbox" disabled title="${escapeHtml(tr("dlqNoIdHint"))}" />`;
+    const st = e.http_status;
+    const stDisp = st != null && st !== "" ? String(st) : "—";
+    const stClass = st != null && st !== "" ? String(st) : "";
+    const unrollDisp = dlqUnrollCell(e);
+    const unrollTip = dlqUnrollTitle(e);
     rows.push(`<tr class="dlq-row">
       <td class="dlq-cb-cell">${cbCell}</td>
       <td>${escapeHtml(e.ts || "")}</td>
       <td>${escapeHtml(e.source || "")}</td>
       <td>${escapeHtml(e.route || "")}</td>
       <td class="td-severity">${severityBadgeHtml(e.alert_severity)}</td>
+      <td class="status-${escapeHtml(stClass)}">${escapeHtml(stDisp)}</td>
+      <td class="dlq-unroll-cell" title="${escapeHtml(unrollTip)}">${escapeHtml(unrollDisp)}</td>
       <td><code>${escapeHtml(e.request_id || "")}</code></td>
       <td class="failed-error-cell" title="${escapeHtml(errFull)}">${escapeHtml(errShort)}${errTrunc ? "…" : ""}</td>
       <td><button type="button" class="btn btn-secondary dlq-detail-btn" data-dlq-toggle="${i}" aria-expanded="${open}">${btnLabel}</button></td>
