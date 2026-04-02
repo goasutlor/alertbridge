@@ -12,6 +12,10 @@ All notable changes to this project are documented in this file. The format is i
 - **Field Mapper UI:** Per target row, **Option 1, 2, …** as multiple `<select>`s (same merged source list), **+ Add source option** (up to 12), first non-empty wins. **Custom** mode: checkboxes to merge **OCP Alertmanager** and/or **Confluent** preset fields into every dropdown. Save/Apply sends `source_field_ids` when multiple options are set; loading restores from pattern or route `coalesce_sources`.
 - **Mapper safety / design:** In-page hint explains option order and merge behavior; **duplicate path in the same target row** blocks Save/Apply with row highlight; **Load pattern (Custom)** auto-enables OCP/Confluent merge when saved paths reference preset fields not present in the pasted custom list.
 
+### Fixed
+
+- **Field Mapper:** `+ Add source option` click handler is attached even when `/api/pattern-schemas` fails (e.g. Basic Auth not ready yet); previously the listener only ran after a successful schema fetch.
+
 ### Changed
 
 - **POST `/api/patterns/apply` (form with mappings):** Requires an existing saved pattern — `pattern_name` must match a library row (Save first). Apply updates the route transform only; it no longer auto-creates or updates the pattern library on apply. Optional `pattern_id` must match that name.

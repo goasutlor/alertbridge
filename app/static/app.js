@@ -1158,7 +1158,6 @@ async function loadPatternSchemas() {
     optCustom.textContent = "Custom (paste example log)";
     mapperSourceType.appendChild(optCustom);
     mapperSourceType.addEventListener("change", onMapperSourceTypeChange);
-    attachMapperMergeAndOptionListeners();
     renderMapperMappingTable();
   } catch (err) {}
 }
@@ -2526,6 +2525,8 @@ document.querySelector(".lang-toggle")?.addEventListener("click", (e) => {
 
 loadConfig();
 loadPatternSchemas();
+/** Table listeners must not depend on /api/pattern-schemas succeeding (auth/network). */
+attachMapperMergeAndOptionListeners();
 loadRecentPayloads();
 loadApiKeys();
 loadHeaderVersion();
