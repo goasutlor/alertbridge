@@ -233,3 +233,55 @@ def test_nested_output_template():
         "startsAt": "2026-02-06T15:00:00Z",
         "generatorURL": "http://prometheus:9090/...",
     }
+
+
+def test_coalesce_sources_skips_empty_string_for_next_path():
+    """First path with a non-empty value wins; empty string falls through to next path."""
+    payload = {
+        "alerts": [{"labels": {"severity": ""}}],
+        "commonLabels": {"severity": "warning"},
+    }
+    transform = TransformConfig(
+        include_fields=["alerts", "alerts.0", "alerts.0.labels", "commonLabels"],
+        coalesce_sources={"severity": ["alerts.0.labels.severity", "commonLabels.severity"]},
+        output_template=OutputTemplate(
+            type="flat",
+            fields={"severity": "$.severity"},
+        ),
+    )
+    result = transform_payload(payload, _route(transform))
+    assert result["severity"] == "warning"
+
+
+def test_coalesce_sources_first_non_empty_wins():
+    payload = {
+        "alerts": [{"labels": {"severity": "critical"}}],
+        "commonLabels": {"severity": "warning"},
+    }
+    transform = TransformConfig(
+        include_fields=["alerts", "alerts.0", "alerts.0.labels", "commonLabels"],
+        coalesce_sources={"severity": ["alerts.0.labels.severity", "commonLabels.severity"]},
+        output_template=OutputTemplate(
+            type="flat",
+            fields={"severity": "$.severity"},
+        ),
+    )
+    result = transform_payload(payload, _route(transform))
+    assert result["severity"] == "critical"
+
+
+def test_build_transform_source_field_ids():
+    from app.patterns import build_transform_from_mapping
+
+    cfg = build_transform_from_mapping(
+        [
+            {
+                "target_field_id": "alarmName",
+                "source_field_ids": ["groupLabels.alertname", "commonLabels.alertname", "alerts.0.labels.alertname"],
+            }
+        ]
+    )
+    assert cfg.coalesce_sources == {
+        "alarmName": ["groupLabels.alertname", "commonLabels.alertname", "alerts.0.labels.alertname"]
+    }
+    assert "groupLabels.alertname" in (cfg.include_fields or [])

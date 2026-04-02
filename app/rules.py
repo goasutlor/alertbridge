@@ -53,7 +53,10 @@ class OutputTemplate(BaseModel):
 class TransformConfig(BaseModel):
     include_fields: Optional[List[str]] = None
     drop_fields: Optional[List[str]] = None
+    # One source path -> target; duplicate targets: last writer wins during rename loop.
     rename: Optional[Dict[str, str]] = None
+    # target field -> ordered source paths; first non-empty wins, else first found.
+    coalesce_sources: Optional[Dict[str, List[str]]] = None
     enrich_static: Optional[Dict[str, Any]] = None
     map_values: Optional[Dict[str, Dict[str, str]]] = None
     output_template: Optional[OutputTemplate] = None
@@ -128,12 +131,46 @@ def select_route(rules: RuleSet, source: str) -> Optional[RouteConfig]:
     return None
 
 
+def _is_effectively_empty(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str) and value.strip() == "":
+        return True
+    return False
+
+
+def _apply_coalesce_sources(working: Any, coalesce: Dict[str, List[str]]) -> Any:
+    if not isinstance(working, dict):
+        return working
+    for target, paths in coalesce.items():
+        if not paths:
+            continue
+        chosen: Any = None
+        for p in paths:
+            found, value = _get_by_path(working, p)
+            if found and not _is_effectively_empty(value):
+                chosen = value
+                break
+        if chosen is None:
+            for p in paths:
+                found, value = _get_by_path(working, p)
+                if found:
+                    chosen = value
+                    break
+        if chosen is not None:
+            _set_by_path(working, target, chosen)
+    return working
+
+
 def transform_payload(payload: Any, route: RouteConfig) -> Any:
     working = copy.deepcopy(payload)
     config = route.transform
 
     if config.include_fields:
         working = _apply_include_fields(working, config.include_fields)
+
+    if config.coalesce_sources:
+        working = _apply_coalesce_sources(working, config.coalesce_sources)
 
     if config.drop_fields:
         for path in config.drop_fields:

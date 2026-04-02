@@ -90,7 +90,7 @@ TARGET_FIELDS: List[Dict[str, str]] = [
 ]
 
 # In-memory saved patterns: id -> { id, name, source_type, mappings }
-# mappings: [ { target_field_id, source_field_id | null, static_value | null }, ... ]
+# mappings: [ { target_field_id, source_field_id | null, source_field_ids | null, static_value | null }, ... ]
 _saved_patterns: Dict[str, Dict[str, Any]] = {}
 
 BANGKOK = timezone(timedelta(hours=7))
@@ -191,6 +191,13 @@ def init_patterns(patterns: List[Dict[str, Any]]) -> None:
             }
 
 
+def _include_path_and_parents(include_set: set, path: str) -> None:
+    include_set.add(path)
+    parts = path.split(".")
+    for i in range(1, len(parts)):
+        include_set.add(".".join(parts[:i]))
+
+
 def build_transform_from_mapping(
     mappings: List[Dict[str, Any]],
     target_field_ids: Optional[List[str]] = None,
@@ -198,6 +205,8 @@ def build_transform_from_mapping(
     """
     Build TransformConfig from mapping list.
     Each mapping: { "target_field_id": str, "source_field_id": str | null, "static_value": str | null }
+    Optional: "source_field_ids": [ "path1", "path2", ... ] — try paths in order; first non-empty value wins
+    (fallback for Alertmanager shapes). Mutually preferred over a single source_field_id for that row.
     If source_field_id is set: map that source path to target field (rename + output).
     If static_value is set: set target field to that value (enrich_static).
     When target_field_ids is not provided, allowed targets are taken from mappings (for custom target from upload).
@@ -210,7 +219,8 @@ def build_transform_from_mapping(
     rename: Dict[str, str] = {}
     output_fields: Dict[str, str] = {}
     enrich_static: Dict[str, Any] = {}
-    include_paths: List[str] = []
+    coalesce_sources: Dict[str, List[str]] = {}
+    include_set: set = set()
 
     for m in mappings:
         target_id = m.get("target_field_id")
@@ -218,27 +228,32 @@ def build_transform_from_mapping(
             continue
         source_id = m.get("source_field_id")
         static_val = m.get("static_value")
+        raw_sids = m.get("source_field_ids")
 
         if static_val is not None and static_val != "":
             enrich_static[target_id] = static_val
             output_fields[target_id] = f"$.{target_id}"
             continue
+        if isinstance(raw_sids, list) and len(raw_sids) > 0:
+            paths = [str(x).strip() for x in raw_sids if x is not None and str(x).strip()]
+            if not paths:
+                continue
+            coalesce_sources.setdefault(target_id, []).extend(paths)
+            output_fields[target_id] = f"$.{target_id}"
+            for p in paths:
+                _include_path_and_parents(include_set, p)
+            continue
         if source_id:
             rename[source_id] = target_id
             output_fields[target_id] = f"$.{target_id}"
-            include_paths.append(source_id)
+            _include_path_and_parents(include_set, source_id)
 
-    # Deduplicate include_paths; include parent paths for nested (e.g. labels, annotations)
-    include_set = set(include_paths)
-    for p in include_paths:
-        parts = p.split(".")
-        for i in range(1, len(parts)):
-            include_set.add(".".join(parts[:i]))
     include_fields = sorted(include_set)
 
     return TransformConfig(
         include_fields=include_fields if include_fields else None,
         rename=rename if rename else None,
+        coalesce_sources=coalesce_sources if coalesce_sources else None,
         enrich_static=enrich_static if enrich_static else None,
         output_template=OutputTemplate(type="flat", fields=output_fields) if output_fields else None,
     )
