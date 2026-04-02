@@ -42,7 +42,6 @@ const mapperTargetFile = document.getElementById("mapperTargetFile");
 const mapperParseTargetBtn = document.getElementById("mapperParseTargetBtn");
 const mapperTargetPatternStatus = document.getElementById("mapperTargetPatternStatus");
 const mapperSourceCustomWrap = document.getElementById("mapperSourceCustomWrap");
-const mapperSourceExample = document.getElementById("mapperSourceExample");
 const mapperParseSourceBtn = document.getElementById("mapperParseSourceBtn");
 const statusIncoming = document.getElementById("statusIncoming");
 const statusIncomingText = document.getElementById("statusIncomingText");
@@ -74,28 +73,7 @@ let livePage = 1;
 let failedPage = 1;
 let dlqPage = 1;
 
-const DLQ_TABLE_COLS = 10;
-
-/** Unroll fraction e.g. 1/4 from unroll_index (0-based) and unroll_count. */
-function dlqUnrollCell(e) {
-  const n = e.unroll_count;
-  const idx = e.unroll_index;
-  if (typeof n !== "number" || n < 1) return "—";
-  const i = typeof idx === "number" && idx >= 0 ? idx : 0;
-  return `${Math.min(i + 1, n)}/${n}`;
-}
-
-/** Tooltip matches the cell: "Forward 1 of 4 from one webhook…" not a fixed 1/2 example. */
-function dlqUnrollTitle(e) {
-  const n = e.unroll_count;
-  const idx = e.unroll_index;
-  if (typeof n !== "number" || n < 1) {
-    return tr("dlqUnrollHintDash");
-  }
-  const i = typeof idx === "number" && idx >= 0 ? idx : 0;
-  const pos = Math.min(i + 1, n);
-  return tr("dlqUnrollHintDynamic").replace("{pos}", String(pos)).replace("{n}", String(n));
-}
+const DLQ_TABLE_COLS = 8;
 
 /** Stable key for checkbox + purge API: dlq_id, or request_id for legacy rows without dlq_id. */
 function dlqPurgeKey(e) {
@@ -124,6 +102,8 @@ const RATE_HISTORY_MAX = 90;
 let patternSchemas = { source_schemas: {}, target_fields: [] };
 /** Max source path options (Option 1…N) per target row. */
 const MAPPER_MAX_SRC_OPTS = 12;
+/** Max separate JSON sample rows in Custom source (paths merged for dropdowns). */
+const MAPPER_MAX_SOURCE_JSON_ROWS = 8;
 let targetFieldsFromUpload = [];
 let customSourceFields = [];
 let mapperMergeListenersAttached = false;
@@ -152,6 +132,130 @@ function parseJsonToPaths(obj, prefix = "") {
     }
   }
   return out;
+}
+
+function mapperParsedFieldListsMerge(fieldLists) {
+  const seen = new Set();
+  const out = [];
+  for (const list of fieldLists) {
+    for (const f of list) {
+      if (!f || !f.id || seen.has(f.id)) continue;
+      seen.add(f.id);
+      out.push({ id: f.id, label: f.label || f.id });
+    }
+  }
+  out.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  return out;
+}
+
+function mapperBuildSourceJsonRowElement(initialValue = "") {
+  const row = document.createElement("div");
+  row.className = "mapper-source-json-row";
+  const lab = document.createElement("span");
+  lab.className = "mapper-source-json-row-label";
+  const ta = document.createElement("textarea");
+  ta.className = "textarea mapper-paste-json-small mapper-source-json-ta";
+  ta.rows = 4;
+  ta.placeholder = tr("mapperSourceJsonPlaceholder");
+  ta.value = initialValue;
+  const act = document.createElement("div");
+  act.className = "mapper-source-json-row-actions";
+  const rm = document.createElement("button");
+  rm.type = "button";
+  rm.className = "btn btn-secondary btn-compact mapper-remove-json-row";
+  rm.textContent = "−";
+  act.appendChild(rm);
+  row.appendChild(lab);
+  row.appendChild(ta);
+  row.appendChild(act);
+  return row;
+}
+
+function mapperSyncSourceJsonRowLabels() {
+  const wrap = document.getElementById("mapperSourceJsonRows");
+  if (!wrap) return;
+  const rows = wrap.querySelectorAll(".mapper-source-json-row");
+  const n = rows.length;
+  rows.forEach((row, i) => {
+    const lab = row.querySelector(".mapper-source-json-row-label");
+    if (lab) lab.textContent = tr("mapperJsonSampleLabel").replace("{n}", String(i + 1));
+    const ta = row.querySelector(".mapper-source-json-ta");
+    if (ta) ta.placeholder = tr("mapperSourceJsonPlaceholder");
+    const rm = row.querySelector(".mapper-remove-json-row");
+    if (rm) {
+      rm.disabled = n <= 1;
+      const a = tr("mapperRemoveJsonSampleAria");
+      rm.setAttribute("aria-label", a);
+      rm.title = a;
+    }
+  });
+}
+
+function mapperUpdateAddJsonRowBtnState() {
+  const wrap = document.getElementById("mapperSourceJsonRows");
+  const addBtn = document.getElementById("mapperAddSourceJsonRowBtn");
+  if (!wrap || !addBtn) return;
+  const n = wrap.querySelectorAll(".mapper-source-json-row").length;
+  addBtn.disabled = n >= MAPPER_MAX_SOURCE_JSON_ROWS;
+}
+
+function mapperResetSourceJsonRowsToSingle(jsonPretty) {
+  const wrap = document.getElementById("mapperSourceJsonRows");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  wrap.appendChild(mapperBuildSourceJsonRowElement(jsonPretty || ""));
+  mapperSyncSourceJsonRowLabels();
+  mapperUpdateAddJsonRowBtnState();
+}
+
+function mapperAppendSourceJsonRow(prefill = "") {
+  const wrap = document.getElementById("mapperSourceJsonRows");
+  if (!wrap) return;
+  if (wrap.querySelectorAll(".mapper-source-json-row").length >= MAPPER_MAX_SOURCE_JSON_ROWS) return;
+  wrap.appendChild(mapperBuildSourceJsonRowElement(prefill));
+  mapperSyncSourceJsonRowLabels();
+  mapperUpdateAddJsonRowBtnState();
+}
+
+function mapperCollectParsedListsFromSourceJsonRows() {
+  const wrap = document.getElementById("mapperSourceJsonRows");
+  if (!wrap) return { errors: [], lists: [] };
+  const tas = wrap.querySelectorAll(".mapper-source-json-ta");
+  const errors = [];
+  const lists = [];
+  tas.forEach((ta, i) => {
+    const s = ta.value.trim();
+    if (!s) return;
+    try {
+      const data = JSON.parse(s);
+      lists.push(parseJsonToPaths(data));
+    } catch (e) {
+      const lab = tr("mapperJsonSampleLabel").replace("{n}", String(i + 1));
+      errors.push(`${lab}: ${e.message}`);
+    }
+  });
+  return { errors, lists };
+}
+
+function mapperApplyParsedSourceFieldsFromRows() {
+  const { errors, lists } = mapperCollectParsedListsFromSourceJsonRows();
+  if (errors.length) {
+    if (mapperStatus) mapperStatus.textContent = errors.join("; ");
+    return;
+  }
+  if (lists.length === 0) {
+    customSourceFields = [];
+    onMapperSourceTypeChange();
+    if (mapperStatus) mapperStatus.textContent = tr("mapperParseSourceEmptyRows");
+    return;
+  }
+  customSourceFields = mapperParsedFieldListsMerge(lists);
+  onMapperSourceTypeChange();
+  const nf = customSourceFields.length;
+  const msg = lists.length === 1
+    ? tr("mapperParsedSingleSample").replace("{n}", String(nf))
+    : tr("mapperParsedMultiSample").replace("{n}", String(nf)).replace("{r}", String(lists.length));
+  if (mapperStatus) mapperStatus.textContent = msg;
 }
 
 async function loadHeaderVersion() {
@@ -1915,25 +2019,26 @@ if (mapperTargetFile && mapperTargetExample) {
   });
 }
 
-if (mapperParseSourceBtn && mapperSourceExample) {
+if (mapperParseSourceBtn && document.getElementById("mapperSourceJsonRows")) {
   mapperParseSourceBtn.addEventListener("click", () => {
-    const jsonStr = mapperSourceExample.value.trim();
-    if (!jsonStr) return;
-    try {
-      const data = JSON.parse(jsonStr);
-      customSourceFields = parseJsonToPaths(data);
-      if (customSourceFields.length === 0) {
-        customSourceFields = [];
-        onMapperSourceTypeChange();
-        return;
-      }
-      onMapperSourceTypeChange();
-      if (mapperStatus) mapperStatus.textContent = `Parsed ${customSourceFields.length} source field(s).`;
-    } catch (e) {
-      if (mapperStatus) mapperStatus.textContent = `Invalid JSON: ${e.message}`;
-    }
+    mapperApplyParsedSourceFieldsFromRows();
   });
 }
+
+document.getElementById("mapperAddSourceJsonRowBtn")?.addEventListener("click", () => {
+  mapperAppendSourceJsonRow("");
+});
+
+document.getElementById("mapperSourceJsonRows")?.addEventListener("click", (ev) => {
+  const rm = ev.target.closest(".mapper-remove-json-row");
+  if (!rm || rm.disabled) return;
+  const row = rm.closest(".mapper-source-json-row");
+  const wrap = document.getElementById("mapperSourceJsonRows");
+  if (!row || !wrap || wrap.querySelectorAll(".mapper-source-json-row").length <= 1) return;
+  row.remove();
+  mapperSyncSourceJsonRowLabels();
+  mapperUpdateAddJsonRowBtnState();
+});
 
 /** Extract payload pattern/structure (keys only, ignore values) for deduplication. */
 function getPayloadPattern(payload) {
@@ -2076,7 +2181,7 @@ function usePayloadAsSource(idx) {
   if (!item || !item.payload) return;
   customSourceFields = parseJsonToPaths(item.payload);
   if (mapperSourceType) mapperSourceType.value = "custom-paste";
-  if (mapperSourceExample) mapperSourceExample.value = JSON.stringify(item.payload, null, 2);
+  mapperResetSourceJsonRowsToSingle(JSON.stringify(item.payload, null, 2));
   onMapperSourceTypeChange();
   // If user already parsed a target, re-render table so dropdowns get live payload options
   if (targetFieldsFromUpload.length > 0) renderMapperMappingTable();
@@ -2302,6 +2407,8 @@ window.onLangChange = () => {
       b.title = t;
     });
   });
+  mapperSyncSourceJsonRowLabels();
+  mapperUpdateAddJsonRowBtnState();
   loadSavedPatterns();
   loadDlqPanel();
   loadPortalStatus();
@@ -2354,19 +2461,12 @@ function renderDlqTable() {
     const cbCell = canSel
       ? `<input type="checkbox" class="dlq-row-cb" data-dlq-key="${escapeHtml(pkey)}" ${selChecked ? "checked" : ""} />`
       : `<input type="checkbox" disabled title="${escapeHtml(tr("dlqNoIdHint"))}" />`;
-    const st = e.http_status;
-    const stDisp = st != null && st !== "" ? String(st) : "—";
-    const stClass = st != null && st !== "" ? String(st) : "";
-    const unrollDisp = dlqUnrollCell(e);
-    const unrollTip = dlqUnrollTitle(e);
     rows.push(`<tr class="dlq-row">
       <td class="dlq-cb-cell">${cbCell}</td>
       <td>${escapeHtml(e.ts || "")}</td>
       <td>${escapeHtml(e.source || "")}</td>
       <td>${escapeHtml(e.route || "")}</td>
       <td class="td-severity">${severityBadgeHtml(e.alert_severity)}</td>
-      <td class="status-${escapeHtml(stClass)}">${escapeHtml(stDisp)}</td>
-      <td class="dlq-unroll-cell" title="${escapeHtml(unrollTip)}">${escapeHtml(unrollDisp)}</td>
       <td><code>${escapeHtml(e.request_id || "")}</code></td>
       <td class="failed-error-cell" title="${escapeHtml(errFull)}">${escapeHtml(errShort)}${errTrunc ? "…" : ""}</td>
       <td><button type="button" class="btn btn-secondary dlq-detail-btn" data-dlq-toggle="${i}" aria-expanded="${open}">${btnLabel}</button></td>
@@ -2630,5 +2730,7 @@ if (patternModal) {
 }
 
 if (window.applyI18n) window.applyI18n();
+mapperSyncSourceJsonRowLabels();
+mapperUpdateAddJsonRowBtnState();
 loadPortalStatus();
 loadDlqPanel();

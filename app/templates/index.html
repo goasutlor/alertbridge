@@ -167,8 +167,6 @@
                   <th data-i18n="dlqColSource">Source</th>
                   <th data-i18n="dlqColRoute">Route</th>
                   <th data-i18n="colSeverity">Severity</th>
-                  <th data-i18n="dlqColHttp">HTTP</th>
-                  <th data-i18n="dlqColUnroll">Unroll</th>
                   <th data-i18n="dlqColReq">Request ID</th>
                   <th data-i18n="dlqColError">Error</th>
                   <th data-i18n="dlqColAction">Detail</th>
@@ -283,9 +281,23 @@
         <div class="mapper-toolbar">
           <label for="mapperSourceType">Option 2 — Manual: Source (incoming log)</label>
           <select id="mapperSourceType" class="select mapper-select"></select>
-          <div id="mapperSourceCustomWrap" class="mapper-custom-paste" style="display:none;">
-            <textarea id="mapperSourceExample" class="textarea mapper-paste-json-small" placeholder="Paste example incoming log JSON"></textarea>
-            <button id="mapperParseSourceBtn" class="btn btn-secondary">Use as source fields</button>
+          <div id="mapperSourceCustomWrap" class="mapper-custom-paste mapper-custom-paste-stack" style="display:none;">
+            <div class="mapper-source-json-rows-wrap">
+              <div id="mapperSourceJsonRows" class="mapper-source-json-rows">
+                <div class="mapper-source-json-row">
+                  <span class="mapper-source-json-row-label">Sample 1</span>
+                  <textarea class="textarea mapper-paste-json-small mapper-source-json-ta" rows="4" data-i18n-placeholder="mapperSourceJsonPlaceholder" placeholder="Paste example incoming log JSON"></textarea>
+                  <div class="mapper-source-json-row-actions">
+                    <button type="button" class="btn btn-secondary btn-compact mapper-remove-json-row" disabled>−</button>
+                  </div>
+                </div>
+              </div>
+              <div class="mapper-source-json-actions">
+                <button type="button" id="mapperAddSourceJsonRowBtn" class="btn btn-secondary btn-compact" data-i18n="mapperAddJsonSample">+ Add JSON sample</button>
+                <button type="button" id="mapperParseSourceBtn" class="btn btn-secondary" data-i18n="mapperUseSourceFieldsBtn">Use as source fields</button>
+              </div>
+              <p class="text-muted mapper-source-json-hint" data-i18n="mapperMultiJsonHint"></p>
+            </div>
           </div>
           <div id="mapperMergeSchemasWrap" class="mapper-merge-schemas" style="display:none;" title="">
             <span class="mapper-merge-label" data-i18n="mapperMergeSchemasLabel">Also merge preset fields:</span>
@@ -422,6 +434,6 @@
     </div>
 
     <script src="/static/i18n.js"></script>
-    <script src="/static/app.js?v=26"></script>
+    <script src="/static/app.js?v=28"></script>
   </body>
 </html>

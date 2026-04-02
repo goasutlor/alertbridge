@@ -854,12 +854,59 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .mapper-target-upload { margin-bottom: 22px; padding-bottom: 22px; border-bottom: 1px solid var(--border); }
 .mapper-paste-row { display: flex; flex-direction: column; gap: 12px; }
 .mapper-paste-json { min-height: 100px; font-size: 13px; }
-.mapper-paste-json-small { min-height: 80px; font-size: 12px; max-width: 400px; }
+.mapper-paste-json-small { min-height: 80px; font-size: 12px; max-width: 100%; }
 .mapper-paste-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .mapper-file-input { width: 0; height: 0; opacity: 0; position: absolute; }
 .mapper-file-input + label { margin: 0; }
 .mapper-custom-paste { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .mapper-custom-paste .mapper-paste-json-small { flex: 1; min-width: 200px; }
+.mapper-custom-paste.mapper-custom-paste-stack {
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  max-width: 52rem;
+}
+.mapper-source-json-rows-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+.mapper-source-json-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+.mapper-source-json-row {
+  display: grid;
+  grid-template-columns: minmax(4.5rem, auto) 1fr auto;
+  gap: 8px 12px;
+  align-items: start;
+}
+.mapper-source-json-row-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding-top: 8px;
+}
+.mapper-source-json-row-actions {
+  padding-top: 4px;
+}
+.mapper-source-json-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.mapper-source-json-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  max-width: 42rem;
+}
 
 .mapper-toolbar {
   display: flex;
@@ -1329,11 +1376,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .dlq-cb-cell input[type="checkbox"]:not(:disabled) {
   cursor: pointer;
-}
-.dlq-unroll-cell {
-  cursor: help;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
 }
 .dlq-table tbody tr.dlq-detail-row td {
   background: var(--bg-input);
