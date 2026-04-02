@@ -216,8 +216,8 @@
       </section>
 
       <section class="card card-sent">
-        <h2 class="card-title">Last Transformed Alert Sent</h2>
-        <p class="card-subtitle">Payloads that were successfully forwarded (after transform). Use to verify transformation output.</p>
+        <h2 class="card-title" data-i18n="recentSentTitle">Recent transformed forwards</h2>
+        <p class="card-subtitle" data-i18n="recentSentSub">Top row = last successful forward by time. Unroll may add more rows below. Live Events = one line per webhook.</p>
         <ul id="recentSentList" class="recent-payloads-list"></ul>
         <div id="recentSentStatus" class="status"></div>
       </section>
@@ -434,6 +434,6 @@
     </div>
 
     <script src="/static/i18n.js"></script>
-    <script src="/static/app.js?v=28"></script>
+    <script src="/static/app.js?v=29"></script>
   </body>
 </html>

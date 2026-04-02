@@ -46,3 +46,7 @@ def configure_logging() -> None:
     )
 
     logger.handlers = [handler]
+
+    # httpx/httpcore log every outbound request at INFO — noisy for target probes (GET / + POST /report).
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)

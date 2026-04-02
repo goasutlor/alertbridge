@@ -2139,10 +2139,11 @@ async function loadRecentSent() {
     if (items.length === 0) {
       recentSentList.innerHTML = "<li class=\"text-muted\">No successfully forwarded payloads yet. Send webhooks and they will appear here after transform + forward.</li>";
     } else {
-      recentSentList.innerHTML = items.map((item) =>
-        `<li>
+      recentSentList.innerHTML = items.map((item, idx) =>
+        `<li class="recent-sent-item${idx === 0 ? " recent-sent-latest" : ""}">
           <div class="payload-header">
             <span class="payload-ts">${escapeHtml(item.ts || "")}</span>
+            ${idx === 0 ? `<span class="recent-sent-latest-badge">${escapeHtml(tr("recentSentLatestBadge"))}</span>` : ""}
             <span class="payload-source">Source: <code>${escapeHtml(item.source || "")}</code></span>
             <span class="payload-route">Route: <strong>${escapeHtml(item.route || "")}</strong></span>
             <span class="payload-severity">${severityBadgeHtml(item.alert_severity)}</span>
@@ -2409,6 +2410,7 @@ window.onLangChange = () => {
   });
   mapperSyncSourceJsonRowLabels();
   mapperUpdateAddJsonRowBtnState();
+  loadRecentSent();
   loadSavedPatterns();
   loadDlqPanel();
   loadPortalStatus();

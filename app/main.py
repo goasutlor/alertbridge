@@ -81,8 +81,10 @@ RECENT_WEBHOOKS: deque = deque(maxlen=20)
 RECENT_PAYLOADS: deque = deque(maxlen=30)
 # Failed forward events (limited, stateless - lost on restart)
 RECENT_FAILED: deque = deque(maxlen=200)
-# Successfully forwarded (transformed) payloads - only last event for UI
-RECENT_SENT: deque = deque(maxlen=1)
+# Successfully forwarded (transformed) payloads — one entry per outbound success (unroll = multiple per webhook)
+RECENT_SENT_MAX = 50
+RECENT_SENT_API_LIMIT = 15
+RECENT_SENT: deque = deque(maxlen=RECENT_SENT_MAX)
 
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
@@ -631,11 +633,17 @@ async def api_recent_failed() -> Response:
     return JSONResponse(snapshot)
 
 
+def _recent_sent_newest_first() -> list:
+    """Newest successful forward first (by `ts`), for UI 'latest' row."""
+    rows = [x for x in RECENT_SENT if isinstance(x, dict)]
+    rows.sort(key=lambda r: str(r.get("ts") or ""), reverse=True)
+    return rows[:RECENT_SENT_API_LIMIT]
+
+
 @app.get("/api/recent-sent")
 async def api_recent_sent() -> Response:
-    """Return last successfully forwarded (transformed) payload for UI verification."""
-    snapshot = list(RECENT_SENT)
-    return JSONResponse(list(reversed(snapshot))[:1])
+    """Return newest successfully forwarded (transformed) payloads for UI verification."""
+    return JSONResponse(_recent_sent_newest_first())
 
 
 @app.get("/api/recent-payloads")
@@ -795,7 +803,8 @@ async def _compute_target_status() -> Dict[str, Any]:
 _TARGET_STATUS_LOCK = asyncio.Lock()
 _TARGET_STATUS_CACHE: Optional[Dict[str, Any]] = None
 _TARGET_STATUS_CACHE_MONO: float = 0.0
-TARGET_STATUS_CACHE_TTL_SEC = float(os.getenv("ALERTBRIDGE_TARGET_STATUS_CACHE_SEC", "12"))
+# Portal polls ~8s; longer TTL avoids hammering forward targets (each refresh = GET origin + POST API per route).
+TARGET_STATUS_CACHE_TTL_SEC = float(os.getenv("ALERTBRIDGE_TARGET_STATUS_CACHE_SEC", "30"))
 
 
 def invalidate_target_status_cache() -> None:

@@ -56,6 +56,10 @@ const LANG = {
     targetFwdOffline: "Target Fwd: Offline",
     targetOk: "●",
     targetFail: "●",
+    recentSentTitle: "Recent transformed forwards",
+    recentSentLatestBadge: "Latest",
+    recentSentSub:
+      "Top row = chronologically last successful forward (same order as forward completion time). One incoming webhook may produce several forwards — if unroll is on, older rows in the same second are earlier shards. Live Events = one line per webhook (often the first alert’s name/severity).",
     dlqTitle: "Dead letter queue",
     dlqSub: "One row per failed forward after retries. Multiple rows with the same UUID prefix are separate alerts from one webhook (unroll), not retries. Purge after review. Requires Basic Auth.",
     dlqOff: "DLQ is not configured. Set ALERTBRIDGE_DLQ_FILE and mount a volume.",
@@ -224,6 +228,10 @@ const LANG = {
     targetFwdOffline: "Target Fwd: Offline",
     targetOk: "●",
     targetFail: "●",
+    recentSentTitle: "การส่งที่ transform แล้ว (ล่าสุด)",
+    recentSentLatestBadge: "ล่าสุด",
+    recentSentSub:
+      "แถวบนสุด = การส่งสำเร็จครั้งล่าสุดตามเวลาจริง (ตรงกับลำดับที่ forward เสร็จ) — webhook เดียวอาจส่งหลายครั้ง ถ้าเปิด unroll แถวถัดไปคือ shard ก่อนหน้าในเวลาใกล้เคียงกัน · Live Events หนึ่งแถวต่อ webhook (มักเป็นชื่อ/severity ของ alert แรก)",
     dlqTitle: "Dead letter queue (DLQ)",
     dlqSub: "หนึ่งแถวต่อการส่งที่ล้มเหลวหลัง retry ภายใน — หลายแถวที่ UUID ตรงกัน = หลาย alert ใน webhook เดียว (unroll) ไม่ใช่ retry ซ้ำ — ล้างหลังตรวจ ต้องใช้ Basic Auth",
     dlqOff: "ยังไม่ได้ตั้งค่า DLQ กำหนด ALERTBRIDGE_DLQ_FILE และ mount volume",

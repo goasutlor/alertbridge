@@ -968,6 +968,19 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .recent-payloads-list .payload-route { font-weight: 500; color: var(--text); }
 
+.recent-sent-latest {
+  border-left: 3px solid var(--accent);
+  padding-left: 10px;
+  margin-left: -2px;
+}
+.recent-sent-latest-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+
 .payload-preview { margin: 4px 0; max-height: 400px; overflow-y: auto; overflow-x: auto; position: relative; }
 .payload-preview-code {
   display: block;
