@@ -269,10 +269,16 @@ async function loadHeaderVersion() {
     const ns = data.namespace;
     const site = data.site;
     if (v) {
-      const parts = [`v${v}`];
-      if (site) parts.push(`site:${site}`);
-      if (ns) parts.push(`ns:${ns}`);
-      el.textContent = parts.join(" · ");
+      const plain = [`v${v}`, site ? `site:${site}` : null, ns ? `ns:${ns}` : null].filter(Boolean).join(" · ");
+      el.setAttribute("aria-label", plain);
+      const bits = [`<span class="header-ver-part">${escapeHtml(`v${v}`)}</span>`];
+      if (site) {
+        bits.push(
+          `<span class="header-site-badge">${escapeHtml(`site:${site}`)}</span>`,
+        );
+      }
+      if (ns) bits.push(`<span class="header-ver-part">${escapeHtml(`ns:${ns}`)}</span>`);
+      el.innerHTML = bits.join('<span class="header-ver-sep"> · </span>');
     }
   } catch (_) {}
 }
