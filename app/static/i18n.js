@@ -137,6 +137,12 @@ const LANG = {
     mapperMergeSchemasLabel: "Merge preset fields:",
     mapperSourceOptionLabel: "Option {n}",
     mapperAddSourceOption: "+ Add source option",
+    mapperDesignHint:
+      "Design: One target field, several source options (Option 1, 2…). The engine uses the first non-empty value from top to bottom.\nUse + Add source option for fallbacks. In Custom mode, tick OCP / Confluent to merge those preset paths into every dropdown.\nAfter Load: merge checkboxes turn on automatically if a saved path belongs to a preset you did not paste field-for-field.",
+    mapperPatternLoadedOk: "Pattern loaded.",
+    mapperPatternLoadedWithMerge:
+      "Pattern loaded — OCP/Confluent merge was enabled so every saved path appears in the dropdowns.",
+    mapperDuplicatePathInRow: "Duplicate source path for target «{target}». Remove the duplicate option.",
     mapperStepSaveHeading: "1. Save pattern",
     mapperStepSaveHint:
       "Stores the mapping under a name in Saved patterns. Same name overwrites the existing row — this does not change live forwarding until you Apply.",
@@ -292,6 +298,12 @@ const LANG = {
     mapperMergeSchemasLabel: "รวม field จาก preset:",
     mapperSourceOptionLabel: "ตัวเลือก {n}",
     mapperAddSourceOption: "+ เพิ่มตัวเลือกแหล่งข้อมูล",
+    mapperDesignHint:
+      "การออกแบบ: หนึ่งช่อง target แต่มีหลายตัวเลือก source (ตัวเลือก 1, 2…) — ระบบใช้ค่าแรกที่ไม่ว่างจากบนลงล่าง\nใช้ปุ่ม + เพิ่มตัวเลือกสำหรับ fallback — โหมด Custom ติ๊ก OCP / Confluent เพื่อรวม path จาก preset เข้าทุก dropdown\nหลังโหลด pattern: ระบบจะเปิด merge ให้อัตโนมัติถ้า path ที่บันทึกไว้ต้องใช้ preset ที่คุณยังไม่ได้วางใน paste",
+    mapperPatternLoadedOk: "โหลด pattern แล้ว",
+    mapperPatternLoadedWithMerge:
+      "โหลดแล้ว — เปิด merge OCP/Confluent ให้แล้วเพื่อให้ทุก path ที่บันทึกไว้แสดงใน dropdown",
+    mapperDuplicatePathInRow: "path ซ้ำสำหรับ target «{target}» — ลบตัวเลือกที่ซ้ำออก",
     mapperColTarget: "Target",
     mapperColSource: "Source (ตัวเลือก 1…n)",
     mapperColStatic: "หรือค่าคงที่",

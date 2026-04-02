@@ -1301,6 +1301,10 @@ function attachMapperMergeAndOptionListeners() {
     });
   });
   mapperMappingBody?.addEventListener("click", onMapperAddSrcOptClick);
+  mapperMappingBody?.addEventListener("change", (ev) => {
+    const tr = ev.target.closest("tr[data-target-id]");
+    if (tr) tr.classList.remove("mapper-row-invalid");
+  });
 }
 
 function mapperSourceOptionRowHtml(tid, optionIndex0) {
@@ -1364,6 +1368,71 @@ function fillMapperSourceOptionSelects() {
       `<option value="${escapeHtml(f.id)}" ${f.id === current ? "selected" : ""}>${escapeHtml(f.label)}</option>`
     ).join("");
   });
+}
+
+function mapperPathsInMapping(m) {
+  if (!m) return [];
+  if (m.static_value != null && m.static_value !== "") return [];
+  if (Array.isArray(m.source_field_ids) && m.source_field_ids.length) return m.source_field_ids.map(String);
+  if (m.source_field_id) return [String(m.source_field_id)];
+  return [];
+}
+
+/**
+ * Custom mode: if loaded paths belong to OCP/Confluent preset lists but not to pasted custom fields,
+ * enable the corresponding merge checkboxes so dropdowns list every path (reduces load/edit mistakes).
+ * @returns {boolean} true if any checkbox was turned on
+ */
+function mapperAutoMergePresetsForMappings(mappings) {
+  const ocpFields = new Set((patternSchemas.source_schemas?.["ocp-alertmanager-4.20"]?.fields || []).map((f) => f.id));
+  const cfFields = new Set((patternSchemas.source_schemas?.["confluent-8.10"]?.fields || []).map((f) => f.id));
+  const customIds = new Set((customSourceFields || []).map((f) => f.id));
+  let needOcp = false;
+  let needCf = false;
+  for (const m of mappings) {
+    for (const p of mapperPathsInMapping(m)) {
+      if (ocpFields.has(p) && !customIds.has(p)) needOcp = true;
+      if (cfFields.has(p) && !customIds.has(p)) needCf = true;
+    }
+  }
+  const mergeOcp = document.getElementById("mapperMergeOcp");
+  const mergeCf = document.getElementById("mapperMergeConfluent");
+  let toggled = false;
+  if (needOcp && mergeOcp && !mergeOcp.checked) {
+    mergeOcp.checked = true;
+    toggled = true;
+  }
+  if (needCf && mergeCf && !mergeCf.checked) {
+    mergeCf.checked = true;
+    toggled = true;
+  }
+  return toggled;
+}
+
+function mapperClearMappingValidationVisual() {
+  if (!mapperMappingBody) return;
+  mapperMappingBody.querySelectorAll("tr.mapper-row-invalid").forEach((tr) => tr.classList.remove("mapper-row-invalid"));
+}
+
+/** Reject duplicate paths in the same target row (same path in Option 1 and 2, etc.). */
+function mapperValidateMappingsForSave(mappings) {
+  mapperClearMappingValidationVisual();
+  for (const m of mappings) {
+    const paths = mapperPathsInMapping(m);
+    const seen = new Set();
+    for (const p of paths) {
+      if (seen.has(p)) {
+        const row = mapperRowByTargetId(m.target_field_id);
+        if (row) row.classList.add("mapper-row-invalid");
+        return {
+          ok: false,
+          msg: tr("mapperDuplicatePathInRow").replace("{target}", String(m.target_field_id || "?")),
+        };
+      }
+      seen.add(p);
+    }
+  }
+  return { ok: true, msg: "" };
 }
 
 function getMappingsFromForm() {
@@ -1608,8 +1677,15 @@ async function loadOnePattern(patternId) {
     if (fromMappings.length) targetFieldsFromUpload = fromMappings;
     onMapperSourceTypeChange();
     renderMapperMappingTable();
+    let mergeToggled = false;
+    if (mapperSourceType.value === "custom-paste") {
+      mergeToggled = mapperAutoMergePresetsForMappings(mappings);
+      onMapperSourceTypeChange();
+    }
     setMappingsToForm(mappings);
-    if (mapperStatus) mapperStatus.textContent = "Pattern loaded.";
+    if (mapperStatus) {
+      mapperStatus.textContent = mergeToggled ? tr("mapperPatternLoadedWithMerge") : tr("mapperPatternLoadedOk");
+    }
   } catch (err) {
     if (mapperStatus) mapperStatus.textContent = "Failed to load pattern.";
   }
@@ -1732,6 +1808,11 @@ if (mapperSavePatternBtn) {
       return;
     }
     const mappings = getMappingsFromForm();
+    const check = mapperValidateMappingsForSave(mappings);
+    if (!check.ok) {
+      if (mapperStatus) mapperStatus.textContent = check.msg;
+      return;
+    }
     const payload = { name, source_type: sourceType, mappings };
     if (editorPatternId) payload.id = editorPatternId;
     try {
@@ -1991,6 +2072,11 @@ if (mapperApplyBtn) {
       return;
     }
     const mappings = getMappingsFromForm();
+    const applyCheck = mapperValidateMappingsForSave(mappings);
+    if (!applyCheck.ok) {
+      if (mapperStatus) mapperStatus.textContent = applyCheck.msg;
+      return;
+    }
     const applyBody = {
       route_name: routeName,
       source_type: mapperSourceType?.value || "",
