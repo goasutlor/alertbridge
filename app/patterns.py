@@ -22,9 +22,12 @@ SOURCE_SCHEMAS: Dict[str, Dict[str, Any]] = {
         "name": "Red Hat OpenShift Alertmanager 4.20.10",
         "description": "Alerts from OpenShift 4.20 Alertmanager (Prometheus/Alertmanager format)",
         "fields": [
-            # Top-level
+            # Top-level (webhook / group)
             {"id": "status", "label": "status"},
             {"id": "receiver", "label": "receiver"},
+            {"id": "externalURL", "label": "externalURL"},
+            {"id": "version", "label": "version"},
+            {"id": "truncatedAlerts", "label": "truncatedAlerts"},
             # groupLabels (Tier 1)
             {"id": "groupLabels.alertname", "label": "groupLabels.alertname"},
             {"id": "groupLabels.job", "label": "groupLabels.job"},

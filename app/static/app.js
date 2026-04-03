@@ -134,12 +134,17 @@ function parseJsonToPaths(obj, prefix = "") {
   return out;
 }
 
-/** Stable sort for dropdown path list (structure / field names; values are not stored). */
+/** Stable sort for custom-paste path list — same tier order as preset dropdowns. */
 function mapperSortFieldList(list) {
   if (!list || !list.length) return [];
   return [...list]
     .map((f) => ({ id: f.id, label: f.label || f.id }))
-    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    .sort((a, b) => {
+      const ra = mapperSourceFieldDisplayRank(a.id);
+      const rb = mapperSourceFieldDisplayRank(b.id);
+      if (ra !== rb) return ra - rb;
+      return String(a.id).localeCompare(String(b.id));
+    });
 }
 
 function mapperBuildSourceJsonRowElement(initialValue = "") {
@@ -1312,6 +1317,19 @@ function onMapperSourceTypeChange() {
 }
 
 /** Merged field list for dropdowns: custom paths + optional built-in schemas (Custom mode only). */
+/** Order source paths for dropdowns: top-level webhook fields before alerts.* (alphabetical hid status/receiver). */
+function mapperSourceFieldDisplayRank(fieldId) {
+  const s = String(fieldId || "");
+  if (s === "status" || s === "receiver") return 0;
+  if (s === "externalURL" || s === "version" || s === "groupKey" || s === "truncatedAlerts") return 1;
+  if (s.startsWith("groupLabels.")) return 10;
+  if (s.startsWith("commonLabels.")) return 11;
+  if (s.startsWith("commonAnnotations.")) return 12;
+  if (s.startsWith("alerts.")) return 20;
+  if (!s.includes(".")) return 5;
+  return 15;
+}
+
 function getMapperSourceFieldsList() {
   const id = mapperSourceType && mapperSourceType.value;
   const seen = new Set();
@@ -1337,7 +1355,12 @@ function getMapperSourceFieldsList() {
       ((patternSchemas.source_schemas || {})["confluent-8.10"]?.fields || []).forEach(addField);
     }
   }
-  out.sort((a, b) => a.id.localeCompare(b.id));
+  out.sort((a, b) => {
+    const ra = mapperSourceFieldDisplayRank(a.id);
+    const rb = mapperSourceFieldDisplayRank(b.id);
+    if (ra !== rb) return ra - rb;
+    return String(a.id).localeCompare(String(b.id));
+  });
   return out;
 }
 
