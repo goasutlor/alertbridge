@@ -1287,8 +1287,11 @@ async function loadPatternSchemas() {
   } catch (err) {}
 }
 
-function onMapperSourceTypeChange() {
-  const snap = getMappingsFromForm();
+/**
+ * @param {boolean} [skipMappingSnap] - If true, only refresh source schema UI / dropdown options; do not snapshot+restore mapping rows (caller will set mappings).
+ */
+function onMapperSourceTypeChange(skipMappingSnap) {
+  const snap = skipMappingSnap ? null : getMappingsFromForm();
   const id = mapperSourceType.value;
   if (!mapperSourceDescription || !mapperSourceFields) return;
   if (mapperSourceCustomWrap) mapperSourceCustomWrap.style.display = id === "custom-paste" ? "flex" : "none";
@@ -1323,7 +1326,7 @@ function onMapperSourceTypeChange() {
     }
   }
   fillMapperSourceOptionSelects();
-  setMappingsToForm(snap);
+  if (snap !== null) setMappingsToForm(snap);
   fillMapperSourceOptionSelects();
 }
 
@@ -1597,10 +1600,13 @@ function mapperApplyConcatPresetToRow(rowEl, templateString) {
   mapperSyncConcatCustomInputVisibility(rowEl);
 }
 
-function renderMapperMappingTable() {
+/**
+ * @param {Array|undefined} snapOverride - If provided (including []), use instead of getMappingsFromForm() (e.g. load pattern: avoid restoring stale DOM).
+ */
+function renderMapperMappingTable(snapOverride) {
   if (!mapperMappingBody) return;
   /** Preserve edits when this full re-render is triggered (e.g. live payload / new target parse), not only source-type change. */
-  const snap = getMappingsFromForm();
+  const snap = snapOverride !== undefined ? snapOverride : getMappingsFromForm();
   const targets = targetFieldsFromUpload.length > 0 ? targetFieldsFromUpload : (patternSchemas.target_fields || []);
   const presetOpts = mapperConcatPresetOptionsHtml();
   mapperMappingBody.innerHTML = targets.map((t) => {
@@ -1630,8 +1636,11 @@ function renderMapperMappingTable() {
 function fillMapperSourceOptionSelects() {
   const sourceFields = getMapperSourceFieldsList();
   if (!mapperMappingBody) return;
-  mapperMappingBody.querySelectorAll(".mapper-src-opt").forEach((sel) => {
-    const current = sel.value;
+  /** Read all values before mutating any select (avoids losing column 2+ when innerHTML is replaced). */
+  const selects = [...mapperMappingBody.querySelectorAll(".mapper-src-opt")];
+  const saved = selects.map((sel) => String(sel.value || ""));
+  selects.forEach((sel, idx) => {
+    const current = saved[idx];
     sel.innerHTML = "<option value=\"\">—</option>" + sourceFields.map((f) =>
       `<option value="${escapeHtml(f.id)}" ${f.id === current ? "selected" : ""}>${escapeHtml(f.label)}</option>`
     ).join("");
@@ -1649,6 +1658,19 @@ function mapperPathsInMapping(m) {
   if (Array.isArray(m.source_field_ids) && m.source_field_ids.length) return m.source_field_ids.map(String);
   if (m.source_field_id) return [String(m.source_field_id)];
   return [];
+}
+
+/** Max placeholder index in a concat template (e.g. "{0}" and "{1}" → 1). Returns -1 if none. */
+function mapperConcatTemplateMaxPlaceholderIndex(template) {
+  const s = String(template || "");
+  let max = -1;
+  const re = /\{(\d+)\}/g;
+  let m;
+  while ((m = re.exec(s)) !== null) {
+    const i = parseInt(m[1], 10);
+    if (!Number.isNaN(i)) max = Math.max(max, i);
+  }
+  return max;
 }
 
 /**
@@ -1699,6 +1721,15 @@ function mapperValidateMappingsForSave(mappings) {
         return {
           ok: false,
           msg: tr("mapperConcatNeedsPaths").replace("{target}", String(m.target_field_id || "?")),
+        };
+      }
+      const maxPh = mapperConcatTemplateMaxPlaceholderIndex(String(m.concat_template));
+      if (maxPh >= 0 && cps.length < maxPh + 1) {
+        const row = mapperRowByTargetId(m.target_field_id);
+        if (row) row.classList.add("mapper-row-invalid");
+        return {
+          ok: false,
+          msg: tr("mapperConcatPlaceholderMismatch").replace("{target}", String(m.target_field_id || "?")).replace("{need}", String(maxPh + 1)),
         };
       }
     }
@@ -1915,8 +1946,10 @@ function loadActiveRouteMappingIntoForm() {
     mapperPatternName.value = `active-${routeName}`;
   }
 
-  renderMapperMappingTable();
+  onMapperSourceTypeChange(true);
+  renderMapperMappingTable([]);
   setMappingsToForm(mappings);
+  fillMapperSourceOptionSelects();
   if (mapperStatus) mapperStatus.textContent = `Loaded active mapping from route: ${routeName}`;
 }
 
@@ -2006,14 +2039,15 @@ async function loadOnePattern(patternId) {
     const mappings = p.mappings || [];
     const fromMappings = [...new Set(mappings.map((m) => m.target_field_id).filter(Boolean))].map((id) => ({ id, label: id }));
     if (fromMappings.length) targetFieldsFromUpload = fromMappings;
-    onMapperSourceTypeChange();
-    renderMapperMappingTable();
+    onMapperSourceTypeChange(true);
+    renderMapperMappingTable([]);
     let mergeToggled = false;
     if (mapperSourceType.value === "custom-paste") {
       mergeToggled = mapperAutoMergePresetsForMappings(mappings);
-      onMapperSourceTypeChange();
+      onMapperSourceTypeChange(true);
     }
     setMappingsToForm(mappings);
+    fillMapperSourceOptionSelects();
     if (mapperStatus) {
       mapperStatus.textContent = mergeToggled ? tr("mapperPatternLoadedWithMerge") : tr("mapperPatternLoadedOk");
     }

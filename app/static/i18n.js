@@ -184,6 +184,7 @@ const LANG = {
     mapperConcatPresetCustom: "Custom (advanced)…",
     mapperConcatTemplatePlaceholder: "[{0}] {1}",
     mapperConcatNeedsPaths: "Combine template for «{target}» needs at least one source field (column 1…n).",
+    mapperConcatPlaceholderMismatch: "Combine template for «{target}» needs {need} source column(s) ({0}…{n}). Add columns with + or pick all fields — empty columns are not saved.",
     mapperColStatic: "Or static value",
   },
   th: {
@@ -352,6 +353,7 @@ const LANG = {
     mapperConcatPresetCustom: "กำหนดเอง (ขั้นสูง)…",
     mapperConcatTemplatePlaceholder: "[{0}] {1}",
     mapperConcatNeedsPaths: "แถว «{target}» ใส่ Combine template แล้วต้องเลือก source อย่างน้อยหนึ่งคอลัมน์",
+    mapperConcatPlaceholderMismatch: "แถว «{target}» ต้องมี source ครบ {need} คอลัมน์ตาม template ({0}…{n}) — กด + เพิ่มคอลัมน์และเลือก field ให้ครบ คอลัมน์ว่างจะไม่ถูกบันทึก",
     mapperColStatic: "หรือค่าคงที่",
     mapperStepSaveHeading: "1. บันทึก pattern",
     mapperStepSaveHint:
