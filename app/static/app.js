@@ -2045,10 +2045,16 @@ async function showPatternModal(patternId, patternName) {
       : mappings.map((m) => {
           const target = escapeHtml(m.target_field_id || "—");
           let src = "—";
-          if (m.static_value != null && m.static_value !== "") src = "—";
-          else if (Array.isArray(m.source_field_ids) && m.source_field_ids.length) {
+          if (m.static_value != null && m.static_value !== "") {
+            src = "—";
+          } else if (m.concat_template && Array.isArray(m.concat_paths) && m.concat_paths.length) {
+            src = m.concat_paths.map((p) => `<code>${escapeHtml(String(p))}</code>`).join(", ")
+              + ` <em style="opacity:.6">${escapeHtml(m.concat_template)}</em>`;
+          } else if (Array.isArray(m.source_field_ids) && m.source_field_ids.length) {
             src = m.source_field_ids.map((p) => `<code>${escapeHtml(String(p))}</code>`).join(" → ");
-          } else if (m.source_field_id) src = `<code>${escapeHtml(m.source_field_id)}</code>`;
+          } else if (m.source_field_id) {
+            src = `<code>${escapeHtml(m.source_field_id)}</code>`;
+          }
           const stat = m.static_value != null && m.static_value !== ""
             ? `<code>${escapeHtml(String(m.static_value))}</code>`
             : "—";
