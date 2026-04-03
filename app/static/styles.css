@@ -1019,11 +1019,32 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .mapper-columns {
   display: grid;
-  grid-template-columns: 1fr 1.2fr;
-  gap: 28px;
+  grid-template-columns: minmax(0, min(300px, 38vw)) minmax(0, 1fr);
+  gap: 20px;
   margin-bottom: 22px;
+  align-items: start;
 }
-@media (max-width: 700px) { .mapper-columns { grid-template-columns: 1fr; } }
+.mapper-col {
+  min-width: 0;
+}
+/* Target table: many columns — allow horizontal scroll instead of clipping static/combine */
+.mapper-col-target {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+.mapper-col-target .mapper-table {
+  width: 100%;
+  min-width: 760px;
+}
+@media (max-width: 700px) {
+  .mapper-columns {
+    grid-template-columns: 1fr;
+  }
+  .mapper-col-target .mapper-table {
+    min-width: 0;
+  }
+}
 
 .mapper-col-title {
   margin: 0 0 12px;
@@ -1047,12 +1068,15 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 
 .mapper-field-list li {
-  padding: 10px 14px;
-  font-size: 13px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.35;
   font-family: ui-monospace, monospace;
   color: var(--text);
   border-radius: 6px;
   transition: background var(--transition);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .mapper-field-list li:hover { background: rgba(255, 255, 255, 0.04); }
@@ -1191,13 +1215,17 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .mapper-table input[type="text"] {
   width: 100%;
-  max-width: 160px;
+  min-width: 7rem;
+  max-width: 200px;
   padding: 8px 12px;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--bg-input);
   color: var(--text);
   font-size: 13px;
+}
+.mapper-table td:last-child {
+  min-width: 8.5rem;
 }
 .mapper-concat-cell {
   vertical-align: top;
