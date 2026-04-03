@@ -1055,23 +1055,22 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   table-layout: fixed;
   min-width: 0;
 }
-/* Column share: Target | Source | Combine | Static */
+/* Column share: Target (label) | Source | Combine | Static — three input cols equal */
 .mapper-col-target .mapper-table th:nth-child(1),
 .mapper-col-target .mapper-table td:nth-child(1) {
-  width: 12%;
+  width: 10%;
 }
 .mapper-col-target .mapper-table th:nth-child(2),
 .mapper-col-target .mapper-table td:nth-child(2) {
-  width: 20%;
+  width: 30%;
 }
 .mapper-col-target .mapper-table th:nth-child(3),
 .mapper-col-target .mapper-table td:nth-child(3) {
-  width: 34%;
+  width: 30%;
 }
 .mapper-col-target .mapper-table th:nth-child(4),
 .mapper-col-target .mapper-table td:nth-child(4) {
-  width: 34%;
-  min-width: 6.5rem;
+  width: 30%;
 }
 @media (max-width: 700px) {
   .mapper-columns {
@@ -1145,11 +1144,13 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   border-radius: 4px;
 }
 .mapper-col-target .mapper-table select {
+  display: block;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   padding: 8px 10px;
   font-size: 13px;
+  box-sizing: border-box;
 }
 .mapper-src-cell {
   display: flex;
@@ -1158,7 +1159,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   align-items: stretch;
   min-width: 0;
   vertical-align: top;
-  overflow-x: auto;
+  overflow: hidden;
 }
 .mapper-src-opt-rows {
   display: flex;
@@ -1227,8 +1228,11 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   cursor: not-allowed;
 }
 .mapper-src-grid .mapper-src-opt {
+  display: block;
+  width: 100%;
   max-width: 100%;
   min-width: 0;
+  box-sizing: border-box;
 }
 .mapper-src-opts {
   position: relative;
