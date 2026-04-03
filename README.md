@@ -139,6 +139,100 @@ curl -X POST http://localhost:8080/webhook/ocp \
 
 ---
 
+## Configuration Reference
+
+AlertBridge is configured via a YAML rules file and environment variables. Some operational parameters are hardcoded.
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ALERTBRIDGE_RULES_PATH` | `/etc/alertbridge/rules.yaml` | Path to the rules YAML config file |
+| `ALERTBRIDGE_CONFIGMAP_NAME` | *(empty)* | Kubernetes ConfigMap name for rules persistence (OCP) |
+| `ALERTBRIDGE_CONFIG_WATCH_INTERVAL` | `30` | Seconds between config file change checks (0 = disable) |
+| `ALERTBRIDGE_DLQ_FILE` | *(empty)* | Absolute path for DLQ JSONL file on PVC |
+| `ALERTBRIDGE_DAILY_METRICS_FILE` | *(auto from DLQ dir)* | Path for daily metrics JSON |
+| `ALERTBRIDGE_K8S_NAMESPACE` | *(empty)* | Kubernetes namespace (for version display & internal URL) |
+| `ALERTBRIDGE_K8S_SERVICE_NAME` | `alertbridge-lite` | Kubernetes service name for internal webhook URL |
+| `ALERTBRIDGE_INTERNAL_WEBHOOK_BASE` | *(auto)* | Override internal webhook base URL |
+| `ALERTBRIDGE_SITE` | *(auto from Route host)* | Site label shown in UI header |
+| `ALERTBRIDGE_NAMESPACE` | `alertbridge` | Namespace for ConfigMap operations |
+| `ALERTBRIDGE_TARGET_STATUS_CACHE_SEC` | `30` | Target health-check cache TTL (seconds) |
+| `APP_VERSION` | `1.0.08022026` | Application version string |
+| `GIT_SHA` | `unknown` | Git commit SHA for `/version` |
+| `LOG_LEVEL` | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+| `BASIC_AUTH_USER` | *(empty)* | Fallback Basic Auth username (when not in YAML) |
+| `BASIC_AUTH_PASSWORD` | *(empty)* | Fallback Basic Auth password (when not in YAML) |
+
+### YAML Config (`rules.yaml`)
+
+```yaml
+version: 1
+
+defaults:
+  target_timeout_connect_sec: 2    # HTTP connect timeout (seconds)
+  target_timeout_read_sec: 5       # HTTP read timeout (seconds)
+
+auth:
+  basic:
+    users:
+      - username: admin
+        password_env: ADMIN_PASSWORD   # env var holding the password
+  api_keys:
+    required: true
+    keys:
+      - name: my-key
+        key: "secret-value"
+
+routes:
+  - name: ocp-alertmanager
+    match:
+      source: ocp                   # matches POST /webhook/ocp
+    target:
+      url_env: FMGATEWAY_URL       # env var for target URL
+      url: ""                       # or direct URL (overrides url_env)
+      auth_header_env: ""           # env var for Authorization header
+      api_key_header: ""            # outbound API key header name
+      api_key_env: ""               # env var for API key value
+      verify_tls: true              # set false for self-signed certs
+      ca_cert_env: ""               # env var with CA cert path
+    forward_enabled: true           # false = accept but don't forward
+    unroll_alerts: false            # true = split alerts[] array, forward each separately
+    verify_hmac:                    # optional webhook signature verification
+      secret_env: HMAC_SECRET
+      header: X-Signature-256
+      algorithm: sha256
+    transform:
+      include_fields: []            # whitelist source paths
+      drop_fields: []               # remove these paths
+      rename: {}                    # { "source.path": "target.path" }
+      coalesce_sources: {}          # { "target": ["path1", "path2"] } first non-empty wins
+      enrich_static: {}             # { "field": "fixed value" }
+      concat_templates: {}          # { "target": { template: "[{0}] {1}", paths: ["a","b"] } }
+      map_values: {}                # { "field": { "old": "new" } }
+      output_template:
+        type: flat
+        fields: {}                  # { "target_field": "$.source.path" }
+```
+
+### Hardcoded Operational Parameters
+
+These are compile-time constants. Change requires code edit and redeploy.
+
+| Parameter | Value | File | Description |
+|-----------|-------|------|-------------|
+| Forward retry attempts | **4** (0s, 1s, 2s, 4s backoff) | `app/forwarder.py` | Exponential backoff on 5xx / connection error |
+| Circuit breaker threshold | **5** consecutive failures | `app/forwarder.py` | Opens circuit after N failures |
+| Circuit breaker reset | **60** seconds | `app/forwarder.py` | Time before half-open retry |
+| Live webhooks buffer | **20** events | `app/main.py` | In-memory, lost on restart |
+| Recent payloads buffer | **30** payloads | `app/main.py` | For "Use as source pattern" in Field Mapper |
+| Failed events buffer | **200** events | `app/main.py` | In-memory failed forwards |
+| Sent buffer (internal) | **50** entries | `app/main.py` | In-memory transformed forwards |
+| Sent API display limit | **5** entries | `app/main.py` | "Recent transformed forwards" shown in UI |
+| Max config body size | **512 KiB** | `app/main.py` | Maximum rules YAML upload size |
+
+---
+
 ## Security
 
 - VA test guide: [VA_TEST.md](VA_TEST.md)
