@@ -134,18 +134,12 @@ function parseJsonToPaths(obj, prefix = "") {
   return out;
 }
 
-function mapperParsedFieldListsMerge(fieldLists) {
-  const seen = new Set();
-  const out = [];
-  for (const list of fieldLists) {
-    for (const f of list) {
-      if (!f || !f.id || seen.has(f.id)) continue;
-      seen.add(f.id);
-      out.push({ id: f.id, label: f.label || f.id });
-    }
-  }
-  out.sort((a, b) => String(a.id).localeCompare(String(b.id)));
-  return out;
+/** Stable sort for dropdown path list (structure / field names; values are not stored). */
+function mapperSortFieldList(list) {
+  if (!list || !list.length) return [];
+  return [...list]
+    .map((f) => ({ id: f.id, label: f.label || f.id }))
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
 }
 
 function mapperBuildSourceJsonRowElement(initialValue = "") {
@@ -249,12 +243,12 @@ function mapperApplyParsedSourceFieldsFromRows() {
     if (mapperStatus) mapperStatus.textContent = tr("mapperParseSourceEmptyRows");
     return;
   }
-  customSourceFields = mapperParsedFieldListsMerge(lists);
+  customSourceFields = mapperSortFieldList(lists[0]);
   onMapperSourceTypeChange();
   const nf = customSourceFields.length;
   const msg = lists.length === 1
     ? tr("mapperParsedSingleSample").replace("{n}", String(nf))
-    : tr("mapperParsedMultiSample").replace("{n}", String(nf)).replace("{r}", String(lists.length));
+    : tr("mapperParsedFirstSampleOnly").replace("{n}", String(nf)).replace("{r}", String(lists.length));
   if (mapperStatus) mapperStatus.textContent = msg;
 }
 
