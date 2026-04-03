@@ -1153,13 +1153,12 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   box-sizing: border-box;
 }
 .mapper-src-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: stretch;
-  min-width: 0;
   vertical-align: top;
+  min-width: 0;
   overflow: hidden;
+}
+.mapper-src-cell > * + * {
+  margin-top: 6px;
 }
 .mapper-src-opt-rows {
   display: flex;
