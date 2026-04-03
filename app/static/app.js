@@ -1502,6 +1502,8 @@ function mapperEnsureSourceOption(sel, value) {
 
 function renderMapperMappingTable() {
   if (!mapperMappingBody) return;
+  /** Preserve edits when this full re-render is triggered (e.g. live payload / new target parse), not only source-type change. */
+  const snap = getMappingsFromForm();
   const targets = targetFieldsFromUpload.length > 0 ? targetFieldsFromUpload : (patternSchemas.target_fields || []);
   mapperMappingBody.innerHTML = targets.map((t) => {
     const vid = `map-val-${t.id}`;
@@ -1519,6 +1521,8 @@ function renderMapperMappingTable() {
   }).join("");
   mapperMappingBody.querySelectorAll(".mapper-src-opt-rows").forEach((w) => mapperSyncColumnChrome(w));
   onMapperSourceTypeChange();
+  setMappingsToForm(snap);
+  fillMapperSourceOptionSelects();
 }
 
 function fillMapperSourceOptionSelects() {
