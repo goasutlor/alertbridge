@@ -83,7 +83,7 @@ RECENT_PAYLOADS: deque = deque(maxlen=30)
 RECENT_FAILED: deque = deque(maxlen=200)
 # Successfully forwarded (transformed) payloads — one entry per outbound success (unroll = multiple per webhook)
 RECENT_SENT_MAX = 50
-RECENT_SENT_API_LIMIT = 15
+RECENT_SENT_API_LIMIT = 5
 RECENT_SENT: deque = deque(maxlen=RECENT_SENT_MAX)
 
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
