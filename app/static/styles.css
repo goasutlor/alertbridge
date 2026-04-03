@@ -1062,15 +1062,15 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .mapper-col-target .mapper-table th:nth-child(2),
 .mapper-col-target .mapper-table td:nth-child(2) {
-  width: 26%;
+  width: 20%;
 }
 .mapper-col-target .mapper-table th:nth-child(3),
 .mapper-col-target .mapper-table td:nth-child(3) {
-  width: 31%;
+  width: 34%;
 }
 .mapper-col-target .mapper-table th:nth-child(4),
 .mapper-col-target .mapper-table td:nth-child(4) {
-  width: 31%;
+  width: 34%;
   min-width: 6.5rem;
 }
 @media (max-width: 700px) {
@@ -1172,15 +1172,20 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   justify-content: flex-start;
   gap: 10px 12px;
   width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
+/* basis 0% so a single column grows to full cell width (auto basis stays content-sized and leaves a gap). */
 .mapper-src-col {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  flex: 1 1 auto;
+  flex: 1 1 0%;
   min-width: 0;
   max-width: 100%;
+}
+.mapper-src-grid > .mapper-src-col {
+  min-width: 6.5rem;
 }
 .mapper-src-col-num {
   display: block;
