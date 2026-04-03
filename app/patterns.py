@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from app.rules import (
+    ConcatTemplateSpec,
     OutputTemplate,
     TransformConfig,
 )
@@ -39,6 +40,7 @@ SOURCE_SCHEMAS: Dict[str, Dict[str, Any]] = {
             {"id": "commonAnnotations.description", "label": "commonAnnotations.description"},
             {"id": "commonAnnotations.runbook_url", "label": "commonAnnotations.runbook_url"},
             # alerts[0] (Tier 1–3+)
+            {"id": "alerts.0.status", "label": "alerts[0].status"},
             {"id": "alerts.0.labels.alertname", "label": "alerts[0].labels.alertname"},
             {"id": "alerts.0.labels.severity", "label": "alerts[0].labels.severity"},
             {"id": "alerts.0.labels.instance", "label": "alerts[0].labels.instance"},
@@ -207,6 +209,8 @@ def build_transform_from_mapping(
     Each mapping: { "target_field_id": str, "source_field_id": str | null, "static_value": str | null }
     Optional: "source_field_ids": [ "path1", "path2", ... ] — try paths in order; first non-empty value wins
     (fallback for Alertmanager shapes). Mutually preferred over a single source_field_id for that row.
+    Optional: "concat_template": "[{0}] {1}", "concat_paths": ["alerts.0.status", "alerts.0.annotations.description"] —
+    combine those paths with Python str.format ({0}, {1}, …). Takes precedence over static / coalesce / single source.
     If source_field_id is set: map that source path to target field (rename + output).
     If static_value is set: set target field to that value (enrich_static).
     When target_field_ids is not provided, allowed targets are taken from mappings (for custom target from upload).
@@ -220,6 +224,7 @@ def build_transform_from_mapping(
     output_fields: Dict[str, str] = {}
     enrich_static: Dict[str, Any] = {}
     coalesce_sources: Dict[str, List[str]] = {}
+    concat_templates: Dict[str, ConcatTemplateSpec] = {}
     include_set: set = set()
 
     for m in mappings:
@@ -229,6 +234,22 @@ def build_transform_from_mapping(
         source_id = m.get("source_field_id")
         static_val = m.get("static_value")
         raw_sids = m.get("source_field_ids")
+        raw_concat = m.get("concat_template")
+        raw_cpaths = m.get("concat_paths")
+
+        if raw_concat is not None and str(raw_concat).strip():
+            paths_ct: List[str] = []
+            if isinstance(raw_cpaths, list):
+                paths_ct = [str(x).strip() for x in raw_cpaths if x is not None and str(x).strip()]
+            if paths_ct:
+                concat_templates[target_id] = ConcatTemplateSpec(
+                    template=str(raw_concat).strip(),
+                    paths=paths_ct,
+                )
+                output_fields[target_id] = f"$.{target_id}"
+                for p in paths_ct:
+                    _include_path_and_parents(include_set, p)
+                continue
 
         if static_val is not None and static_val != "":
             enrich_static[target_id] = static_val
@@ -255,5 +276,6 @@ def build_transform_from_mapping(
         rename=rename if rename else None,
         coalesce_sources=coalesce_sources if coalesce_sources else None,
         enrich_static=enrich_static if enrich_static else None,
+        concat_templates=concat_templates if concat_templates else None,
         output_template=OutputTemplate(type="flat", fields=output_fields) if output_fields else None,
     )

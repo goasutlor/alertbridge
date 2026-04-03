@@ -1199,6 +1199,11 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   color: var(--text);
   font-size: 13px;
 }
+.mapper-table input.mapper-concat-template-input {
+  max-width: 280px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
 
 .mapper-actions { margin-top: 18px; }
 .mapper-actions-sep { color: var(--text-muted); margin: 0 12px; }

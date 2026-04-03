@@ -1510,6 +1510,7 @@ function renderMapperMappingTable() {
           </div>
         </div>
       </td>
+      <td><input type="text" class="mapper-concat-template-input" data-target-id="${escapeHtml(t.id)}" value="" placeholder="${escapeHtml(tr("mapperConcatTemplatePlaceholder"))}" /></td>
       <td><input type="text" id="${vid}" class="mapper-static-input" data-target-id="${escapeHtml(t.id)}" placeholder="optional static" /></td>
     </tr>`;
   }).join("");
@@ -1537,6 +1538,7 @@ function fillMapperSourceOptionSelects() {
 function mapperPathsInMapping(m) {
   if (!m) return [];
   if (m.static_value != null && m.static_value !== "") return [];
+  if (Array.isArray(m.concat_paths) && m.concat_paths.length) return m.concat_paths.map(String);
   if (Array.isArray(m.source_field_ids) && m.source_field_ids.length) return m.source_field_ids.map(String);
   if (m.source_field_id) return [String(m.source_field_id)];
   return [];
@@ -1582,6 +1584,17 @@ function mapperClearMappingValidationVisual() {
 function mapperValidateMappingsForSave(mappings) {
   mapperClearMappingValidationVisual();
   for (const m of mappings) {
+    if (m.concat_template != null && String(m.concat_template).trim() !== "") {
+      const cps = Array.isArray(m.concat_paths) ? m.concat_paths.filter((p) => p && String(p).trim()) : [];
+      if (cps.length === 0) {
+        const row = mapperRowByTargetId(m.target_field_id);
+        if (row) row.classList.add("mapper-row-invalid");
+        return {
+          ok: false,
+          msg: tr("mapperConcatNeedsPaths").replace("{target}", String(m.target_field_id || "?")),
+        };
+      }
+    }
     const paths = mapperPathsInMapping(m);
     const seen = new Set();
     for (const p of paths) {
@@ -1604,6 +1617,23 @@ function getMappingsFromForm() {
   if (!mapperMappingBody) return mappings;
   mapperMappingBody.querySelectorAll("tr[data-target-id]").forEach((rowEl) => {
     const targetId = rowEl.getAttribute("data-target-id");
+    const concatInp = rowEl.querySelector(".mapper-concat-template-input");
+    const concatTpl = concatInp ? concatInp.value.trim() : "";
+    if (concatTpl) {
+      const paths = [];
+      rowEl.querySelectorAll(".mapper-src-opt").forEach((sel) => {
+        const v = sel.value.trim();
+        if (v) paths.push(v);
+      });
+      mappings.push({
+        target_field_id: targetId,
+        concat_template: concatTpl,
+        concat_paths: paths,
+        source_field_id: null,
+        static_value: null,
+      });
+      return;
+    }
     const input = rowEl.querySelector(".mapper-static-input");
     const staticVal = input ? input.value.trim() : "";
     if (staticVal) {
@@ -1649,6 +1679,27 @@ function setMappingsToForm(mappings) {
     const tid = m.target_field_id;
     const rowEl = mapperRowByTargetId(tid);
     if (!rowEl) return;
+    const concatIn = rowEl.querySelector(".mapper-concat-template-input");
+    const hasConcat = m.concat_template != null && String(m.concat_template).trim() !== "";
+    if (hasConcat) {
+      const input = rowEl.querySelector(".mapper-static-input");
+      if (input) input.value = "";
+      if (concatIn) concatIn.value = String(m.concat_template || "");
+      const cpaths = m.concat_paths || [];
+      mapperSetOptionRowCount(rowEl, Math.max(1, cpaths.length));
+      const sels = rowEl.querySelectorAll(".mapper-src-opt");
+      cpaths.forEach((p, i) => {
+        if (sels[i]) {
+          mapperEnsureSourceOption(sels[i], p);
+          sels[i].value = p;
+        }
+      });
+      for (let i = cpaths.length; i < sels.length; i++) {
+        sels[i].value = "";
+      }
+      return;
+    }
+    if (concatIn) concatIn.value = "";
     const input = rowEl.querySelector(".mapper-static-input");
     const staticVal = m.static_value != null && m.static_value !== "" ? String(m.static_value) : "";
     if (input) input.value = staticVal;
@@ -1685,6 +1736,7 @@ function mappingsFromRouteTransform(route) {
   const rename = t.rename || {};
   const coalesce = t.coalesce_sources || {};
   const enrich = t.enrich_static || {};
+  const concatMap = t.concat_templates || {};
   const template = (t.output_template && t.output_template.fields) || {};
   const reverseRename = {};
   Object.keys(rename).forEach((src) => {
@@ -1695,6 +1747,16 @@ function mappingsFromRouteTransform(route) {
   const mappings = targets.map((targetId) => {
     const selector = template[targetId];
     const staticVal = Object.prototype.hasOwnProperty.call(enrich, targetId) ? enrich[targetId] : null;
+    const cspec = concatMap[targetId];
+    if (cspec && (cspec.template != null && String(cspec.template).trim() !== "") && Array.isArray(cspec.paths) && cspec.paths.length) {
+      return {
+        target_field_id: targetId,
+        concat_template: String(cspec.template),
+        concat_paths: cspec.paths.map(String),
+        source_field_id: null,
+        static_value: null,
+      };
+    }
     if (staticVal != null && staticVal !== "") {
       return {
         target_field_id: targetId,

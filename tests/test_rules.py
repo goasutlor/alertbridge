@@ -1,4 +1,5 @@
 from app.rules import (
+    ConcatTemplateSpec,
     MatchConfig,
     OutputTemplate,
     RouteConfig,
@@ -68,6 +69,35 @@ def test_rename_and_enrich():
     assert result["alert_name"] == "CPUHigh"
     assert result["env"] == "prod"
     assert "labels" in result
+
+
+def test_concat_templates_combine_fields():
+    payload = {
+        "status": "firing",
+        "alerts": [
+            {
+                "status": "resolved",
+                "annotations": {
+                    "description": "Memory major pages are occurring at very high rate.",
+                },
+            }
+        ],
+    }
+    transform = TransformConfig(
+        concat_templates={
+            "message": ConcatTemplateSpec(
+                template="[{0}] {1}",
+                paths=["alerts.0.status", "alerts.0.annotations.description"],
+            ),
+        },
+        output_template=OutputTemplate(
+            fields={
+                "message": "$.message",
+            }
+        ),
+    )
+    result = transform_payload(payload, _route(transform))
+    assert result["message"] == "[resolved] Memory major pages are occurring at very high rate."
 
 
 def test_map_values_and_output_template():
@@ -285,3 +315,23 @@ def test_build_transform_source_field_ids():
         "alarmName": ["groupLabels.alertname", "commonLabels.alertname", "alerts.0.labels.alertname"]
     }
     assert "groupLabels.alertname" in (cfg.include_fields or [])
+
+
+def test_build_transform_concat_template():
+    from app.patterns import build_transform_from_mapping
+
+    cfg = build_transform_from_mapping(
+        [
+            {
+                "target_field_id": "annotations.description",
+                "concat_template": "[{0}] {1}",
+                "concat_paths": ["alerts.0.status", "alerts.0.annotations.description"],
+            }
+        ],
+        target_field_ids=["annotations.description"],
+    )
+    assert cfg.concat_templates is not None
+    assert "annotations.description" in cfg.concat_templates
+    spec = cfg.concat_templates["annotations.description"]
+    assert spec.template == "[{0}] {1}"
+    assert spec.paths == ["alerts.0.status", "alerts.0.annotations.description"]

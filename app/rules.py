@@ -50,6 +50,13 @@ class OutputTemplate(BaseModel):
     fields: Dict[str, str]
 
 
+class ConcatTemplateSpec(BaseModel):
+    """Combine multiple source paths into one string: template uses {0}, {1}, … (str.format)."""
+
+    template: str
+    paths: List[str]
+
+
 class TransformConfig(BaseModel):
     include_fields: Optional[List[str]] = None
     drop_fields: Optional[List[str]] = None
@@ -59,6 +66,8 @@ class TransformConfig(BaseModel):
     coalesce_sources: Optional[Dict[str, List[str]]] = None
     enrich_static: Optional[Dict[str, Any]] = None
     map_values: Optional[Dict[str, Dict[str, str]]] = None
+    # target_field_id -> combine several JSON paths with a format template ({0}, {1}, …).
+    concat_templates: Optional[Dict[str, ConcatTemplateSpec]] = None
     output_template: Optional[OutputTemplate] = None
 
 
@@ -139,6 +148,25 @@ def _is_effectively_empty(value: Any) -> bool:
     return False
 
 
+def _apply_concat_templates(working: Any, specs: Dict[str, ConcatTemplateSpec]) -> Any:
+    if not isinstance(working, dict):
+        return working
+    for target_id, spec in specs.items():
+        parts: List[str] = []
+        for p in spec.paths:
+            found, value = _get_by_path(working, p)
+            if not found or value is None:
+                parts.append("")
+            else:
+                parts.append(str(value))
+        try:
+            text = spec.template.format(*parts)
+        except (IndexError, KeyError, ValueError):
+            text = ""
+        _set_by_path(working, target_id, text)
+    return working
+
+
 def _apply_coalesce_sources(working: Any, coalesce: Dict[str, List[str]]) -> Any:
     if not isinstance(working, dict):
         return working
@@ -187,6 +215,9 @@ def transform_payload(payload: Any, route: RouteConfig) -> Any:
         if isinstance(working, dict):
             for path, value in config.enrich_static.items():
                 _set_by_path(working, path, value)
+
+    if config.concat_templates:
+        working = _apply_concat_templates(working, config.concat_templates)
 
     if config.map_values:
         for path, mapping in config.map_values.items():
