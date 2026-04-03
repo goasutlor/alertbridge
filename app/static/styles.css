@@ -1019,30 +1019,56 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .mapper-columns {
   display: grid;
-  grid-template-columns: minmax(0, min(300px, 38vw)) minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: minmax(0, clamp(200px, 26vw, 280px)) minmax(0, 1fr);
+  gap: 22px;
   margin-bottom: 22px;
   align-items: start;
 }
 .mapper-col {
   min-width: 0;
 }
-/* Target table: many columns — allow horizontal scroll instead of clipping static/combine */
+.mapper-col-source {
+  align-self: start;
+}
+/* Target: fixed column shares so Static / Combine stay visible; scroll only if still too tight */
 .mapper-col-target {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: 4px;
+  padding-bottom: 6px;
+  max-width: 100%;
+}
+.mapper-col-target .mapper-design-hint {
+  max-width: 100%;
 }
 .mapper-col-target .mapper-table {
   width: 100%;
-  min-width: 760px;
+  table-layout: fixed;
+  min-width: 0;
+}
+/* Column share: Target | Source | Combine | Static */
+.mapper-col-target .mapper-table th:nth-child(1),
+.mapper-col-target .mapper-table td:nth-child(1) {
+  width: 12%;
+}
+.mapper-col-target .mapper-table th:nth-child(2),
+.mapper-col-target .mapper-table td:nth-child(2) {
+  width: 36%;
+}
+.mapper-col-target .mapper-table th:nth-child(3),
+.mapper-col-target .mapper-table td:nth-child(3) {
+  width: 26%;
+}
+.mapper-col-target .mapper-table th:nth-child(4),
+.mapper-col-target .mapper-table td:nth-child(4) {
+  width: 26%;
+  min-width: 6.5rem;
 }
 @media (max-width: 700px) {
   .mapper-columns {
     grid-template-columns: 1fr;
   }
   .mapper-col-target .mapper-table {
-    min-width: 0;
+    min-width: 620px;
   }
 }
 
@@ -1083,9 +1109,12 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .mapper-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .mapper-table th, .mapper-table td {
-  padding: 10px 12px;
+  padding: 10px 10px;
   text-align: left;
   border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 .mapper-table th {
   background: rgba(15, 23, 42, 0.07);
@@ -1105,10 +1134,11 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   box-shadow: inset 0 0 0 2px rgba(220, 38, 38, 0.55);
   border-radius: 4px;
 }
-.mapper-table select {
+.mapper-col-target .mapper-table select {
   width: 100%;
-  max-width: 220px;
-  padding: 8px 12px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
   font-size: 13px;
 }
 .mapper-src-cell {
@@ -1116,7 +1146,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   flex-direction: column;
   gap: 6px;
   align-items: stretch;
-  min-width: 12rem;
+  min-width: 0;
   vertical-align: top;
   overflow-x: auto;
 }
@@ -1213,31 +1243,29 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .mapper-merge-cb input {
   cursor: pointer;
 }
-.mapper-table input[type="text"] {
+.mapper-col-target .mapper-table input[type="text"] {
   width: 100%;
-  min-width: 7rem;
-  max-width: 200px;
-  padding: 8px 12px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--bg-input);
   color: var(--text);
   font-size: 13px;
 }
-.mapper-table td:last-child {
-  min-width: 8.5rem;
-}
 .mapper-concat-cell {
   vertical-align: top;
-  min-width: 11rem;
+  min-width: 0;
 }
 .mapper-concat-cell .mapper-concat-preset {
   width: 100%;
-  max-width: 280px;
+  max-width: 100%;
   margin-bottom: 6px;
 }
-.mapper-table input.mapper-concat-template-input {
-  max-width: 280px;
+.mapper-col-target .mapper-table input.mapper-concat-template-input {
+  max-width: 100%;
   font-family: ui-monospace, monospace;
   font-size: 12px;
 }
