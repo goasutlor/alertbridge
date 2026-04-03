@@ -1052,15 +1052,15 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .mapper-col-target .mapper-table th:nth-child(2),
 .mapper-col-target .mapper-table td:nth-child(2) {
-  width: 36%;
+  width: 28%;
 }
 .mapper-col-target .mapper-table th:nth-child(3),
 .mapper-col-target .mapper-table td:nth-child(3) {
-  width: 26%;
+  width: 30%;
 }
 .mapper-col-target .mapper-table th:nth-child(4),
 .mapper-col-target .mapper-table td:nth-child(4) {
-  width: 26%;
+  width: 30%;
   min-width: 6.5rem;
 }
 @media (max-width: 700px) {
@@ -1159,7 +1159,10 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   flex-direction: row;
   flex-wrap: wrap;
   align-items: flex-end;
+  justify-content: flex-start;
   gap: 10px 12px;
+  width: fit-content;
+  max-width: 100%;
 }
 .mapper-src-col {
   display: flex;
@@ -1215,6 +1218,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .mapper-src-opts {
   position: relative;
   z-index: 1;
+  width: fit-content;
+  max-width: 100%;
 }
 .mapper-merge-schemas {
   display: flex;
