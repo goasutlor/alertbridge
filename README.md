@@ -215,6 +215,38 @@ routes:
         fields: {}                  # { "target_field": "$.source.path" }
 ```
 
+### Concat templates (`concat_templates`)
+
+Templates use Python `str.format` placeholders **`{0}`, `{1}`, `{2}`, …** (zero-based). In the Field Mapper UI, source columns are labeled **1, 2, 3…** but they map to **`{0}`, `{1}`, `{2}`** — not `{1}` / `{2}`.
+
+- **`{0}`** = value from the **first** path in `paths`
+- **`{1}`** = value from the **second** path
+- If a path is missing or the value is `null`, that segment becomes an **empty string** (you may see `"[firing] "` with nothing after the space).
+
+**Alertmanager / OpenShift:** The firing status at the webhook root is usually `status` (e.g. `firing`). The alert name may appear as:
+
+- `alerts.0.labels.alertname` — typical; **with `unroll_alerts: true`**, each shard still has `alerts[0]` for that alert.
+- `groupLabels.alertname` — often present at the **webhook root**; use this if per-alert `labels` does not include `alertname` in your payload.
+
+Any path you reference in `concat_templates.paths` must be covered by **`include_fields`** (or the whole subtree via a parent path like `alerts` or `groupLabels`). If you add `groupLabels.alertname` as a path, include **`groupLabels`** (and parents) in `include_fields`.
+
+Example that avoids a missing second value when per-alert labels omit the name:
+
+```yaml
+include_fields:
+  - status
+  - groupLabels
+  - groupLabels.alertname
+  - alerts
+  # ... other paths as needed
+concat_templates:
+  alarmName:
+    template: '[{0}] {1}'
+    paths:
+      - status
+      - groupLabels.alertname
+```
+
 ### Hardcoded Operational Parameters
 
 These are compile-time constants. Change requires code edit and redeploy.
