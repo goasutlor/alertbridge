@@ -149,7 +149,7 @@ const LANG = {
     mapperAddSourceColumnAria: "Add source column after this slot",
     mapperRemoveSourceColumnAria: "Remove this source column",
     mapperDesignHint:
-      "Design: Each target row has Source columns 1…n (left to right). The engine tries each dropdown in order; the first non-empty value wins (coalesce).\nUse + under a column to insert another field slot after it; use − to remove a column (at least one column stays). Tick OCP / Confluent to add that preset’s path catalog into every dropdown (works with any template or Custom — use for multi-shape Alertmanager fallbacks).\nAfter Load: merge checkboxes turn on automatically if a saved path belongs to a preset you did not paste field-for-field.",
+      "Design: Each target row has Source columns 1…n (left to right). The engine tries each dropdown in order; the first non-empty value wins (coalesce).\nUse + under a column to insert another field slot after it; use − to remove a column (at least one column stays). Tick OCP / Confluent to add that preset’s path catalog into every dropdown (works with any template or Custom — use for multi-shape Alertmanager fallbacks).\nChanging the Source pattern dropdown or merge ticks does not clear your mapping — you can stack fallbacks across patterns.\nAfter Load: merge checkboxes turn on automatically if a saved path belongs to a preset you did not paste field-for-field.",
     mapperPatternLoadedOk: "Pattern loaded.",
     mapperPatternLoadedWithMerge:
       "Pattern loaded — OCP/Confluent merge was enabled so every saved path appears in the dropdowns.",
@@ -321,7 +321,7 @@ const LANG = {
     mapperAddSourceColumnAria: "เพิ่มคอลัมน์ source ถัดจากช่องนี้",
     mapperRemoveSourceColumnAria: "ลบคอลัมน์ source นี้",
     mapperDesignHint:
-      "การออกแบบ: แต่ละแถว target มีคอลัมน์ Source 1…n (ซ้ายไปขวา) — ระบบลองแต่ละ dropdown ตามลำดับ ค่าแรกที่ไม่ว่างชนะ (coalesce)\nกด + ใต้คอลัมน์เพื่อแทรกช่องเลือก field ถัดจากช่องนั้น กด − เพื่อลบคอลัมน์ (ต้องเหลืออย่างน้อยหนึ่งคอลัมน์) — ติ๊ก OCP / Confluent เพื่อเพิ่มรายการ path ของ preset นั้นเข้า dropdown ทุกช่อง (ใช้ได้ทั้งเลือก template หรือ Custom — สำหรับ fallback หลายรูปแบบของ Alertmanager)\nหลังโหลด pattern: ระบบจะเปิด merge ให้อัตโนมัติถ้า path ที่บันทึกไว้ต้องใช้ preset ที่คุณยังไม่ได้วางใน paste",
+      "การออกแบบ: แต่ละแถว target มีคอลัมน์ Source 1…n (ซ้ายไปขวา) — ระบบลองแต่ละ dropdown ตามลำดับ ค่าแรกที่ไม่ว่างชนะ (coalesce)\nกด + ใต้คอลัมน์เพื่อแทรกช่องเลือก field ถัดจากช่องนั้น กด − เพื่อลบคอลัมน์ (ต้องเหลืออย่างน้อยหนึ่งคอลัมน์) — ติ๊ก OCP / Confluent เพื่อเพิ่มรายการ path ของ preset นั้นเข้า dropdown ทุกช่อง (ใช้ได้ทั้งเลือก template หรือ Custom — สำหรับ fallback หลายรูปแบบของ Alertmanager)\nการเปลี่ยน Source pattern หรือติ๊ก merge จะไม่ล้าง mapping ที่กรอกไว้ — ใช้ซ้อน fallback ข้าม pattern ได้\nหลังโหลด pattern: ระบบจะเปิด merge ให้อัตโนมัติถ้า path ที่บันทึกไว้ต้องใช้ preset ที่คุณยังไม่ได้วางใน paste",
     mapperPatternLoadedOk: "โหลด pattern แล้ว",
     mapperPatternLoadedWithMerge:
       "โหลดแล้ว — เปิด merge OCP/Confluent ให้แล้วเพื่อให้ทุก path ที่บันทึกไว้แสดงใน dropdown",

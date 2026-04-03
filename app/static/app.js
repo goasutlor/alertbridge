@@ -1278,6 +1278,7 @@ async function loadPatternSchemas() {
 }
 
 function onMapperSourceTypeChange() {
+  const snap = getMappingsFromForm();
   const id = mapperSourceType.value;
   if (!mapperSourceDescription || !mapperSourceFields) return;
   if (mapperSourceCustomWrap) mapperSourceCustomWrap.style.display = id === "custom-paste" ? "flex" : "none";
@@ -1286,10 +1287,7 @@ function onMapperSourceTypeChange() {
   if (!id) {
     mapperSourceDescription.textContent = "";
     mapperSourceFields.innerHTML = "";
-    fillMapperSourceOptionSelects();
-    return;
-  }
-  if (id === "custom-paste") {
+  } else if (id === "custom-paste") {
     mapperSourceDescription.textContent = tr("mapperCustomPasteDesc");
     const merged = getMapperSourceFieldsList();
     if (merged.length) {
@@ -1299,24 +1297,24 @@ function onMapperSourceTypeChange() {
     } else {
       mapperSourceFields.innerHTML = `<li class="text-muted">${escapeHtml(tr("mapperCustomPasteEmpty"))}</li>`;
     }
-    fillMapperSourceOptionSelects();
-    return;
-  }
-  const schema = (patternSchemas.source_schemas || {})[id];
-  if (schema) {
-    mapperSourceDescription.textContent = schema.description || "";
-    const merged = getMapperSourceFieldsList();
-    mapperSourceFields.innerHTML = merged.length
-      ? merged.map((f) => `<li data-field-id="${escapeHtml(f.id)}">${escapeHtml(f.label)}</li>`).join("")
-      : (schema.fields || []).map((f) =>
-          `<li data-field-id="${escapeHtml(f.id)}">${escapeHtml(f.label)}</li>`
-        ).join("");
-    fillMapperSourceOptionSelects();
   } else {
-    mapperSourceDescription.textContent = "";
-    mapperSourceFields.innerHTML = "";
-    fillMapperSourceOptionSelects();
+    const schema = (patternSchemas.source_schemas || {})[id];
+    if (schema) {
+      mapperSourceDescription.textContent = schema.description || "";
+      const merged = getMapperSourceFieldsList();
+      mapperSourceFields.innerHTML = merged.length
+        ? merged.map((f) => `<li data-field-id="${escapeHtml(f.id)}">${escapeHtml(f.label)}</li>`).join("")
+        : (schema.fields || []).map((f) =>
+            `<li data-field-id="${escapeHtml(f.id)}">${escapeHtml(f.label)}</li>`
+          ).join("");
+    } else {
+      mapperSourceDescription.textContent = "";
+      mapperSourceFields.innerHTML = "";
+    }
   }
+  fillMapperSourceOptionSelects();
+  setMappingsToForm(snap);
+  fillMapperSourceOptionSelects();
 }
 
 /** Merged field list for dropdowns: custom paths + optional built-in schemas (Custom mode only). */
@@ -1521,7 +1519,6 @@ function renderMapperMappingTable() {
   }).join("");
   mapperMappingBody.querySelectorAll(".mapper-src-opt-rows").forEach((w) => mapperSyncColumnChrome(w));
   onMapperSourceTypeChange();
-  fillMapperSourceOptionSelects();
 }
 
 function fillMapperSourceOptionSelects() {
