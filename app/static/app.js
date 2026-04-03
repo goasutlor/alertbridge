@@ -104,6 +104,17 @@ let patternSchemas = { source_schemas: {}, target_fields: [] };
 const MAPPER_MAX_SRC_OPTS = 12;
 /** Max separate JSON sample rows in Custom source (paths merged for dropdowns). */
 const MAPPER_MAX_SOURCE_JSON_ROWS = 8;
+/** Preset combine templates: {0}=Source col 1, {1}=col 2, … — pick from UI to avoid typos. */
+const MAPPER_CONCAT_PRESETS = [
+  { id: "", template: null, labelKey: "mapperConcatPresetNone" },
+  { id: "b01", template: "[{0}] {1}", labelKey: "mapperConcatPresetBracket01" },
+  { id: "c01", template: "{0}: {1}", labelKey: "mapperConcatPresetColon01" },
+  { id: "p01", template: "{0} | {1}", labelKey: "mapperConcatPresetPipe01" },
+  { id: "s01", template: "{0} {1}", labelKey: "mapperConcatPresetSpace01" },
+  { id: "b012", template: "[{0}] {1} {2}", labelKey: "mapperConcatPresetBracket012" },
+  { id: "nl01", template: "{0}\n{1}", labelKey: "mapperConcatPresetNewline01" },
+  { id: "custom", template: null, labelKey: "mapperConcatPresetCustom" },
+];
 let targetFieldsFromUpload = [];
 let customSourceFields = [];
 let mapperMergeListenersAttached = false;
@@ -1486,6 +1497,9 @@ function attachMapperMergeAndOptionListeners() {
   mapperMappingBody?.addEventListener("click", onMapperSrcGridClick);
   mapperMappingBody?.addEventListener("change", (ev) => {
     const rowEl = ev.target.closest("tr[data-target-id]");
+    if (ev.target.classList && ev.target.classList.contains("mapper-concat-preset") && rowEl) {
+      mapperSyncConcatCustomInputVisibility(rowEl);
+    }
     if (rowEl) rowEl.classList.remove("mapper-row-invalid");
   });
 }
@@ -1517,11 +1531,78 @@ function mapperEnsureSourceOption(sel, value) {
   else sel.appendChild(opt);
 }
 
+function mapperConcatPresetOptionsHtml() {
+  return MAPPER_CONCAT_PRESETS.map((p) =>
+    `<option value="${escapeHtml(p.id)}">${escapeHtml(tr(p.labelKey))}</option>`
+  ).join("");
+}
+
+function mapperTemplateToPresetId(t) {
+  const s = String(t || "").trim();
+  if (!s) return "";
+  for (const p of MAPPER_CONCAT_PRESETS) {
+    if (p.id && p.template !== null && p.template === s) return p.id;
+  }
+  return "custom";
+}
+
+function mapperGetConcatTemplateFromRow(rowEl) {
+  const sel = rowEl.querySelector(".mapper-concat-preset");
+  const input = rowEl.querySelector(".mapper-concat-template-input");
+  if (!sel) return input ? input.value.trim() : "";
+  if (sel.value === "custom") return input ? input.value.trim() : "";
+  const p = MAPPER_CONCAT_PRESETS.find((x) => x.id === sel.value);
+  if (!p || p.template == null) return "";
+  return p.template;
+}
+
+function mapperSyncConcatCustomInputVisibility(rowEl) {
+  const sel = rowEl.querySelector(".mapper-concat-preset");
+  const input = rowEl.querySelector(".mapper-concat-template-input");
+  if (!sel || !input) return;
+  if (sel.value === "custom") {
+    input.style.display = "";
+    input.placeholder = tr("mapperConcatTemplatePlaceholder");
+    return;
+  }
+  input.style.display = "none";
+  if (sel.value === "") {
+    input.value = "";
+    return;
+  }
+  const p = MAPPER_CONCAT_PRESETS.find((x) => x.id === sel.value);
+  input.value = p && p.template != null ? p.template : "";
+}
+
+function mapperApplyConcatPresetToRow(rowEl, templateString) {
+  const sel = rowEl.querySelector(".mapper-concat-preset");
+  const input = rowEl.querySelector(".mapper-concat-template-input");
+  if (!sel || !input) return;
+  const t = String(templateString || "").trim();
+  if (!t) {
+    sel.value = "";
+    input.value = "";
+    input.style.display = "none";
+    return;
+  }
+  const presetId = mapperTemplateToPresetId(t);
+  if (presetId === "custom") {
+    sel.value = "custom";
+    input.value = t;
+    input.style.display = "";
+    input.placeholder = tr("mapperConcatTemplatePlaceholder");
+    return;
+  }
+  sel.value = presetId;
+  mapperSyncConcatCustomInputVisibility(rowEl);
+}
+
 function renderMapperMappingTable() {
   if (!mapperMappingBody) return;
   /** Preserve edits when this full re-render is triggered (e.g. live payload / new target parse), not only source-type change. */
   const snap = getMappingsFromForm();
   const targets = targetFieldsFromUpload.length > 0 ? targetFieldsFromUpload : (patternSchemas.target_fields || []);
+  const presetOpts = mapperConcatPresetOptionsHtml();
   mapperMappingBody.innerHTML = targets.map((t) => {
     const vid = `map-val-${t.id}`;
     return `<tr data-target-id="${escapeHtml(t.id)}">
@@ -1533,7 +1614,10 @@ function renderMapperMappingTable() {
           </div>
         </div>
       </td>
-      <td><input type="text" class="mapper-concat-template-input" data-target-id="${escapeHtml(t.id)}" value="" placeholder="${escapeHtml(tr("mapperConcatTemplatePlaceholder"))}" /></td>
+      <td class="mapper-concat-cell">
+        <select class="select mapper-concat-preset" data-target-id="${escapeHtml(t.id)}">${presetOpts}</select>
+        <input type="text" class="mapper-concat-template-input" data-target-id="${escapeHtml(t.id)}" value="" style="display:none" autocomplete="off" />
+      </td>
       <td><input type="text" id="${vid}" class="mapper-static-input" data-target-id="${escapeHtml(t.id)}" placeholder="optional static" /></td>
     </tr>`;
   }).join("");
@@ -1640,8 +1724,7 @@ function getMappingsFromForm() {
   if (!mapperMappingBody) return mappings;
   mapperMappingBody.querySelectorAll("tr[data-target-id]").forEach((rowEl) => {
     const targetId = rowEl.getAttribute("data-target-id");
-    const concatInp = rowEl.querySelector(".mapper-concat-template-input");
-    const concatTpl = concatInp ? concatInp.value.trim() : "";
+    const concatTpl = mapperGetConcatTemplateFromRow(rowEl);
     if (concatTpl) {
       const paths = [];
       rowEl.querySelectorAll(".mapper-src-opt").forEach((sel) => {
@@ -1702,12 +1785,11 @@ function setMappingsToForm(mappings) {
     const tid = m.target_field_id;
     const rowEl = mapperRowByTargetId(tid);
     if (!rowEl) return;
-    const concatIn = rowEl.querySelector(".mapper-concat-template-input");
     const hasConcat = m.concat_template != null && String(m.concat_template).trim() !== "";
     if (hasConcat) {
       const input = rowEl.querySelector(".mapper-static-input");
       if (input) input.value = "";
-      if (concatIn) concatIn.value = String(m.concat_template || "");
+      mapperApplyConcatPresetToRow(rowEl, String(m.concat_template || ""));
       const cpaths = m.concat_paths || [];
       mapperSetOptionRowCount(rowEl, Math.max(1, cpaths.length));
       const sels = rowEl.querySelectorAll(".mapper-src-opt");
@@ -1722,7 +1804,7 @@ function setMappingsToForm(mappings) {
       }
       return;
     }
-    if (concatIn) concatIn.value = "";
+    mapperApplyConcatPresetToRow(rowEl, "");
     const input = rowEl.querySelector(".mapper-static-input");
     const staticVal = m.static_value != null && m.static_value !== "" ? String(m.static_value) : "";
     if (input) input.value = staticVal;

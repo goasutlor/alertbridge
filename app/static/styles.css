@@ -1199,6 +1199,15 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   color: var(--text);
   font-size: 13px;
 }
+.mapper-concat-cell {
+  vertical-align: top;
+  min-width: 11rem;
+}
+.mapper-concat-cell .mapper-concat-preset {
+  width: 100%;
+  max-width: 280px;
+  margin-bottom: 6px;
+}
 .mapper-table input.mapper-concat-template-input {
   max-width: 280px;
   font-family: ui-monospace, monospace;
