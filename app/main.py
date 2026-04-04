@@ -325,7 +325,6 @@ async def preview_transform(
 async def webhook(source: str, request: Request) -> Response:
     request_id = request.state.request_id
     request.state.source = source
-    increment_daily("incoming")
 
     rules = get_rules()
     
@@ -352,6 +351,9 @@ async def webhook(source: str, request: Request) -> Response:
         payload = json.loads(raw_body) if raw_body else {}
     except json.JSONDecodeError as exc:
         raise HTTPException(status_code=400, detail=f"Invalid JSON: {exc}") from exc
+
+    # Count as "incoming" only after auth + route + body + JSON OK so daily: Incoming ≈ Fwd OK + Fwd Fail.
+    increment_daily("incoming")
 
     # Alert unrolling: split alerts[] and forward each (OCP Alertmanager)
     outputs_to_forward: list[Any] = []

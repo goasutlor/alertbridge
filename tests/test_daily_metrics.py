@@ -124,6 +124,17 @@ def test_daily_forward_success_once_per_webhook_when_unroll_all_ok(monkeypatch, 
     assert rows[0]["dlq"] == 0
 
 
+def test_daily_no_incoming_on_route_not_found(monkeypatch, tmp_path: Path) -> None:
+    """404 before route match must not increment daily incoming (keeps Incoming = Fwd OK + Fwd Fail)."""
+    mpath = tmp_path / "metrics" / "daily.json"
+    monkeypatch.setenv("ALERTBRIDGE_DAILY_METRICS_FILE", str(mpath))
+    with TestClient(app) as ac:
+        r = ac.post("/webhook/nonexistent-route-xyz", json={})
+    assert r.status_code == 404
+    rows = read_daily(30)
+    assert not rows or rows[0].get("incoming", 0) == 0
+
+
 def test_api_metrics_daily_returns_entries(monkeypatch, tmp_path: Path) -> None:
     p = tmp_path / "metrics" / "daily.json"
     monkeypatch.setenv("ALERTBRIDGE_DAILY_METRICS_FILE", str(p))
