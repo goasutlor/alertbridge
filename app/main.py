@@ -454,7 +454,6 @@ async def webhook(source: str, request: Request) -> Response:
         rid = f"{request_id}-{i}" if len(outputs_to_forward) > 1 else request_id
         ok, status_code, err, attempt_meta = await forward_payload(output, route, rid, rules.defaults)
         if ok:
-            increment_daily("forward_success")
             out_san = sanitize_payload(output)
             RECENT_SENT.append({
                 "ts": datetime.now(BANGKOK).isoformat()[:23],
@@ -498,6 +497,9 @@ async def webhook(source: str, request: Request) -> Response:
                     "alert_severity": sev or None,
                 }
             )
+    # Daily forward_success: one per incoming webhook only when every outbound succeeded (unroll → N HTTP calls, still 1 tick).
+    if forward_enabled and outputs_to_forward and all_success:
+        increment_daily("forward_success")
     # Daily forward_fail / dlq: one tick per incoming webhook if any outbound failed (not per unrolled alert).
     # DLQ JSONL may still hold one line per failed shard for operations.
     if forward_enabled and not all_success and outputs_to_forward:

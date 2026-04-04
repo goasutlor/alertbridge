@@ -78,6 +78,52 @@ def test_daily_forward_fail_and_dlq_once_per_webhook_with_unroll(monkeypatch, tm
     assert rows[0].get("forward_success", 0) == 0
 
 
+def test_daily_forward_success_once_per_webhook_when_unroll_all_ok(monkeypatch, tmp_path: Path) -> None:
+    """Two unrolled alerts both succeed → 2 RECENT_SENT-style outbounds but 1 daily forward_success (matches incoming)."""
+    mpath = tmp_path / "metrics" / "daily.json"
+    monkeypatch.setenv("ALERTBRIDGE_DAILY_METRICS_FILE", str(mpath))
+
+    rules = RuleSet(
+        version=1,
+        defaults=Defaults(target_timeout_connect_sec=1, target_timeout_read_sec=1),
+        routes=[
+            RouteConfig(
+                name="unroll-ok",
+                match=MatchConfig(source="probe-ok"),
+                target=TargetConfig(
+                    url_env="UNUSED_UNROLL_OK",
+                    url="http://127.0.0.1:9/",
+                ),
+                transform=TransformConfig(),
+                unroll_alerts=True,
+            )
+        ],
+    )
+
+    async def ok_fast(*args, **kwargs):
+        return (
+            True,
+            200,
+            None,
+            {"attempts_used": 1, "max_attempts": 4, "retried": False, "circuit_open": False},
+        )
+
+    monkeypatch.setattr("app.main.forward_payload", ok_fast)
+
+    with TestClient(app) as ac:
+        set_rules(rules)
+        ac.post(
+            "/webhook/probe-ok",
+            json={"alerts": [{"status": "firing", "labels": {}}, {"status": "firing", "labels": {}}]},
+        )
+
+    rows = read_daily(1)
+    assert rows[0]["incoming"] == 1
+    assert rows[0]["forward_success"] == 1
+    assert rows[0]["forward_fail"] == 0
+    assert rows[0]["dlq"] == 0
+
+
 def test_api_metrics_daily_returns_entries(monkeypatch, tmp_path: Path) -> None:
     p = tmp_path / "metrics" / "daily.json"
     monkeypatch.setenv("ALERTBRIDGE_DAILY_METRICS_FILE", str(p))

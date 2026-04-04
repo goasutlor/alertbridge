@@ -58,7 +58,7 @@ def increment_daily(metric: str, amount: int = 1, when: Optional[datetime] = Non
 
     Semantics (main webhook handler):
     - incoming: one per POST webhook accepted
-    - forward_success: one per successful outbound forward (may exceed incoming when unroll_alerts)
+    - forward_success: one per webhook when all outbounds for that webhook succeeded (same cap as incoming; unroll does not multiply)
     - forward_fail: one per incoming webhook that had at least one failed forward
     - dlq: same as forward_fail (aligned with “event” side); DLQ file lines may be higher when unrolling
     If every webhook fails all outbounds that day, incoming = forward_fail = dlq for the day.
