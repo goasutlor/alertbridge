@@ -36,6 +36,8 @@ const mapperApplyRoute = document.getElementById("mapperApplyRoute");
 const mapperApplyBtn = document.getElementById("mapperApplyBtn");
 const mapperStatus = document.getElementById("mapperStatus");
 const savedPatternsList = document.getElementById("savedPatternsList");
+const mapperImportPatternBtn = document.getElementById("mapperImportPatternBtn");
+const mapperImportPatternFile = document.getElementById("mapperImportPatternFile");
 const mapperLoadPatternSelect = document.getElementById("mapperLoadPatternSelect");
 const mapperTargetExample = document.getElementById("mapperTargetExample");
 const mapperTargetFile = document.getElementById("mapperTargetFile");
@@ -2123,6 +2125,77 @@ async function downloadPattern(patternId, patternName) {
   } catch (err) {
     if (mapperStatus) mapperStatus.textContent = "Failed to download.";
   }
+}
+
+/**
+ * Import a pattern from JSON (same shape as GET /api/patterns/:id / Download).
+ * POST /api/patterns with name, source_type, mappings; optional id updates that row.
+ */
+async function importPatternFromJsonData(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error(tr("mapperImportJsonErrInvalidShape"));
+  }
+  if (!Array.isArray(data.mappings)) {
+    throw new Error(tr("mapperImportJsonErrInvalidShape"));
+  }
+  const name = String(data.name || "").trim() || "Imported pattern";
+  const sourceType = String(data.source_type || "").trim();
+  if (!sourceType) {
+    throw new Error(tr("mapperImportJsonErrNoSourceType"));
+  }
+  const mappings = data.mappings;
+  const check = mapperValidateMappingsForSave(mappings);
+  if (!check.ok) {
+    throw new Error(check.msg);
+  }
+  const payload = { name, source_type: sourceType, mappings };
+  if (data.id != null && String(data.id).trim() !== "") {
+    payload.id = String(data.id).trim();
+  }
+  const res = await fetch("/api/patterns", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    let errMsg = tr("mapperImportJsonErrSave");
+    try {
+      const err = await res.json();
+      errMsg = err.detail || errMsg;
+    } catch {
+      errMsg = (await res.text()) || res.statusText || errMsg;
+    }
+    throw new Error(errMsg);
+  }
+  return res.json();
+}
+
+if (mapperImportPatternBtn && mapperImportPatternFile) {
+  mapperImportPatternBtn.addEventListener("click", () => {
+    mapperImportPatternFile.click();
+  });
+  mapperImportPatternFile.addEventListener("change", async () => {
+    const file = mapperImportPatternFile.files && mapperImportPatternFile.files[0];
+    mapperImportPatternFile.value = "";
+    if (!file) return;
+    try {
+      const text = await file.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(tr("mapperImportJsonErrInvalidJson"));
+      }
+      const saved = await importPatternFromJsonData(data);
+      if (saved && saved.id) editorPatternId = saved.id;
+      await loadSavedPatterns();
+      await loadOnePattern(saved.id);
+      if (mapperStatus) mapperStatus.textContent = tr("mapperPatternImportedOk");
+    } catch (e) {
+      if (mapperStatus) mapperStatus.textContent = e.message || String(e);
+    }
+  });
 }
 
 async function applyPatternById(patternId, patternName) {

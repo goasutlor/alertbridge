@@ -168,6 +168,14 @@ const LANG = {
     savedPatternsListHint:
       "Each pattern name appears once in the list. The Active for route(s) badge shows which route(s) use that preset.",
     savedPatternsEmpty: "No saved patterns yet. Map fields above, enter a name, and use Save pattern.",
+    mapperImportJsonBtn: "Import JSON…",
+    mapperImportJsonHint:
+      "Restore from a file in the same format as Download (name, source_type, mappings, optional id). Same id updates that row. Use on another cluster or after backup.",
+    mapperPatternImportedOk: "Pattern imported and loaded into editor.",
+    mapperImportJsonErrInvalidJson: "Could not read the file as JSON.",
+    mapperImportJsonErrInvalidShape: "The file must be an object with a mappings array (same as Download).",
+    mapperImportJsonErrNoSourceType: "The file must include source_type (e.g. ocp-alertmanager-4.20 or custom-paste).",
+    mapperImportJsonErrSave: "Could not save imported pattern.",
     patternActiveBadge: "Active for route(s)",
     patternActiveBadgeTitle: "This preset is the active transform for these route(s).",
     mapperApplyToRouteBtnCurrent: "Current for selected route",
@@ -368,6 +376,14 @@ const LANG = {
     savedPatternsListHint:
       "ชื่อ pattern ไม่ซ้ำในรายการ — ป้าย Active for route(s) บอกว่า route ไหนใช้ preset นี้อยู่",
     savedPatternsEmpty: "ยังไม่มี pattern ที่บันทึก — Map ด้านบน ใส่ชื่อ แล้วกดบันทึก pattern",
+    mapperImportJsonBtn: "นำเข้า JSON…",
+    mapperImportJsonHint:
+      "กู้คืนจากไฟล์รูปแบบเดียวกับ Download (name, source_type, mappings, มีหรือไม่มี id) — id เดิมจะอัปเดตแถวนั้น ใช้ย้ายไปคลัสเตอร์อื่นหรือหลัง backup",
+    mapperPatternImportedOk: "นำเข้าแล้วและโหลดเข้า editor แล้ว",
+    mapperImportJsonErrInvalidJson: "อ่านไฟล์เป็น JSON ไม่ได้",
+    mapperImportJsonErrInvalidShape: "ต้องเป็น object ที่มี mappings เป็น array (เหมือนไฟล์จาก Download)",
+    mapperImportJsonErrNoSourceType: "ต้องมี source_type ในไฟล์ (เช่น ocp-alertmanager-4.20 หรือ custom-paste)",
+    mapperImportJsonErrSave: "บันทึก pattern ที่นำเข้าไม่สำเร็จ",
     patternActiveBadge: "ใช้งานกับ route",
     patternActiveBadgeTitle: "Preset นี้เป็น transform ที่ route เหล่านี้ใช้อยู่",
     mapperApplyToRouteBtnCurrent: "ตรงกับ route ที่เลือก",

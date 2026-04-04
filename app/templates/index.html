@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AlertBridge</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
-    <link rel="stylesheet" href="/static/styles.css?v=47" />
+    <link rel="stylesheet" href="/static/styles.css?v=48" />
   </head>
   <body>
     <div class="hero-bg"></div>
@@ -366,6 +366,11 @@
         <div id="savedPatternsSection" class="saved-patterns">
           <h3 class="mapper-col-title" data-i18n="savedPatternsHeading">Saved patterns</h3>
           <p class="saved-patterns-sub text-muted" data-i18n="savedPatternsListHint"></p>
+          <div class="saved-patterns-import-row">
+            <input type="file" id="mapperImportPatternFile" accept=".json,application/json" hidden />
+            <button type="button" id="mapperImportPatternBtn" class="btn btn-secondary" data-i18n="mapperImportJsonBtn">Import JSON…</button>
+            <span class="saved-patterns-import-hint text-muted" data-i18n="mapperImportJsonHint"></span>
+          </div>
           <ul id="savedPatternsList" class="saved-patterns-list"></ul>
         </div>
       </section>
@@ -434,7 +439,7 @@
       </div>
     </div>
 
-    <script src="/static/i18n.js?v=41"></script>
-    <script src="/static/app.js?v=42"></script>
+    <script src="/static/i18n.js?v=42"></script>
+    <script src="/static/app.js?v=43"></script>
   </body>
 </html>
