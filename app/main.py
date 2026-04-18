@@ -2,6 +2,7 @@ import asyncio
 import copy
 import json
 import logging
+import re
 import os
 import time
 import uuid
@@ -124,13 +125,61 @@ def extract_alert_summary(payload: Any) -> str:
     return ""
 
 
+def _severity_rank_value(label: str) -> int:
+    """Higher = more severe; used to pick one label when a webhook bundles several alerts."""
+    t = (label or "").strip().lower()
+    if not t:
+        return -1
+    if re.search(r"\b(disaster|emergency|fatal|critical)\b", t):
+        return 100
+    if re.search(r"\b(error|major|high)\b", t):
+        return 80
+    if re.search(r"\b(warning|warn)\b", t):
+        return 60
+    if re.search(r"\binfo(rmation)?\b", t):
+        return 40
+    if re.search(r"\b(page|none|normal|low)\b", t):
+        return 20
+    return 5
+
+
+def _worst_severity_from_alerts_list(alerts: list[Any]) -> str:
+    """Return the most severe non-empty alerts[].labels.severity string, or ""."""
+    best_raw = ""
+    best_rank = -1
+    for a in alerts:
+        if not isinstance(a, dict):
+            continue
+        labels = a.get("labels") or {}
+        if not isinstance(labels, dict):
+            continue
+        sv = labels.get("severity")
+        if not sv or not isinstance(sv, str):
+            continue
+        raw = sv.strip()
+        if not raw:
+            continue
+        r = _severity_rank_value(raw)
+        if r > best_rank:
+            best_rank = r
+            best_raw = raw
+    return best_raw
+
+
 def extract_alert_severity(payload: Any) -> str:
     """
     Extract severity/risk level from OCP Alertmanager, Confluent, or transformed output.
-    Checks commonLabels, groupLabels, alerts[].labels, top-level labels, and flat severity.
+    When alerts[] is present, prefers the worst severity among all alert labels (group
+    commonLabels often disagrees with per-alert labels). Otherwise checks top-level
+    severity, commonLabels, groupLabels, and top-level labels.
     """
     if not payload or not isinstance(payload, dict):
         return ""
+    alerts = payload.get("alerts")
+    if isinstance(alerts, list) and alerts:
+        worst = _worst_severity_from_alerts_list(alerts)
+        if worst:
+            return worst[:40]
     v = payload.get("severity")
     if v is not None and not isinstance(v, (dict, list)):
         s = str(v).strip()
@@ -140,13 +189,6 @@ def extract_alert_severity(payload: Any) -> str:
         grp = payload.get(group_key)
         if isinstance(grp, dict):
             sv = grp.get("severity")
-            if sv and isinstance(sv, str):
-                return sv.strip()[:40]
-    alerts = payload.get("alerts")
-    if isinstance(alerts, list) and alerts and isinstance(alerts[0], dict):
-        labels = alerts[0].get("labels") or {}
-        if isinstance(labels, dict):
-            sv = labels.get("severity")
             if sv and isinstance(sv, str):
                 return sv.strip()[:40]
     labels = payload.get("labels")
@@ -424,6 +466,11 @@ async def webhook(source: str, request: Request) -> Response:
             )
         increment_daily("forward_fail")
         increment_daily("dlq")
+        raw_alerts_paused = payload.get("alerts")
+        if isinstance(raw_alerts_paused, list) and raw_alerts_paused:
+            alerts_in_bundle_paused = len(raw_alerts_paused)
+        else:
+            alerts_in_bundle_paused = 1
         RECENT_WEBHOOKS.append({
             "ts": datetime.now(BANGKOK).isoformat()[:23],
             "request_id": request_id,
@@ -433,6 +480,7 @@ async def webhook(source: str, request: Request) -> Response:
             "forwarded": False,
             "alert_summary": alert_summary or None,
             "alert_severity": alert_severity or None,
+            "alerts_in_bundle": alerts_in_bundle_paused,
         })
         RECENT_PAYLOADS.append({
             "ts": datetime.now(BANGKOK).isoformat()[:23],
@@ -554,6 +602,11 @@ async def webhook(source: str, request: Request) -> Response:
     # Append to live feed for UI (newest at end; API returns reversed)
     alert_summary = extract_alert_summary(payload)
     alert_severity_live = extract_alert_severity(payload)
+    raw_alerts = payload.get("alerts")
+    if isinstance(raw_alerts, list) and raw_alerts:
+        alerts_in_bundle = len(raw_alerts)
+    else:
+        alerts_in_bundle = 1
     RECENT_WEBHOOKS.append({
         "ts": datetime.now(BANGKOK).isoformat()[:23],
         "request_id": request_id,
@@ -563,6 +616,7 @@ async def webhook(source: str, request: Request) -> Response:
         "forwarded": success,
         "alert_summary": alert_summary or None,
         "alert_severity": alert_severity_live or None,
+        "alerts_in_bundle": alerts_in_bundle,
     })
     # Store sanitized incoming payload so UI can use as source pattern (real traffic shape)
     RECENT_PAYLOADS.append({

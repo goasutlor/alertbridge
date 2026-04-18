@@ -17,13 +17,15 @@ All notable changes to this project are documented in this file. The format is i
 
 ### Fixed
 
+- **Severity on bundled Alertmanager webhooks:** `extract_alert_severity()` now prefers the **worst** `alerts[].labels.severity` across the whole `alerts[]` list before `commonLabels` / `groupLabels`, so Live Events / payloads match DLQ when one shard is `critical` and the group label is only `warning`.
 - **Field Mapper:** `tr is not a function` when adding source options — DOM row variables named `tr` shadowed the i18n helper `tr()`; renamed to `rowEl` in `mapperSetOptionRowCount`, `onMapperAddSrcOptClick`, and `setMappingsToForm`.
 - **Field Mapper:** `+ Add source option` click handler is attached even when `/api/pattern-schemas` fails (e.g. Basic Auth not ready yet); previously the listener only ran after a successful schema fetch.
 - **Favicon:** `/favicon.ico` and `<link rel="icon" href="/static/favicon.svg">` to stop 404 noise in the console.
-- **DLQ table:** **HTTP** and **Unroll** headers/cells had been left in `index.html` and `renderDlqTable` after the earlier column removal — stripped again; detail row `colspan` aligned (`DLQ_TABLE_COLS = 8`).
+- **DLQ table:** **HTTP** and **Unroll** headers/cells had been left in `index.html` and `renderDlqTable` after the earlier column removal — stripped again; detail row `colspan` aligned (`DLQ_TABLE_COLS` updated with layout changes).
 
 ### Changed
 
+- **UI (Live / DLQ):** Live Events adds an **Alerts** count per POST and tooltips with full **Request ID**; DLQ table replaces the long request-id column with **Webhook** (short id + full id on hover) and **Shard** (`i/N` from unroll) so rows from the same POST are obvious without eyeballing UUID suffixes.
 - **Deploy `install-ocp-pull.yaml`:** Route now sets `spec.host` to the short CWDC-style URL `alertbridge-lite.apps.cwdc.esb-kafka-prod.intra.ais` (edit the `cwdc` segment for tls2 or other shards before apply).
 - **Outbound target probes / logs:** `httpx` and `httpcore` loggers default to WARNING so health probes no longer print one INFO JSON line per HTTP request. **Target status cache** default TTL raised from 12s to **30s** (`ALERTBRIDGE_TARGET_STATUS_CACHE_SEC`) to reduce how often each forward URL is probed (GET + POST per active route per refresh).
 - **POST `/api/patterns/apply` (form with mappings):** Requires an existing saved pattern — `pattern_name` must match a library row (Save first). Apply updates the route transform only; it no longer auto-creates or updates the pattern library on apply. Optional `pattern_id` must match that name.

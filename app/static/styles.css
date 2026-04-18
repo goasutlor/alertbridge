@@ -800,6 +800,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .failed-error-cell { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .live-alert-summary { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .live-table .td-severity { white-space: nowrap; }
+.live-table .td-num { text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .severity-badge {
   display: inline-block;

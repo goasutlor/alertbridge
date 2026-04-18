@@ -75,13 +75,35 @@ let livePage = 1;
 let failedPage = 1;
 let dlqPage = 1;
 
-const DLQ_TABLE_COLS = 8;
+const DLQ_TABLE_COLS = 9;
 
 /** Stable key for checkbox + purge API: dlq_id, or request_id for legacy rows without dlq_id. */
 function dlqPurgeKey(e) {
   if (e.dlq_id) return String(e.dlq_id);
   if (e.request_id) return String(e.request_id);
   return "";
+}
+
+/** One POST /webhook/… id (strip unroll suffix from request_id when base is absent). */
+function dlqWebhookFullId(e) {
+  const b = e && e.base_request_id != null && String(e.base_request_id).trim();
+  if (b) return String(e.base_request_id).trim();
+  const rid = e && e.request_id != null ? String(e.request_id) : "";
+  return rid.replace(/-[0-9]+$/, "") || rid;
+}
+
+function dlqWebhookShort(e) {
+  const full = dlqWebhookFullId(e);
+  return full ? full.slice(0, 8) : "—";
+}
+
+/** 1-based shard index when unroll_alerts produced multiple forwards from one webhook. */
+function dlqShardLabel(e) {
+  const n = Number(e.unroll_count);
+  if (!Number.isFinite(n) || n <= 1) return "—";
+  const i = Number(e.unroll_index);
+  const oneBased = Number.isFinite(i) ? i + 1 : "?";
+  return `${oneBased}/${n}`;
 }
 
 function dlqPageSize() {
@@ -1105,10 +1127,11 @@ function renderLiveRequests(list) {
           <td>${escapeHtml(r.source || "")}</td>
           <td>${escapeHtml(r.route || "")}</td>
           <td class="live-alert-summary" title="${escapeHtml(r.alert_summary || "")}">${escapeHtml((r.alert_summary || "-").slice(0, 60))}${(r.alert_summary || "").length > 60 ? "…" : ""}</td>
+          <td class="td-num" title="${escapeHtml(tr("colAlertsInBundleHint"))}">${escapeHtml(String(r.alerts_in_bundle != null ? r.alerts_in_bundle : 1))}</td>
           <td class="td-severity">${severityBadgeHtml(r.alert_severity)}</td>
           <td class="status-${r.http_status || ""}">${escapeHtml(String(r.http_status || ""))}</td>
           <td class="${r.forwarded ? "forwarded-ok" : "forwarded-fail"}">${r.forwarded ? "yes" : "no"}</td>
-          <td><code>${escapeHtml((r.request_id || "").slice(0, 8))}</code></td>
+          <td><code title="${escapeHtml(r.request_id || "")}">${escapeHtml((r.request_id || "").slice(0, 8))}</code></td>
         </tr>`
     )
     .join("");
@@ -1193,7 +1216,7 @@ function renderFailedEvents(list) {
         <td>${escapeHtml(r.route || "")}</td>
         <td class="td-severity">${severityBadgeHtml(r.alert_severity)}</td>
         <td class="status-${r.http_status || ""}">${escapeHtml(String(r.http_status || ""))}</td>
-        <td><code>${escapeHtml((r.request_id || "").slice(0, 8))}</code></td>
+        <td><code title="${escapeHtml(r.request_id || "")}">${escapeHtml((r.request_id || "").slice(0, 8))}</code></td>
         <td class="failed-error-cell" title="${escapeHtml(r.error || "")}">${escapeHtml((r.error || r.payload_preview || "").slice(0, 60))}${(r.error || r.payload_preview || "").length > 60 ? "…" : ""}</td>
       </tr>`
     )
@@ -2764,7 +2787,8 @@ function renderDlqTable() {
       <td>${escapeHtml(e.source || "")}</td>
       <td>${escapeHtml(e.route || "")}</td>
       <td class="td-severity">${severityBadgeHtml(e.alert_severity)}</td>
-      <td><code>${escapeHtml(e.request_id || "")}</code></td>
+      <td><code title="${escapeHtml(dlqWebhookFullId(e))}">${escapeHtml(dlqWebhookShort(e))}</code></td>
+      <td class="td-num" title="${escapeHtml(tr("dlqColShardHint"))}">${escapeHtml(dlqShardLabel(e))}</td>
       <td class="failed-error-cell" title="${escapeHtml(errFull)}">${escapeHtml(errShort)}${errTrunc ? "…" : ""}</td>
       <td><button type="button" class="btn btn-secondary dlq-detail-btn" data-dlq-toggle="${i}" aria-expanded="${open}">${btnLabel}</button></td>
     </tr>`);

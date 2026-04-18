@@ -7,6 +7,18 @@ def test_extract_severity_common_labels():
     assert extract_alert_severity(p) == "warning"
 
 
+def test_extract_severity_prefers_worst_per_alert_over_common_labels():
+    """Alertmanager groups may set commonLabels.severity while individual alerts differ."""
+    p = {
+        "commonLabels": {"severity": "warning"},
+        "alerts": [
+            {"labels": {"severity": "warning", "alertname": "A"}},
+            {"labels": {"severity": "critical", "alertname": "B"}},
+        ],
+    }
+    assert extract_alert_severity(p) == "critical"
+
+
 def test_extract_severity_alerts_array():
     p = {"alerts": [{"labels": {"severity": "critical", "alertname": "Bar"}}]}
     assert extract_alert_severity(p) == "critical"

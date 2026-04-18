@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AlertBridge</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
-    <link rel="stylesheet" href="/static/styles.css?v=48" />
+    <link rel="stylesheet" href="/static/styles.css?v=49" />
   </head>
   <body>
     <div class="hero-bg"></div>
@@ -80,10 +80,11 @@
                 <th>Source</th>
                 <th>Route</th>
                 <th>Alert</th>
+                <th data-i18n="colAlertsInBundle">Alerts</th>
                 <th data-i18n="colSeverity">Severity</th>
                 <th>Status</th>
                 <th>Forwarded</th>
-                <th>Request ID</th>
+                <th data-i18n="colRequestId">Request ID</th>
               </tr>
             </thead>
             <tbody id="liveRequestsBody"></tbody>
@@ -118,7 +119,7 @@
                 <th>Route</th>
                 <th data-i18n="colSeverity">Severity</th>
                 <th>Status</th>
-                <th>Request ID</th>
+                <th data-i18n="colRequestId">Request ID</th>
                 <th>Error</th>
               </tr>
             </thead>
@@ -167,7 +168,8 @@
                   <th data-i18n="dlqColSource">Source</th>
                   <th data-i18n="dlqColRoute">Route</th>
                   <th data-i18n="colSeverity">Severity</th>
-                  <th data-i18n="dlqColReq">Request ID</th>
+                  <th data-i18n="dlqColWebhook">Webhook</th>
+                  <th data-i18n="dlqColShard">Shard</th>
                   <th data-i18n="dlqColError">Error</th>
                   <th data-i18n="dlqColAction">Detail</th>
                 </tr>
