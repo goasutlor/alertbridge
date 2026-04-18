@@ -569,6 +569,16 @@ async def webhook(source: str, request: Request) -> Response:
         status=str(http_status),
     ).inc()
 
+    # One line per webhook in Live / Failed feeds: severity from full inbound payload first
+    # (worst across alerts[]), not from the last failed shard only — avoids WARNING vs CRITICAL mismatch.
+    alert_summary = extract_alert_summary(payload)
+    alert_severity_bundle = extract_alert_severity(payload)
+    raw_alerts = payload.get("alerts")
+    if isinstance(raw_alerts, list) and raw_alerts:
+        alerts_in_bundle = len(raw_alerts)
+    else:
+        alerts_in_bundle = 1
+
     if not success:
         failed_output = last_failed_output if last_failed_output is not None else (
             outputs_to_forward[-1] if outputs_to_forward else {}
@@ -596,17 +606,10 @@ async def webhook(source: str, request: Request) -> Response:
             "http_status": http_status,
             "payload_preview": json.dumps(failed_san)[:200],
             "error": str(last_error) if last_error else None,
-            "alert_severity": extract_alert_severity(failed_san) or extract_alert_severity(payload) or None,
+            "alert_severity": alert_severity_bundle or extract_alert_severity(failed_san) or None,
         })
 
     # Append to live feed for UI (newest at end; API returns reversed)
-    alert_summary = extract_alert_summary(payload)
-    alert_severity_live = extract_alert_severity(payload)
-    raw_alerts = payload.get("alerts")
-    if isinstance(raw_alerts, list) and raw_alerts:
-        alerts_in_bundle = len(raw_alerts)
-    else:
-        alerts_in_bundle = 1
     RECENT_WEBHOOKS.append({
         "ts": datetime.now(BANGKOK).isoformat()[:23],
         "request_id": request_id,
@@ -615,7 +618,7 @@ async def webhook(source: str, request: Request) -> Response:
         "http_status": http_status,
         "forwarded": success,
         "alert_summary": alert_summary or None,
-        "alert_severity": alert_severity_live or None,
+        "alert_severity": alert_severity_bundle or None,
         "alerts_in_bundle": alerts_in_bundle,
     })
     # Store sanitized incoming payload so UI can use as source pattern (real traffic shape)
@@ -625,7 +628,7 @@ async def webhook(source: str, request: Request) -> Response:
         "route": route.name,
         "request_id": request_id,
         "payload": sanitize_payload(payload),
-        "alert_severity": alert_severity_live or None,
+        "alert_severity": alert_severity_bundle or None,
     })
 
     return JSONResponse(

@@ -17,6 +17,7 @@ All notable changes to this project are documented in this file. The format is i
 
 ### Fixed
 
+- **Failed Events severity vs Live:** `RECENT_FAILED` now uses the same bundle-level severity as Live (`extract_alert_severity(payload)` first), instead of preferring the last failed shard’s transformed payload (which could stay `warning` while another alert in the bundle was `critical`).
 - **Severity on bundled Alertmanager webhooks:** `extract_alert_severity()` now prefers the **worst** `alerts[].labels.severity` across the whole `alerts[]` list before `commonLabels` / `groupLabels`, so Live Events / payloads match DLQ when one shard is `critical` and the group label is only `warning`.
 - **Field Mapper:** `tr is not a function` when adding source options — DOM row variables named `tr` shadowed the i18n helper `tr()`; renamed to `rowEl` in `mapperSetOptionRowCount`, `onMapperAddSrcOptClick`, and `setMappingsToForm`.
 - **Field Mapper:** `+ Add source option` click handler is attached even when `/api/pattern-schemas` fails (e.g. Basic Auth not ready yet); previously the listener only ran after a successful schema fetch.
