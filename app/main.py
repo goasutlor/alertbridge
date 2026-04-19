@@ -27,6 +27,7 @@ from app.config import (
     reload_rules,
     rules_loaded,
     set_rules,
+    strip_legacy_confluent_routes,
     watch_and_reload,
 )
 from app.daily_metrics import daily_metrics_file_path, increment_daily, read_daily
@@ -450,6 +451,8 @@ async def put_config(
         logger.warning("Invalid config: %s", exc)
         raise HTTPException(status_code=400, detail="Invalid config format") from exc
 
+    rules = strip_legacy_confluent_routes(rules)
+
     try:
         persist_rules(rules)
     except PermissionError as exc:
@@ -497,6 +500,12 @@ async def preview_transform(
 async def webhook(source: str, request: Request) -> Response:
     request_id = request.state.request_id
     request.state.source = source
+
+    if source.lower() == "confluent":
+        raise HTTPException(
+            status_code=410,
+            detail="Deprecated: POST to /webhook/ocp only; the separate Confluent route was removed.",
+        )
 
     rules = get_rules()
     

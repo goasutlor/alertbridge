@@ -10,6 +10,7 @@ All notable changes to this project are documented in this file. The format is i
 
 - **UI (Live / Failed / DLQ):** Removed **Route** column (single inbound path `/webhook/ocp`). **DLQ** adds **Alert(s)** with the same preview/tooltip as Live (`alert_bundle_preview` / `alert_bundle_detail` stored per DLQ row; legacy rows backfilled from `transformed` when possible).
 - **Confluent route removed:** Dropped `confluent-alerts` / `TARGET_URL_CONFLUENT` from example rules and deploy manifests; Confluent and other producers use the same OCP webhook URL. Field Mapper **Confluent** preset merge checkbox removed; built-in `confluent-8.10` schema removed from `patterns.py` (flat JSON still works via Custom paste to `/webhook/ocp`). Docs and test scripts updated.
+- **Legacy ConfigMaps still listing Confluent:** On rules load, any route with `match.source: confluent` is **dropped in memory** (warning in logs) so the UI no longer shows `confluent-alerts` or `/webhook/confluent` client URLs after you deploy a new image and restart pods. **`POST /webhook/confluent`** returns **410 Gone** with a migration hint. **`PUT /api/config`** applies the same drop before persist so saves cannot reintroduce a `confluent` route. Saving from the UI (or any successful persist) removes the legacy route from the ConfigMap permanently.
 
 ### Security
 

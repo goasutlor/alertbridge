@@ -51,7 +51,7 @@ Write-Host ""
 
 # Flat JSON via same OCP path
 Write-Host "=== Test 2: Flat JSON alert (same /webhook/ocp) ===" -ForegroundColor Yellow
-$confluentPayload = @{
+$flatOcpPayload = @{
     alertId = "a1"
     description = "Broker down"
     severity = "high"
@@ -64,7 +64,7 @@ try {
             "X-API-Key" = $ApiKey
             "Content-Type" = "application/json"
         } `
-        -Body $confluentPayload
+        -Body $flatOcpPayload
     Write-Host "✅ Success:" -ForegroundColor Green
     $response | ConvertTo-Json
 } catch {

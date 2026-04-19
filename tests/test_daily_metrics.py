@@ -135,6 +135,17 @@ def test_daily_no_incoming_on_route_not_found(monkeypatch, tmp_path: Path) -> No
     assert not rows or rows[0].get("incoming", 0) == 0
 
 
+def test_webhook_confluent_returns_410_without_counting_incoming(monkeypatch, tmp_path: Path) -> None:
+    """Legacy /webhook/confluent is gone; must not count as incoming."""
+    mpath = tmp_path / "metrics" / "daily.json"
+    monkeypatch.setenv("ALERTBRIDGE_DAILY_METRICS_FILE", str(mpath))
+    with TestClient(app) as ac:
+        r = ac.post("/webhook/confluent", json={})
+    assert r.status_code == 410
+    rows = read_daily(30)
+    assert not rows or rows[0].get("incoming", 0) == 0
+
+
 def test_api_metrics_daily_returns_entries(monkeypatch, tmp_path: Path) -> None:
     p = tmp_path / "metrics" / "daily.json"
     monkeypatch.setenv("ALERTBRIDGE_DAILY_METRICS_FILE", str(p))

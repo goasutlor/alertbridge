@@ -1908,7 +1908,7 @@ function setMappingsToForm(mappings) {
 
 function guessSourceTypeByRouteSource(source) {
   const s = String(source || "").toLowerCase();
-  if (s === "ocp" || s.includes("alertmanager") || s.includes("confluent")) return "ocp-alertmanager-4.20";
+  if (s === "ocp" || s.includes("alertmanager")) return "ocp-alertmanager-4.20";
   return "";
 }
 
