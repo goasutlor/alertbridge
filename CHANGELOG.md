@@ -26,7 +26,7 @@ All notable changes to this project are documented in this file. The format is i
 
 ### Changed
 
-- **UI (Live / DLQ):** Live Events adds an **Alerts** count per POST and tooltips with full **Request ID**; DLQ table replaces the long request-id column with **Webhook** (short id + full id on hover) and **Shard** (`i/N` from unroll) so rows from the same POST are obvious without eyeballing UUID suffixes.
+- **UI (traceability):** **Webhook ID** column (after Time) is aligned across Live, Failed, and DLQ; i18n subtitles explain one POST id vs DLQ shard rows. Cache-bust `app.js` / `i18n.js` so thead matches tbody (avoids shifted columns when an old bundle omitted the Alerts column). **DLQ** polls every **3s** when the panel is open after Basic Auth (keeps page + expanded row); manual Refresh still reloads from page 1.
 - **Deploy `install-ocp-pull.yaml`:** Route now sets `spec.host` to the short CWDC-style URL `alertbridge-lite.apps.cwdc.esb-kafka-prod.intra.ais` (edit the `cwdc` segment for tls2 or other shards before apply).
 - **Outbound target probes / logs:** `httpx` and `httpcore` loggers default to WARNING so health probes no longer print one INFO JSON line per HTTP request. **Target status cache** default TTL raised from 12s to **30s** (`ALERTBRIDGE_TARGET_STATUS_CACHE_SEC`) to reduce how often each forward URL is probed (GET + POST per active route per refresh).
 - **POST `/api/patterns/apply` (form with mappings):** Requires an existing saved pattern — `pattern_name` must match a library row (Save first). Apply updates the route transform only; it no longer auto-creates or updates the pattern library on apply. Optional `pattern_id` must match that name.

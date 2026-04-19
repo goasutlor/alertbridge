@@ -4,7 +4,8 @@
 const LANG = {
   en: {
     liveEvents: "Live Events (Incoming Webhooks)",
-    liveEventsSub: "Recent webhooks · auto refresh · Severity = worst among bundled alerts[] when labels differ; use Webhook + Shard in DLQ to match rows.",
+    liveEventsSub:
+      "Recent webhooks · auto refresh · Use Webhook ID (8 chars, hover for full UUID) to match Failed Events and DLQ. One row per POST. Severity = worst among alerts[].",
     liveEmpty: "No webhooks yet. POST to",
     orSource: "or other configured source",
     webhookEndpoints: "Webhook Endpoints (Alert Receivers)",
@@ -46,12 +47,15 @@ const LANG = {
     saveTargetUrls: "Save target URLs & API Keys",
     copyNow: "Copy now — this key is shown only once.",
     failedEvents: "Failed Events (Forward did not succeed)",
-    failedEventsSub: "Recent failed forwards (in-memory) · searchable · use DLQ below for durable history on PVC",
-    failedSearchPlaceholder: "Search: source, route, severity, request_id...",
+    failedEventsSub:
+      "Same Webhook ID as Live for that failure (one row per webhook). In-memory only — DLQ on PVC has one row per failed shard after retries when configured. Search by Webhook ID prefix.",
+    failedSearchPlaceholder: "Search: webhook id, source, route, severity…",
     colSeverity: "Severity",
     colAlertsInBundle: "Alerts",
     colAlertsInBundleHint: "How many alerts were in this POST (alerts[] length, or 1 if not an array).",
     colRequestId: "Request ID",
+    colTraceWebhook: "Webhook ID",
+    colTraceWebhookHint: "Incoming POST id (X-Request-ID). Same across Live, Failed, and DLQ — hover for full UUID.",
     failedEmpty: "No failed events. Forward failures will appear here.",
     noMatchesForSearch: "No matches for search",
     targetFwdChecking: "Target Fwd: Checking…",
@@ -64,13 +68,15 @@ const LANG = {
     recentSentSub:
       "Top row = chronologically last successful forward (same order as forward completion time). One incoming webhook may produce several forwards — if unroll is on, older rows in the same second are earlier shards. Live Events = one line per webhook; summary uses the first alert’s name, severity uses the worst label across alerts[].",
     dlqTitle: "Dead letter queue",
-    dlqSub: "One row per failed forward after retries. Webhook column = same POST for all shards; Shard = which slice of alerts[] (unroll), not HTTP retry. Full per-shard id stays in Detail JSON. Purge after review. Requires Basic Auth.",
+    dlqSub:
+      "Durable rows: one line per alert shard after retries are exhausted (not each retry hop). Webhook ID matches Live/Failed; Shard = slice index when unroll splits alerts[]. Successes never appear here. Purge after review. Requires Basic Auth.",
     dlqOff: "DLQ is not configured. Set ALERTBRIDGE_DLQ_FILE and mount a volume.",
     dlqLogin: "Sign in with Basic Auth to load the DLQ.",
     dlqLimitLabel: "Entries",
     dlqRefresh: "Refresh",
     dlqLoading: "Loading…",
     dlqDone: "Loaded",
+    dlqAutoNote: "Auto every 3s",
     dlqEmpty: "No entries in the file yet.",
     dlqColTime: "Time (GMT+7)",
     dlqColSource: "Source",
@@ -203,7 +209,8 @@ const LANG = {
   },
   th: {
     liveEvents: "Live Events (Webhooks ที่เข้ามา)",
-    liveEventsSub: "รายการล่าสุด · รีเฟรชอัตโนมัติ · Severity = เลือกระดับที่รุนแรงที่สุดจาก alerts[] เมื่อแต่ละตัวไม่เท่ากัน · จับคู่กับ DLQ ใช้คอลัมน์ Webhook + Shard",
+    liveEventsSub:
+      "รายการล่าสุด · รีเฟรชอัตโนมัติ · ใช้ Webhook ID (8 ตัวแรก — ชี้เมาส์ดู UUID เต็ม) จับคู่กับ Failed และ DLQ · หนึ่งแถวต่อ POST · Severity = ระดับที่รุนแรงที่สุดใน alerts[]",
     liveEmpty: "ยังไม่มี webhooks เข้ามา. ส่ง POST มาที่",
     orSource: "หรือ source อื่นที่ configure ไว้",
     webhookEndpoints: "Webhook Endpoints (ช่องทางการรับ Alert)",
@@ -245,12 +252,15 @@ const LANG = {
     saveTargetUrls: "Save target URLs & API Keys",
     copyNow: "Copy now — this key is shown only once.",
     failedEvents: "Failed Events (ส่งไปไม่ได้)",
-    failedEventsSub: "รายการส่งล้มเหลวล่าสุด (ใน memory) · ค้นหาได้ · ใช้ DLQ ด้านล่างสำหรับประวัติบน PVC",
-    failedSearchPlaceholder: "ค้นหา: source, route, severity, request_id...",
+    failedEventsSub:
+      "Webhook ID เดียวกับ Live สำหรับความล้มเหลวนั้น (หนึ่งแถวต่อ webhook) · เก็บใน memory เท่านั้น — DLQ บน PVC หนึ่งแถวต่อ shard หลัง retry ครบเมื่อตั้งค่าแล้ว · ค้นหาด้วย prefix ของ Webhook ID",
+    failedSearchPlaceholder: "ค้นหา: webhook id, source, route, severity…",
     colSeverity: "ระดับความรุนแรง",
     colAlertsInBundle: "จำนวน alert",
     colAlertsInBundleHint: "มีกี่ alert ใน POST นี้ (ความยาว alerts[] หรือ 1 ถ้าไม่ใช่ array)",
     colRequestId: "Request ID",
+    colTraceWebhook: "Webhook ID",
+    colTraceWebhookHint: "รหัส POST เข้า (X-Request-ID) — ตรงกันใน Live, Failed และ DLQ — ชี้เมาส์ดู UUID เต็ม",
     failedEmpty: "ยังไม่มีรายการล้มเหลว. เมื่อ forward ล้มเหลวจะปรากฏที่นี่",
     noMatchesForSearch: "ไม่พบผลลัพธ์จากคำค้น",
     targetFwdChecking: "Target Fwd: กำลังตรวจสอบ…",
@@ -263,13 +273,15 @@ const LANG = {
     recentSentSub:
       "แถวบนสุด = การส่งสำเร็จครั้งล่าสุดตามเวลาจริง (ตรงกับลำดับที่ forward เสร็จ) — webhook เดียวอาจส่งหลายครั้ง ถ้าเปิด unroll แถวถัดไปคือ shard ก่อนหน้าในเวลาใกล้เคียงกัน · Live Events หนึ่งแถวต่อ webhook — ชื่อ alert ใช้ตัวแรก, severity ใช้ระดับที่รุนแรงที่สุดจาก alerts[]",
     dlqTitle: "Dead letter queue (DLQ)",
-    dlqSub: "หนึ่งแถวต่อการส่งที่ล้มเหลวหลัง retry ภายใน — คอลัมน์ Webhook = POST เดียวกันทุก shard; Shard = ลำดับชิ้นใน alerts[] (unroll) ไม่ใช่ retry HTTP — request_id เต็มอยู่ใน Detail JSON — ล้างหลังตรวจ ต้องใช้ Basic Auth",
+    dlqSub:
+      "เก็บถาวร: หนึ่งบรรทัดต่อ shard หลัง retry หมดแล้วยังส่งไม่ได้ (ไม่ใช่ทุกครั้งที่ retry) — Webhook ID ตรงกับ Live/Failed; Shard = ลำดับเมื่อ unroll แยก alerts[] — ส่งสำเร็จจะไม่มาที่นี่ — ล้างหลังตรวจ ต้องใช้ Basic Auth",
     dlqOff: "ยังไม่ได้ตั้งค่า DLQ กำหนด ALERTBRIDGE_DLQ_FILE และ mount volume",
     dlqLogin: "ลงชื่อเข้าใช้ด้วย Basic Auth เพื่อโหลด DLQ",
     dlqLimitLabel: "จำนวน",
     dlqRefresh: "รีเฟรช",
     dlqLoading: "กำลังโหลด…",
     dlqDone: "โหลดแล้ว",
+    dlqAutoNote: "รีเฟรชอัตโนมัติทุก 3 วิ",
     dlqEmpty: "ยังไม่มีรายการในไฟล์",
     dlqColTime: "เวลา (GMT+7)",
     dlqColSource: "Source",
@@ -433,6 +445,10 @@ function applyI18n() {
   document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
     const key = el.getAttribute("data-i18n-placeholder");
     if (key) el.placeholder = t(key);
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+    const key = el.getAttribute("data-i18n-title");
+    if (key) el.title = t(key);
   });
   const enBtn = document.getElementById("langEn");
   const thBtn = document.getElementById("langTh");

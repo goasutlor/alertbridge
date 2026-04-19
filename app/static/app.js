@@ -92,11 +92,6 @@ function dlqWebhookFullId(e) {
   return rid.replace(/-[0-9]+$/, "") || rid;
 }
 
-function dlqWebhookShort(e) {
-  const full = dlqWebhookFullId(e);
-  return full ? full.slice(0, 8) : "—";
-}
-
 /** 1-based shard index when unroll_alerts produced multiple forwards from one webhook. */
 function dlqShardLabel(e) {
   const n = Number(e.unroll_count);
@@ -1124,6 +1119,7 @@ function renderLiveRequests(list) {
       (r) =>
         `<tr>
           <td>${escapeHtml(r.ts || "")}</td>
+          <td>${traceWebhookCell(r.request_id)}</td>
           <td>${escapeHtml(r.source || "")}</td>
           <td>${escapeHtml(r.route || "")}</td>
           <td class="live-alert-summary" title="${escapeHtml(r.alert_summary || "")}">${escapeHtml((r.alert_summary || "-").slice(0, 60))}${(r.alert_summary || "").length > 60 ? "…" : ""}</td>
@@ -1131,7 +1127,6 @@ function renderLiveRequests(list) {
           <td class="td-severity">${severityBadgeHtml(r.alert_severity)}</td>
           <td class="status-${r.http_status || ""}">${escapeHtml(String(r.http_status || ""))}</td>
           <td class="${r.forwarded ? "forwarded-ok" : "forwarded-fail"}">${r.forwarded ? "yes" : "no"}</td>
-          <td><code title="${escapeHtml(r.request_id || "")}">${escapeHtml((r.request_id || "").slice(0, 8))}</code></td>
         </tr>`
     )
     .join("");
@@ -1144,6 +1139,16 @@ function escapeHtml(s) {
   const div = document.createElement("div");
   div.textContent = String(s);
   return div.innerHTML;
+}
+
+/** Same 8-char key across Live / Failed / DLQ; title = full webhook id (strip unroll suffix for display base). */
+function traceWebhookCell(rawId) {
+  const full = rawId != null ? String(rawId).trim() : "";
+  if (!full) return `<span class="text-muted">—</span>`;
+  const base = full.replace(/-[0-9]+$/, "");
+  const short = (base || full).slice(0, 8);
+  const title = base || full;
+  return `<code class="trace-webhook-id" title="${escapeHtml(title)}">${escapeHtml(short)}</code>`;
 }
 
 /** Severity from alert payload (labels.severity, commonLabels, etc.) for table columns. */
@@ -1212,11 +1217,11 @@ function renderFailedEvents(list) {
     .map((r) =>
       `<tr>
         <td>${escapeHtml(r.ts || "")}</td>
+        <td>${traceWebhookCell(r.request_id)}</td>
         <td>${escapeHtml(r.source || "")}</td>
         <td>${escapeHtml(r.route || "")}</td>
         <td class="td-severity">${severityBadgeHtml(r.alert_severity)}</td>
         <td class="status-${r.http_status || ""}">${escapeHtml(String(r.http_status || ""))}</td>
-        <td><code title="${escapeHtml(r.request_id || "")}">${escapeHtml((r.request_id || "").slice(0, 8))}</code></td>
         <td class="failed-error-cell" title="${escapeHtml(r.error || "")}">${escapeHtml((r.error || r.payload_preview || "").slice(0, 60))}${(r.error || r.payload_preview || "").length > 60 ? "…" : ""}</td>
       </tr>`
     )
@@ -2784,11 +2789,11 @@ function renderDlqTable() {
     rows.push(`<tr class="dlq-row">
       <td class="dlq-cb-cell">${cbCell}</td>
       <td>${escapeHtml(e.ts || "")}</td>
+      <td>${traceWebhookCell(dlqWebhookFullId(e))}</td>
+      <td class="td-num" title="${escapeHtml(tr("dlqColShardHint"))}">${escapeHtml(dlqShardLabel(e))}</td>
       <td>${escapeHtml(e.source || "")}</td>
       <td>${escapeHtml(e.route || "")}</td>
       <td class="td-severity">${severityBadgeHtml(e.alert_severity)}</td>
-      <td><code title="${escapeHtml(dlqWebhookFullId(e))}">${escapeHtml(dlqWebhookShort(e))}</code></td>
-      <td class="td-num" title="${escapeHtml(tr("dlqColShardHint"))}">${escapeHtml(dlqShardLabel(e))}</td>
       <td class="failed-error-cell" title="${escapeHtml(errFull)}">${escapeHtml(errShort)}${errTrunc ? "…" : ""}</td>
       <td><button type="button" class="btn btn-secondary dlq-detail-btn" data-dlq-toggle="${i}" aria-expanded="${open}">${btnLabel}</button></td>
     </tr>`);
@@ -2951,13 +2956,22 @@ async function loadDlqPanel() {
   }
 }
 
-async function refreshDlq() {
+/**
+ * @param {{ preserve?: boolean, quiet?: boolean }} [opts]
+ * preserve: keep current page and expanded detail row (for auto-refresh).
+ * quiet: do not show "Loading…" (avoids flicker when polling).
+ */
+async function refreshDlq(opts = {}) {
+  const preserve = opts.preserve === true;
+  const quiet = opts.quiet === true;
   const statusEl = document.getElementById("dlqStatus");
   const pageSize = dlqPageSize();
   const lim = String(Math.min(500, Math.max(50, pageSize * 10)));
-  if (statusEl) statusEl.textContent = tr("dlqLoading");
-  dlqOpenDetailIndex = null;
-  dlqPage = 1;
+  if (!quiet && statusEl) statusEl.textContent = tr("dlqLoading");
+  if (!preserve) {
+    dlqOpenDetailIndex = null;
+    dlqPage = 1;
+  }
   try {
     const res = await fetch(`/api/dlq/recent?limit=${encodeURIComponent(lim)}`, { credentials: "include" });
     const data = await res.json().catch(() => ({}));
@@ -2977,6 +2991,13 @@ async function refreshDlq() {
     dlqSelectedIds.forEach((id) => {
       if (!presentIds.has(id)) dlqSelectedIds.delete(id);
     });
+    if (preserve) {
+      const totalPages = Math.max(1, Math.ceil(entries.length / pageSize));
+      if (dlqPage > totalPages) dlqPage = totalPages;
+      if (dlqOpenDetailIndex != null && dlqOpenDetailIndex >= entries.length) {
+        dlqOpenDetailIndex = null;
+      }
+    }
     if (statusEl) statusEl.textContent = `${tr("dlqDone")} · ${entries.length}`;
     renderDlqTable();
   } catch (e) {
@@ -3007,6 +3028,11 @@ loadLiveRequests();
 loadFailedEvents();
 setInterval(loadLiveRequests, 2500);
 setInterval(loadFailedEvents, 2500);
+setInterval(() => {
+  const panel = document.getElementById("dlqPanel");
+  if (!panel || panel.style.display === "none") return;
+  refreshDlq({ preserve: true, quiet: true });
+}, 3000);
 loadRecentSent();
 setInterval(loadRecentSent, 2500);
 setInterval(loadEffectiveTargets, 5000);
@@ -3014,8 +3040,8 @@ setInterval(loadPortalStatus, 8000);
 setInterval(loadDailyMetrics, 30000);
 loadDailyMetrics();
 
-document.getElementById("dlqRefreshBtn")?.addEventListener("click", () => { refreshDlq(); });
-document.getElementById("dlqLimit")?.addEventListener("change", () => { refreshDlq(); });
+document.getElementById("dlqRefreshBtn")?.addEventListener("click", () => { refreshDlq({ preserve: false, quiet: false }); });
+document.getElementById("dlqLimit")?.addEventListener("change", () => { refreshDlq({ preserve: false, quiet: false }); });
 document.getElementById("dlqPurgeSelectedBtn")?.addEventListener("click", () => { purgeDlqSelected(); });
 document.getElementById("dlqPurgeAllBtn")?.addEventListener("click", () => { purgeDlqAll(); });
 document.getElementById("dlqListWrap")?.addEventListener("click", onDlqTableClick);
