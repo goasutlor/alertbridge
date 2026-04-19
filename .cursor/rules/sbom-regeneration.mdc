@@ -1,0 +1,25 @@
+---
+description: Regenerate committed CycloneDX SBOM when Python dependencies change
+alwaysApply: true
+---
+
+# SBOM (CycloneDX) maintenance
+
+- **Committed file:** `sbom/cyclonedx.json` (CycloneDX JSON). It lists **resolved** package names and **versions** from a clean install of `requirements.txt` (runtime + transitive dependencies).
+
+## When to regenerate (required)
+
+Regenerate the SBOM **in the same change** (same PR / commit series) whenever you:
+
+- Add, remove, or **upgrade/downgrade** any **direct** dependency in `requirements.txt`, or
+- Change anything that alters the **resolved dependency tree** (e.g. relaxing/tightening version ranges so different versions install).
+
+Use `scripts/generate-sbom.sh` (Unix) or `scripts/generate-sbom.ps1` (Windows), then commit the updated `sbom/cyclonedx.json`. See `sbom/README.md` for prerequisites (`cyclonedx-bom`).
+
+## When not to regenerate
+
+If **no** dependency or install-path change occurred (docs-only, app code-only, no `requirements.txt` edits), **do not** regenerate the SBOM; the existing file remains valid.
+
+## Rationale
+
+Keeping the SBOM in sync with `requirements.txt` ensures supply-chain and audit records match what the Docker build and `pip install -r requirements.txt` actually resolve.

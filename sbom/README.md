@@ -1,7 +1,17 @@
 # SBOM (CycloneDX)
 
-- **File:** `cyclonedx.json` — CycloneDX **1.6** JSON, built from **resolved** packages (`pip freeze` after `pip install -r requirements.txt` in a clean virtualenv). This matches what the Docker image installs (runtime + transitive dependencies).
-- **Regenerate** after any change to `requirements.txt` (or when refreshing pinned versions for audits):
+- **File:** `cyclonedx.json` — CycloneDX **1.6** JSON, built from **resolved** packages (`pip freeze` after `pip install -r requirements.txt` in a clean virtualenv). This matches what the Docker image installs (runtime + transitive dependencies). Component **names and versions** in the BOM come from that resolved tree.
+
+## Project rule (maintenance)
+
+| Situation | Action |
+|-----------|--------|
+| **Add / remove / upgrade / downgrade** a dependency in `requirements.txt`, or change version ranges so **resolved versions** change | **Regenerate** `cyclonedx.json` (same PR/commit as the dependency change) using the scripts below, then commit the new file. |
+| **No** change to dependencies or resolved install | **Do not** regenerate; keep the existing SBOM. |
+
+This policy is also recorded for Cursor as `.cursor/rules/sbom-regeneration.mdc`.
+
+- **Regenerate** when the table above requires it:
 
 ```bash
 # Unix / Git Bash

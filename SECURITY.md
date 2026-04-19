@@ -16,7 +16,7 @@
 
 Rebuild container images after changing `requirements.txt`.
 
-- **SBOM:** CycloneDX JSON at `sbom/cyclonedx.json` (regenerate with `scripts/generate-sbom.sh` or `scripts/generate-sbom.ps1` after dependency changes).
+- **SBOM:** CycloneDX JSON at `sbom/cyclonedx.json` (regenerate with `scripts/generate-sbom.sh` or `scripts/generate-sbom.ps1`). **Project rule:** regenerate and commit whenever `requirements.txt` (or effective resolved versions) change; if dependencies are unchanged, keep the existing SBOM. See `sbom/README.md` and `.cursor/rules/sbom-regeneration.mdc`.
 - **Secrets**: No plain passwords in config; use env vars (`password_env`, `BASIC_AUTH_PASSWORD`, etc.) and mount via Kubernetes Secret.
 - **YAML**: Only `yaml.safe_load` / `yaml.safe_dump` (no arbitrary class loading).
 - **Forward URL**: Target URL from env only; scheme restricted to `http`/`https` (no `file:`, `gopher:`, etc.). Redirects disabled (`follow_redirects=False`) to avoid redirect-based SSRF.
