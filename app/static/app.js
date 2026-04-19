@@ -1131,7 +1131,7 @@ function renderLiveRequests(list) {
           <td>${formatTimeGMT7(r.ts)}</td>
           <td>${traceWebhookCell(r.request_id)}</td>
           <td>${escapeHtml(r.route || "")}</td>
-          <td class="live-alert-summary" title="${escapeHtml(r.alert_summary || "")}">${escapeHtml((r.alert_summary || "-").slice(0, 60))}${(r.alert_summary || "").length > 60 ? "…" : ""}</td>
+          ${alertBundleCellHtml(r)}
           <td class="td-num" title="${escapeHtml(tr("colAlertsInBundleHint"))}">${escapeHtml(String(r.alerts_in_bundle != null ? r.alerts_in_bundle : 1))}</td>
           <td class="td-severity">${severityBadgeHtml(r.alert_severity)}</td>
           <td class="td-firing">${firingBadgeHtml(r.alert_firing)}</td>
@@ -1159,6 +1159,14 @@ function traceWebhookCell(rawId) {
   const short = (base || full).slice(0, 8);
   const title = base || full;
   return `<code class="trace-webhook-id" title="${escapeHtml(title)}">${escapeHtml(short)}</code>`;
+}
+
+/** Live/Failed: bundled alert names from inbound payload; tooltip = full [i] list */
+function alertBundleCellHtml(r) {
+  const text = (r.alert_bundle_preview || r.alert_summary || "").trim() || "—";
+  const title = (r.alert_bundle_detail || r.alert_summary || "").trim();
+  const display = text.length > 96 ? `${text.slice(0, 93)}…` : text;
+  return `<td class="live-alert-bundle" title="${escapeHtml(title)}">${escapeHtml(display)}</td>`;
 }
 
 /** Severity from alert payload (labels.severity, commonLabels, etc.) for table columns. */
@@ -1207,7 +1215,8 @@ function filterFailedEvents(list, q) {
     const preview = (r.payload_preview || "").toLowerCase();
     const sev = (r.alert_severity || "").toLowerCase();
     const af = (r.alert_firing || "").toLowerCase();
-    return src.includes(ql) || route.includes(ql) || rid.includes(ql) || err.includes(ql) || preview.includes(ql) || sev.includes(ql) || af.includes(ql);
+    const bun = `${r.alert_bundle_preview || ""} ${r.alert_bundle_detail || ""}`.toLowerCase();
+    return src.includes(ql) || route.includes(ql) || rid.includes(ql) || err.includes(ql) || preview.includes(ql) || sev.includes(ql) || af.includes(ql) || bun.includes(ql);
   });
 }
 
@@ -1242,6 +1251,7 @@ function renderFailedEvents(list) {
         <td>${formatTimeGMT7(r.ts)}</td>
         <td>${traceWebhookCell(r.request_id)}</td>
         <td>${escapeHtml(r.route || "")}</td>
+        ${alertBundleCellHtml(r)}
         <td class="td-severity">${severityBadgeHtml(r.alert_severity)}</td>
         <td class="td-firing">${firingBadgeHtml(r.alert_firing)}</td>
         <td class="status-${r.http_status || ""}">${escapeHtml(String(r.http_status || ""))}</td>

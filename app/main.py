@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 # Bangkok (GMT+7) for all displayed timestamps
 BANGKOK = timezone(timedelta(hours=7))
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
@@ -123,6 +123,54 @@ def extract_alert_summary(payload: Any) -> str:
         if v and isinstance(v, str):
             return v[:100]
     return ""
+
+
+def extract_bundle_alert_names(payload: Any) -> List[str]:
+    """Ordered human-readable name per alerts[] entry (alertname, else annotation snippet)."""
+    if not payload or not isinstance(payload, dict):
+        return []
+    alerts = payload.get("alerts")
+    if not isinstance(alerts, list) or not alerts:
+        return []
+    out: List[str] = []
+    for i, a in enumerate(alerts):
+        if not isinstance(a, dict):
+            out.append(f"(invalid #{i})")
+            continue
+        labels = a.get("labels") if isinstance(a.get("labels"), dict) else {}
+        name = labels.get("alertname") if isinstance(labels, dict) else None
+        if isinstance(name, str) and name.strip():
+            out.append(name.strip()[:200])
+            continue
+        ann = a.get("annotations") if isinstance(a.get("annotations"), dict) else {}
+        if isinstance(ann, dict):
+            s = ann.get("summary") or ann.get("description")
+            if isinstance(s, str) and s.strip():
+                out.append(s.strip()[:120])
+                continue
+        out.append(f"(alert #{i})")
+    return out
+
+
+def format_alert_bundle_for_ui(payload: Any) -> Tuple[str, str]:
+    """
+    One-line preview + newline-separated detail ([0] name …) for Live/Failed rows.
+    Falls back to extract_alert_summary when no alerts[] (e.g. Confluent).
+    """
+    names = extract_bundle_alert_names(payload)
+    if names:
+        detail = "\n".join(f"[{i}] {n}" for i, n in enumerate(names))
+        if len(names) <= 6:
+            preview = " · ".join(f"[{i}] {n}" for i, n in enumerate(names))
+        else:
+            preview = " · ".join(f"[{i}] {n}" for i, n in enumerate(names[:6])) + f" (+{len(names) - 6} more)"
+        if len(preview) > 220:
+            preview = preview[:217] + "…"
+        return (preview, detail)
+    single = extract_alert_summary(payload)
+    if single:
+        return (single[:120] + ("…" if len(single) > 120 else ""), single)
+    return ("", "")
 
 
 def _severity_rank_value(label: str) -> int:
@@ -480,6 +528,7 @@ async def webhook(source: str, request: Request) -> Response:
         san_preview = sanitize_payload(preview_src)
         alert_severity = extract_alert_severity(payload) or extract_alert_severity(san_preview)
         alert_firing_b = extract_bundle_firing_status(payload) or extract_shard_firing_status(san_preview) or None
+        ab_preview, ab_detail = format_alert_bundle_for_ui(payload)
         RECENT_FAILED.append(
             {
                 "ts": datetime.now(BANGKOK).isoformat(timespec="milliseconds"),
@@ -491,6 +540,8 @@ async def webhook(source: str, request: Request) -> Response:
                 "error": err_pause,
                 "alert_severity": alert_severity or None,
                 "alert_firing": alert_firing_b,
+                "alert_bundle_preview": ab_preview or None,
+                "alert_bundle_detail": ab_detail or None,
             }
         )
         if dlq_file_path():
@@ -531,6 +582,8 @@ async def webhook(source: str, request: Request) -> Response:
             "alert_severity": alert_severity or None,
             "alerts_in_bundle": alerts_in_bundle_paused,
             "alert_firing": alert_firing_b,
+            "alert_bundle_preview": ab_preview or None,
+            "alert_bundle_detail": ab_detail or None,
         })
         RECENT_PAYLOADS.append({
             "ts": datetime.now(BANGKOK).isoformat(timespec="milliseconds"),
@@ -627,6 +680,7 @@ async def webhook(source: str, request: Request) -> Response:
     alert_summary = extract_alert_summary(payload)
     alert_severity_bundle = extract_alert_severity(payload)
     alert_firing_bundle = extract_bundle_firing_status(payload)
+    ab_preview, ab_detail = format_alert_bundle_for_ui(payload)
     raw_alerts = payload.get("alerts")
     if isinstance(raw_alerts, list) and raw_alerts:
         alerts_in_bundle = len(raw_alerts)
@@ -662,6 +716,8 @@ async def webhook(source: str, request: Request) -> Response:
             "error": str(last_error) if last_error else None,
             "alert_severity": alert_severity_bundle or extract_alert_severity(failed_san) or None,
             "alert_firing": alert_firing_bundle or extract_shard_firing_status(failed_san) or None,
+            "alert_bundle_preview": ab_preview or None,
+            "alert_bundle_detail": ab_detail or None,
         })
 
     # Append to live feed for UI (newest at end; API returns reversed)
@@ -676,6 +732,8 @@ async def webhook(source: str, request: Request) -> Response:
         "alert_severity": alert_severity_bundle or None,
         "alerts_in_bundle": alerts_in_bundle,
         "alert_firing": alert_firing_bundle or None,
+        "alert_bundle_preview": ab_preview or None,
+        "alert_bundle_detail": ab_detail or None,
     })
     # Store sanitized incoming payload so UI can use as source pattern (real traffic shape)
     RECENT_PAYLOADS.append({

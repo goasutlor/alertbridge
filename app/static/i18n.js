@@ -56,6 +56,9 @@ const LANG = {
     colRequestId: "Request ID",
     colTraceWebhook: "Webhook ID",
     colTraceWebhookHint: "Incoming POST id (X-Request-ID). Same across Live, Failed, and DLQ — hover for full UUID.",
+    colAlertBundle: "Alert(s)",
+    colAlertBundleHint:
+      "Names inside this webhook when Alertmanager sends several alerts in one POST — hover for the full [0]… list.",
     colAlertFiring: "Alert status",
     colAlertFiringHint: "From Alertmanager alerts[].status: firing vs resolved (mixed = both in one POST).",
     colHttpStatus: "HTTP",
@@ -265,6 +268,9 @@ const LANG = {
     colRequestId: "Request ID",
     colTraceWebhook: "Webhook ID",
     colTraceWebhookHint: "รหัส POST เข้า (X-Request-ID) — ตรงกันใน Live, Failed และ DLQ — ชี้เมาส์ดู UUID เต็ม",
+    colAlertBundle: "Alert(s)",
+    colAlertBundleHint:
+      "ชื่อ alert ใน POST เดียวกันเมื่อ Alertmanager ส่งหลายตัว — ชี้เมาส์ดูรายการ [0]… เต็ม",
     colAlertFiring: "สถานะ alert",
     colAlertFiringHint: "จาก Alertmanager alerts[].status: firing หรือ resolved (mixed = ทั้งคู่ใน POST เดียว)",
     colHttpStatus: "HTTP",
