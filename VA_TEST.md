@@ -1,7 +1,7 @@
 # Vulnerability Assessment (VA) Test Report
 
-**Reference Version:** v1.0.08022026  
-**Test Date:** 2026-02-07 (post-dev: Alert unrolling, Circuit breaker, Config auto-reload)  
+**Reference Version:** v1.0.19042026  
+**Test Date:** 2026-04-19 (dependency security bump: urllib3 2.6.x, pytest 9.x, kubernetes 35.x)  
 **Standards/References:**
 - OWASP Top 10 (2021)
 - CWE Top 25 Most Dangerous Software Weaknesses
@@ -16,7 +16,7 @@
 |-----------|--------|---------|
 | **Unit Test** | 13/13 passed | pytest tests/ |
 | **Post Test** | 9/9 passed | API endpoints (healthz, readyz, stats, recent-*, target-status, metrics, webhook) |
-| **VA Scan** | 30 CVEs (transitive) | pip-audit; no critical in app code |
+| **VA Scan** | 0 CVEs (`pip-audit` clean venv) | See §4; prior scan (2026-02-07) had 30 transitive findings before pins |
 
 ---
 
@@ -63,15 +63,17 @@
 
 ## 4. Dependency Scan (pip-audit)
 
-**Command:** `pip install pip-audit && pip-audit`
+**Command:** `python -m venv .venv && .venv/Scripts/pip install -r requirements.txt pip-audit && pip-audit -r requirements.txt` (Windows; use `source .venv/bin/activate` on Unix)
 
-**Direct dependencies (requirements.txt):** fastapi, uvicorn, httpx, PyYAML, prometheus-client, python-json-logger, pydantic, kubernetes, pytest
+**Direct dependencies (requirements.txt):** fastapi, uvicorn, httpx, PyYAML, prometheus-client, python-json-logger, pydantic, kubernetes, urllib3 (explicit), pytest
 
-**Findings:** 30 known vulnerabilities in 11 packages (transitive): cryptography, jinja2, python-multipart, requests, urllib3, werkzeug, ecdsa, python-jose, pyasn1, pip, sentry-sdk. Pulled in by FastAPI, httpx, kubernetes, etc.
+**2026-04-19 findings:** **No known vulnerabilities** with pins: `kubernetes>=35,<36`, `urllib3>=2.6.3,<3`, `pytest>=9.0.3,<10` (addresses CVE-2025-71176, urllib3 CVEs/GHSAs listed in `SECURITY.md`).
+
+**Historical (2026-02-07):** 30 known vulnerabilities in transitive deps (urllib3 1.26.x under kubernetes 28.x, older pytest, etc.).
 
 **Recommendations:**
-- Run `pip-audit` regularly; upgrade direct deps to pull fixed transitive versions
-- Pin versions in requirements.txt (already done)
+- Run `pip-audit` regularly after dependency changes
+- Rebuild Docker/OCP images when `requirements.txt` changes
 - Monitor https://github.com/pypa/advisory-database for new advisories
 
 ---

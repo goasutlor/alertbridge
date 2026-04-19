@@ -1,4 +1,6 @@
 # Pinned for reproducible builds and security audits. Run: pip-audit
+# 2026-04-19: pip-audit clean — explicit urllib3>=2.6.3 (CVE-2025-50181, CVE-2025-66418,
+#   CVE-2025-66471, CVE-2026-21441); pytest>=9.0.3 (CVE-2025-71176); kubernetes>=35 (drops urllib3<2 cap).
 fastapi>=0.115,<1
 uvicorn>=0.32,<1
 httpx>=0.27,<1
@@ -6,5 +8,6 @@ PyYAML>=6.0.1,<7
 prometheus-client>=0.21,<1
 python-json-logger>=2.0,<3
 pydantic>=2,<3
-kubernetes>=28,<29
-pytest>=8,<9
+kubernetes>=35,<36
+urllib3>=2.6.3,<3
+pytest>=9.0.3,<10

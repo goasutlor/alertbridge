@@ -6,6 +6,10 @@ All notable changes to this project are documented in this file. The format is i
 
 <!-- Upcoming changes go here before release tagging. -->
 
+### Security
+
+- **Dependencies (pip-audit 2026-04-19):** Pinned `urllib3>=2.6.3,<3`, `pytest>=9.0.3,<10`, `kubernetes>=35,<36` so a clean install reports **no known CVEs** in the resolved tree (addresses urllib3 redirect/decompression CVEs/GHSAs, pytest CVE-2025-71176; kubernetes 35+ allows urllib3 2.x). Documented in `SECURITY.md` and `VA_TEST.md`.
+
 ### Added
 
 - **Live / Failed — bundled alert names:** When Alertmanager sends multiple `alerts[]` in one webhook, the UI shows a short **Alert(s)** preview (`[i] name · …`) with a hover tooltip listing every `[i] name` line; API fields `alert_bundle_preview` / `alert_bundle_detail` on recent Live and Failed rows. **Failed Events** client search matches those fields. i18n `colAlertBundle` / `colAlertBundleHint`; cache-bust static assets. Computation is a single pass over `alerts[]` at ingest (same order of magnitude as existing summary/severity extraction). **Tests:** `extract_bundle_alert_names` / `format_alert_bundle_for_ui` in `tests/test_alert_extract.py`.

@@ -59,7 +59,7 @@ def patch_configmap_rules(configmap_name: str, namespace: str, rules_yaml: str) 
             )
 
     try:
-        # kubernetes>=28: patch_namespaced_config_map no longer accepts _content_type;
+        # kubernetes>=28 (tested through 35.x): patch_namespaced_config_map no longer accepts _content_type;
         # default PATCH headers are ambiguous. read + replace (PUT) uses plain JSON and
         # matches RBAC verbs: get + update (see deploy Role for configmaps).
         v1 = client.CoreV1Api()
