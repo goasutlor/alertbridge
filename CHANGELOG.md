@@ -8,7 +8,7 @@ All notable changes to this project are documented in this file. The format is i
 
 ### Changed
 
-- **Greenfield (no legacy customers):** Removed migration shims — no in-memory dropping of `confluent` routes and no **410** on `POST /webhook/confluent`; unknown paths behave like any unmatched `match.source` (**404**). Deploy manifests and examples already use a single inbound route (`ocp`).
+- **Config still listing `confluent` routes:** On load and before `PUT /api/config` persist, routes with `match.source: confluent` are **dropped** so the UI (Target URLs, Client Info, forward summary) stays **OCP-only** even if a ConfigMap still contains `confluent-alerts`. Saving from the UI writes YAML without them; `POST /webhook/confluent` then **404** (no matching route).
 - **Documentation & copy:** Aligned **ARCHITECTURE**, **FEATURES**, **VA_TEST**, **OCP_DEPLOY**, Field Mapper i18n, and `docs/TARGET_PATTERN_EXAMPLES.json` with a **single inbound source** (`POST /webhook/ocp`); removed remaining “two routes / Confluent” wording outside historical changelog notes.
 - **UI (Live / Failed / DLQ):** Removed **Route** column (single inbound path `/webhook/ocp`). **DLQ** adds **Alert(s)** with the same preview/tooltip as Live (`alert_bundle_preview` / `alert_bundle_detail` stored per DLQ row; legacy rows backfilled from `transformed` when possible).
 - **Confluent route removed:** Dropped `confluent-alerts` / `TARGET_URL_CONFLUENT` from example rules and deploy manifests; Confluent and other producers use the same OCP webhook URL. Field Mapper **Confluent** preset merge checkbox removed; built-in `confluent-8.10` schema removed from `patterns.py` (flat JSON still works via Custom paste to `/webhook/ocp`). Docs and test scripts updated.

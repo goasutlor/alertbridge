@@ -27,6 +27,7 @@ from app.config import (
     reload_rules,
     rules_loaded,
     set_rules,
+    strip_disallowed_confluent_routes,
     watch_and_reload,
 )
 from app.daily_metrics import daily_metrics_file_path, increment_daily, read_daily
@@ -449,6 +450,8 @@ async def put_config(
     except Exception as exc:
         logger.warning("Invalid config: %s", exc)
         raise HTTPException(status_code=400, detail="Invalid config format") from exc
+
+    rules = strip_disallowed_confluent_routes(rules)
 
     try:
         persist_rules(rules)
