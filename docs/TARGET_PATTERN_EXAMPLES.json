@@ -16,16 +16,16 @@
       "status": "firing"
     }
   },
-  "confluent_style": {
-    "description": "รูปแบบจาก route confluent-alerts (transform ปัจจุบันใน rules)",
+  "flat_json_style": {
+    "description": "รูปแบบ JSON แบบ flat ที่ส่งเข้า POST /webhook/ocp (map ใน rules / Field Mapper)",
     "example": {
       "alert_id": "alert-9f3a2b1c-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
       "message": "Under-replicated partitions detected on topic orders",
       "severity": "critical"
     }
   },
-  "confluent_style_alternate": {
-    "description": "ตัวอย่าง Confluent อีกชุด (random values)",
+  "flat_json_style_alternate": {
+    "description": "ตัวอย่าง flat JSON อีกชุด",
     "example": {
       "alert_id": "connector-fail-20260303-001",
       "message": "Kafka Connect connector sink-elastic failed with exception",

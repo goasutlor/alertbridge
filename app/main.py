@@ -98,10 +98,10 @@ async def favicon() -> FileResponse:
 
 
 def extract_alert_summary(payload: Any) -> str:
-    """Extract alert name/summary from OCP Alertmanager or Confluent payload."""
+    """Extract alert name/summary from Alertmanager-shaped or flat JSON on /webhook/ocp."""
     if not payload or not isinstance(payload, dict):
         return ""
-    # Confluent: description, alertId, severity
+    # Flat JSON (no alerts[]): description, alertId, severity, etc.
     for k in ("description", "alertId", "severity"):
         v = payload.get(k)
         if v and isinstance(v, str):
@@ -156,7 +156,7 @@ def extract_bundle_alert_names(payload: Any) -> List[str]:
 def format_alert_bundle_for_ui(payload: Any) -> Tuple[str, str]:
     """
     One-line preview + newline-separated detail ([0] name …) for Live/Failed rows.
-    Falls back to extract_alert_summary when no alerts[] (e.g. Confluent).
+    Falls back to extract_alert_summary when no alerts[] (e.g. flat JSON).
     """
     names = extract_bundle_alert_names(payload)
     if names:
@@ -217,7 +217,7 @@ def _worst_severity_from_alerts_list(alerts: list[Any]) -> str:
 
 def extract_alert_severity(payload: Any) -> str:
     """
-    Extract severity/risk level from OCP Alertmanager, Confluent, or transformed output.
+    Extract severity/risk level from Alertmanager-shaped payloads, flat JSON, or transformed output.
     When alerts[] is present, prefers the worst severity among all alert labels (group
     commonLabels often disagrees with per-alert labels). Otherwise checks top-level
     severity, commonLabels, groupLabels, and top-level labels.

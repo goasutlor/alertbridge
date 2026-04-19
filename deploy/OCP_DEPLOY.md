@@ -1,6 +1,6 @@
 # Deploy alertbridge-lite on OpenShift (Production)
 
-Guide for deploying on OCP with OCP Alertmanager and Confluent Platform sending webhooks over HTTPS.
+Guide for deploying on OpenShift: **one HTTPS inbound webhook** (`POST /webhook/ocp`) for Alertmanager and any other producers that post JSON to the same URL.
 
 ## Dev → Prod Workflow
 
@@ -14,11 +14,11 @@ Test local → Push Git → OCP deploy → Same results 100%.
 ## Architecture
 
 ```
-[OCP Alertmanager]  --HTTPS-->  [alertbridge-lite]  --HTTP/HTTPS-->  [Target]
-[Confluent Platform] --HTTPS-->       (Route + TLS)                      (configurable)
+[Producers e.g. Alertmanager]  --HTTPS-->  [alertbridge-lite]  --HTTP/HTTPS-->  [Target]
+                                      (Route + TLS)                      (configurable)
 ```
 
-- **Inbound**: OCP Alertmanager and Confluent send webhooks to alertbridge-lite via **HTTPS** (OpenShift Route)
+- **Inbound**: All clients use the **same** path `POST /webhook/ocp` over **HTTPS** (OpenShift Route)
 - **Outbound**: alertbridge-lite forwards to target (HTTP or HTTPS per config)
 
 ## HTTPS and Wildcard Cert (*.apps.domain)
@@ -26,7 +26,7 @@ Test local → Push Git → OCP deploy → Same results 100%.
 ### No cert exchange required
 
 - **Server (alertbridge-lite)**: Uses wildcard cert `*.apps.domain` via OpenShift Route
-- **Client (OCP Alertmanager, Confluent)**: Uses API Key in header, no client cert
+- **Clients**: API Key in header (or Bearer), no client cert
 - Route presents cert for client verification only
 
 ### Using your wildcard cert on Route
@@ -109,17 +109,16 @@ http_config:
 
 Ensure API Key matches the one generated in alertbridge-lite (API Keys section).
 
-## Confluent Platform (and other producers)
+## Other producers (Kafka tooling, scripts, etc.)
 
-Point Confluent (or any other) webhook integration at the **same** URL as Alertmanager:  
-`https://<route-host>/webhook/ocp` — same API key and JSON body as your OCP route.  
-There is no separate `/webhook/confluent` path in the default deployment.
+Point any webhook integration at the **same** URL as Alertmanager:  
+`https://<route-host>/webhook/ocp` — same API key; body can be Alertmanager-shaped JSON or flat JSON mapped in rules.
 
-## Webhook Paths
+## Webhook path
 
-| Source   | Path                | Used by              |
-|----------|---------------------|----------------------|
-| ocp      | `/webhook/ocp`      | OCP Alertmanager, Confluent, etc. |
+| `match.source` | Path           | Notes |
+|----------------|----------------|-------|
+| `ocp`          | `/webhook/ocp` | Only inbound path used in default manifests |
 
 `match.source` in `routes` must be `ocp` for this path.
 
@@ -151,5 +150,5 @@ When deployed with `install-ocp.yaml` or `k8s.yaml` (ServiceAccount + RBAC):
 ## Compatibility
 
 - **OCP Alertmanager**: Webhook format supported (incl. v4)
-- **Flat JSON payloads** (e.g. legacy Confluent-style) can be posted to `/webhook/ocp` and mapped via Field Mapper / Custom paste
+- **Flat JSON payloads** can be posted to `/webhook/ocp` and mapped via Field Mapper / Custom paste
 - Authentication: `X-API-Key` or `Authorization: Bearer` (both sides support header-based auth)

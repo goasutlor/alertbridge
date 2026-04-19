@@ -32,7 +32,7 @@ def test_extract_severity_alerts_array():
     assert extract_alert_severity(p) == "critical"
 
 
-def test_extract_severity_confluent_flat():
+def test_extract_severity_flat_json_no_alerts_array():
     p = {"severity": "info", "alertId": "x"}
     assert extract_alert_severity(p) == "info"
 

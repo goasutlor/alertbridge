@@ -30,7 +30,7 @@ curl -X POST "${BASE_URL}/webhook/ocp" \
   }'
 echo -e "\n"
 
-# Test flat JSON (e.g. legacy Confluent-style) via same OCP path
+# Test flat JSON via same OCP path
 echo "=== Test 2: Flat JSON alert (same /webhook/ocp) ==="
 curl -X POST "${BASE_URL}/webhook/ocp" \
   -H "X-API-Key: ${API_KEY}" \

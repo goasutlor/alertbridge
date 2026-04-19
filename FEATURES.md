@@ -56,7 +56,7 @@
 ### 3.1 Live Events
 - **Storage:** RECENT_WEBHOOKS (maxlen=20)
 - **Fields:** ts, request_id, source, route, http_status, forwarded, alert_summary
-- **alert_summary:** Extracted from OCP (labels.alertname, annotations.summary) or Confluent (description, alertId)
+- **alert_summary:** Extracted from Alertmanager-shaped payloads (labels.alertname, annotations.summary) or flat JSON (description, alertId, etc.)
 - **Backend:** `main.py` extract_alert_summary(), RECENT_WEBHOOKS.append()
 - **API:** GET /api/recent-requests
 
@@ -75,7 +75,7 @@
 - **UI:** Header "Target Fwd: Online/Offline" or "1/2 OK"; per-target badge in "Server will forward to"
 
 ### 3.4 Field Mapper
-- **Source schemas:** OCP Alertmanager 4.20, Confluent 8.10 (patterns.py SOURCE_SCHEMAS)
+- **Source schemas:** OCP Alertmanager 4.20 built-in catalog in `patterns.py` SOURCE_SCHEMAS (Custom paste for other JSON shapes)
 - **Target fields:** severity, title, message, env, site, source_id, timestamp
 - **Patterns:** In-memory (_saved_patterns), build_transform_from_mapping → TransformConfig
 - **Apply:** PATCH route.transform via persist_rules

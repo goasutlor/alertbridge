@@ -5,10 +5,10 @@
 ## 1. High-Level Overview
 
 ```
-┌─────────────────┐     POST /webhook/{source}      ┌──────────────────────┐
-│  OCP Alertmgr   │ ─────────────────────────────► │                      │
-│  Confluent      │     (API Key / HMAC optional)         │   alertbridge-lite   │
-│  Other clients  │                                 │   (FastAPI)          │
+┌─────────────────┐     POST /webhook/ocp         ┌──────────────────────┐
+│  Producers       │ ─────────────────────────────► │                      │
+│  (Alertmanager,  │     (API Key / HMAC optional)   │   alertbridge-lite   │
+│   scripts, etc.) │                                 │   (FastAPI)          │
 └─────────────────┘                                 │                      │
                                                     │  Transform ────────► │  Target
                                                     │  (YAML rules)        │  (HTTPS)
@@ -21,7 +21,7 @@
                                                     └──────────────────────┘
 ```
 
-**Purpose:** Stateless webhook relay that receives JSON alerts from multiple sources (OCP Alertmanager, Confluent, etc.), transforms them via YAML rules, and forwards to HTTPS targets.
+**Purpose:** Stateless webhook relay that receives JSON on **one inbound URL** (`POST /webhook/ocp`), transforms via YAML rules, and forwards to HTTPS targets.
 
 ---
 
@@ -70,7 +70,7 @@ alertbridge-lite/
 
 ## 4. Core Data Flow
 
-### 4.1 Webhook Flow (POST /webhook/{source})
+### 4.1 Webhook Flow (POST /webhook/ocp — legacy `POST /webhook/confluent` returns 410)
 
 1. **Request** → middleware assigns `request_id`
 2. **API Key** → `verify_api_key()` (if auth.api_keys configured)
@@ -123,7 +123,7 @@ alertbridge-lite/
 | **config.py** | Rules load/save, RLock for cache |
 | **rules.py** | RuleSet schema, select_route, transform_payload, sanitize_payload |
 | **forwarder.py** | httpx client, forward_payload, check_target_status (Phase1+2) |
-| **patterns.py** | SOURCE_SCHEMAS (OCP, Confluent), TARGET_FIELDS, build_transform_from_mapping |
+| **patterns.py** | SOURCE_SCHEMAS (OCP Alertmanager built-in), TARGET_FIELDS, build_transform_from_mapping |
 | **k8s_configmap.py** | Patch ConfigMap when ALERTBRIDGE_CONFIGMAP_NAME set |
 
 ---

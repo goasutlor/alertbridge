@@ -39,7 +39,7 @@
 | Live Events (20 items) | ✅ | RECENT_WEBHOOKS deque |
 | Failed Events (200 stored, 20 displayed) | ✅ | RECENT_FAILED, search |
 | Target Fwd status (Phase1+Phase2) | ✅ | /api/target-status |
-| Alert summary in Live Events | ✅ | OCP + Confluent extraction |
+| Alert summary in Live Events | ✅ | Alertmanager + flat JSON extraction |
 | Field Mapper / Patterns | ✅ | Save, load, apply |
 | Metrics (Prometheus) | ✅ | /metrics |
 | Security headers | ✅ | CSP, X-Frame-Options, etc. |

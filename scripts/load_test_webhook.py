@@ -49,19 +49,17 @@ OCP_PAYLOADS = [
     },
 ]
 
-# Random Confluent-style payloads
-CONFLUENT_PAYLOADS = [
+# Flat JSON samples (same inbound path as OCP: POST /webhook/ocp)
+FLAT_JSON_PAYLOADS = [
     {"alertId": "a1", "description": "Broker down", "severity": "high"},
     {"alertId": "a2", "description": "Under replicated partitions", "severity": "medium"},
 ]
 
 
-def random_payload(source: str) -> dict:
-    if source != "ocp":
-        return random.choice(OCP_PAYLOADS).copy()
+def random_payload(_source: str) -> dict:
     # Mix Alertmanager-shaped and flat JSON (both accepted on /webhook/ocp)
     if random.random() < 0.2:
-        return random.choice(CONFLUENT_PAYLOADS).copy()
+        return random.choice(FLAT_JSON_PAYLOADS).copy()
     p = random.choice(OCP_PAYLOADS).copy()
     p["labels"] = {**p["labels"], "instance": f"node-{random.randint(1, 20)}"}
     return p
