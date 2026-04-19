@@ -1130,7 +1130,6 @@ function renderLiveRequests(list) {
         `<tr>
           <td>${formatTimeGMT7(r.ts)}</td>
           <td>${traceWebhookCell(r.request_id)}</td>
-          <td>${escapeHtml(r.route || "")}</td>
           ${alertBundleCellHtml(r)}
           <td class="td-num" title="${escapeHtml(tr("colAlertsInBundleHint"))}">${escapeHtml(String(r.alerts_in_bundle != null ? r.alerts_in_bundle : 1))}</td>
           <td class="td-severity">${severityBadgeHtml(r.alert_severity)}</td>
@@ -1209,14 +1208,13 @@ function filterFailedEvents(list, q) {
   const ql = q.trim().toLowerCase();
   return list.filter((r) => {
     const src = (r.source || "").toLowerCase();
-    const route = (r.route || "").toLowerCase();
     const rid = (r.request_id || "").toLowerCase();
     const err = (r.error || "").toLowerCase();
     const preview = (r.payload_preview || "").toLowerCase();
     const sev = (r.alert_severity || "").toLowerCase();
     const af = (r.alert_firing || "").toLowerCase();
     const bun = `${r.alert_bundle_preview || ""} ${r.alert_bundle_detail || ""}`.toLowerCase();
-    return src.includes(ql) || route.includes(ql) || rid.includes(ql) || err.includes(ql) || preview.includes(ql) || sev.includes(ql) || af.includes(ql) || bun.includes(ql);
+    return src.includes(ql) || rid.includes(ql) || err.includes(ql) || preview.includes(ql) || sev.includes(ql) || af.includes(ql) || bun.includes(ql);
   });
 }
 
@@ -1250,7 +1248,6 @@ function renderFailedEvents(list) {
       `<tr>
         <td>${formatTimeGMT7(r.ts)}</td>
         <td>${traceWebhookCell(r.request_id)}</td>
-        <td>${escapeHtml(r.route || "")}</td>
         ${alertBundleCellHtml(r)}
         <td class="td-severity">${severityBadgeHtml(r.alert_severity)}</td>
         <td class="td-firing">${firingBadgeHtml(r.alert_firing)}</td>
@@ -1424,12 +1421,8 @@ function getMapperSourceFieldsList() {
   }
   if (id && id !== "") {
     const mergeOcp = document.getElementById("mapperMergeOcp");
-    const mergeCf = document.getElementById("mapperMergeConfluent");
     if (mergeOcp && mergeOcp.checked) {
       ((patternSchemas.source_schemas || {})["ocp-alertmanager-4.20"]?.fields || []).forEach(addField);
-    }
-    if (mergeCf && mergeCf.checked) {
-      ((patternSchemas.source_schemas || {})["confluent-8.10"]?.fields || []).forEach(addField);
     }
   }
   out.sort((a, b) => {
@@ -1555,10 +1548,8 @@ function onMapperSrcGridClick(ev) {
 function attachMapperMergeAndOptionListeners() {
   if (mapperMergeListenersAttached) return;
   mapperMergeListenersAttached = true;
-  ["mapperMergeOcp", "mapperMergeConfluent"].forEach((id) => {
-    document.getElementById(id)?.addEventListener("change", () => {
-      onMapperSourceTypeChange();
-    });
+  document.getElementById("mapperMergeOcp")?.addEventListener("change", () => {
+    onMapperSourceTypeChange();
   });
   mapperMappingBody?.addEventListener("click", onMapperSrcGridClick);
   mapperMappingBody?.addEventListener("change", (ev) => {
@@ -1737,31 +1728,23 @@ function mapperConcatTemplateMaxPlaceholderIndex(template) {
 }
 
 /**
- * Custom mode: if loaded paths belong to OCP/Confluent preset lists but not to pasted custom fields,
- * enable the corresponding merge checkboxes so dropdowns list every path (reduces load/edit mistakes).
+ * Custom mode: if loaded paths belong to the OCP preset list but not to pasted custom fields,
+ * enable the OCP merge checkbox so dropdowns list every path (reduces load/edit mistakes).
  * @returns {boolean} true if any checkbox was turned on
  */
 function mapperAutoMergePresetsForMappings(mappings) {
   const ocpFields = new Set((patternSchemas.source_schemas?.["ocp-alertmanager-4.20"]?.fields || []).map((f) => f.id));
-  const cfFields = new Set((patternSchemas.source_schemas?.["confluent-8.10"]?.fields || []).map((f) => f.id));
   const customIds = new Set((customSourceFields || []).map((f) => f.id));
   let needOcp = false;
-  let needCf = false;
   for (const m of mappings) {
     for (const p of mapperPathsInMapping(m)) {
       if (ocpFields.has(p) && !customIds.has(p)) needOcp = true;
-      if (cfFields.has(p) && !customIds.has(p)) needCf = true;
     }
   }
   const mergeOcp = document.getElementById("mapperMergeOcp");
-  const mergeCf = document.getElementById("mapperMergeConfluent");
   let toggled = false;
   if (needOcp && mergeOcp && !mergeOcp.checked) {
     mergeOcp.checked = true;
-    toggled = true;
-  }
-  if (needCf && mergeCf && !mergeCf.checked) {
-    mergeCf.checked = true;
     toggled = true;
   }
   return toggled;
@@ -1925,8 +1908,7 @@ function setMappingsToForm(mappings) {
 
 function guessSourceTypeByRouteSource(source) {
   const s = String(source || "").toLowerCase();
-  if (s === "ocp" || s.includes("alertmanager")) return "ocp-alertmanager-4.20";
-  if (s.includes("confluent")) return "confluent-8.10";
+  if (s === "ocp" || s.includes("alertmanager") || s.includes("confluent")) return "ocp-alertmanager-4.20";
   return "";
 }
 
@@ -2447,7 +2429,7 @@ async function loadRecentPayloads() {
     
     if (recentPayloadsList) {
       if (uniquePayloads.length === 0) {
-        recentPayloadsList.innerHTML = "<li class=\"text-muted\">No incoming payloads yet. Send webhooks to /webhook/ocp or /webhook/confluent (or your route).</li>";
+        recentPayloadsList.innerHTML = "<li class=\"text-muted\">No incoming payloads yet. Send webhooks to /webhook/ocp.</li>";
       } else {
         const totalCount = allPayloads.length;
         const uniqueCount = uniquePayloads.length;
@@ -2826,7 +2808,7 @@ function renderDlqTable() {
       <td>${formatTimeGMT7(e.ts)}</td>
       <td>${traceWebhookCell(dlqWebhookFullId(e))}</td>
       <td class="td-num" title="${escapeHtml(tr("dlqColShardHint"))}">${escapeHtml(dlqShardLabel(e))}</td>
-      <td>${escapeHtml(e.route || "")}</td>
+      ${alertBundleCellHtml(e)}
       <td class="td-severity">${severityBadgeHtml(e.alert_severity)}</td>
       <td class="td-firing">${firingBadgeHtml(e.alert_firing)}</td>
       <td class="failed-error-cell" title="${escapeHtml(errFull)}">${escapeHtml(errShort)}${errTrunc ? "…" : ""}</td>

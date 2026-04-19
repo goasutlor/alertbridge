@@ -6,6 +6,11 @@ All notable changes to this project are documented in this file. The format is i
 
 <!-- Upcoming changes go here before release tagging. -->
 
+### Changed
+
+- **UI (Live / Failed / DLQ):** Removed **Route** column (single inbound path `/webhook/ocp`). **DLQ** adds **Alert(s)** with the same preview/tooltip as Live (`alert_bundle_preview` / `alert_bundle_detail` stored per DLQ row; legacy rows backfilled from `transformed` when possible).
+- **Confluent route removed:** Dropped `confluent-alerts` / `TARGET_URL_CONFLUENT` from example rules and deploy manifests; Confluent and other producers use the same OCP webhook URL. Field Mapper **Confluent** preset merge checkbox removed; built-in `confluent-8.10` schema removed from `patterns.py` (flat JSON still works via Custom paste to `/webhook/ocp`). Docs and test scripts updated.
+
 ### Security
 
 - **Dependencies (pip-audit 2026-04-19):** Pinned `urllib3>=2.6.3,<3`, `pytest>=9.0.3,<10`, `kubernetes>=35,<36` so a clean install reports **no known CVEs** in the resolved tree (addresses urllib3 redirect/decompression CVEs/GHSAs, pytest CVE-2025-71176; kubernetes 35+ allows urllib3 2.x). Documented in `SECURITY.md` and `VA_TEST.md`.

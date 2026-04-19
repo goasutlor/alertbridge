@@ -23,8 +23,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import httpx
 
-# Sources from rules.example.yaml
-SOURCES = ("ocp", "confluent")
+# Single inbound path (see deploy manifests)
+SOURCES = ("ocp",)
 
 # Random OCP Alertmanager-style payloads
 OCP_PAYLOADS = [
@@ -57,11 +57,14 @@ CONFLUENT_PAYLOADS = [
 
 
 def random_payload(source: str) -> dict:
-    if source == "ocp":
-        p = random.choice(OCP_PAYLOADS).copy()
-        p["labels"] = {**p["labels"], "instance": f"node-{random.randint(1, 20)}"}
-        return p
-    return random.choice(CONFLUENT_PAYLOADS).copy()
+    if source != "ocp":
+        return random.choice(OCP_PAYLOADS).copy()
+    # Mix Alertmanager-shaped and flat JSON (both accepted on /webhook/ocp)
+    if random.random() < 0.2:
+        return random.choice(CONFLUENT_PAYLOADS).copy()
+    p = random.choice(OCP_PAYLOADS).copy()
+    p["labels"] = {**p["labels"], "instance": f"node-{random.randint(1, 20)}"}
+    return p
 
 
 async def send_one(
@@ -111,7 +114,7 @@ async def run_load_test(
     # Check app is reachable (same port as webhook)
     health_url = f"{base_url.rstrip('/')}/healthz"
     auth_info = f" (with API key)" if api_key else " (no API key)"
-    print(f"Target: {base_url}  (webhook: POST {base_url.rstrip('/')}/webhook/{{ocp|confluent}}){auth_info}")
+    print(f"Target: {base_url}  (webhook: POST {base_url.rstrip('/')}/webhook/ocp){auth_info}")
     try:
         r = await client.get(health_url)
         if r.status_code != 200:

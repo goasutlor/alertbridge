@@ -529,12 +529,15 @@ async def webhook(source: str, request: Request) -> Response:
 
     # Alert unrolling: split alerts[] and forward each (OCP Alertmanager)
     outputs_to_forward: list[Any] = []
+    inbound_shards: list[Any] = []
     if getattr(route, "unroll_alerts", False) and isinstance(payload.get("alerts"), list) and payload["alerts"]:
         for alert in payload["alerts"]:
             sub = copy.deepcopy(payload)
             sub["alerts"] = [alert]
+            inbound_shards.append(sub)
             outputs_to_forward.append(transform_payload(sub, route))
     else:
+        inbound_shards.append(payload)
         outputs_to_forward.append(transform_payload(payload, route))
 
     start = time.monotonic()
@@ -598,6 +601,8 @@ async def webhook(source: str, request: Request) -> Response:
                     "transformed": san_preview,
                     "alert_severity": alert_severity or None,
                     "alert_firing": alert_firing_b,
+                    "alert_bundle_preview": ab_preview or None,
+                    "alert_bundle_detail": ab_detail or None,
                 }
             )
         increment_daily("forward_fail")
@@ -669,6 +674,8 @@ async def webhook(source: str, request: Request) -> Response:
             out_san = sanitize_payload(output)
             sev = extract_alert_severity(out_san) or extract_alert_severity(payload)
             af_dlq = resolve_stored_alert_firing(out_san, payload, i, n_out) or None
+            shard_inbound = inbound_shards[i] if i < len(inbound_shards) else payload
+            ab_p, ab_d = format_alert_bundle_for_ui(shard_inbound)
             record_failed_forward(
                 {
                     "ts": datetime.now(BANGKOK).isoformat(timespec="milliseconds"),
@@ -690,6 +697,8 @@ async def webhook(source: str, request: Request) -> Response:
                     "transformed": out_san,
                     "alert_severity": sev or None,
                     "alert_firing": af_dlq,
+                    "alert_bundle_preview": ab_p or None,
+                    "alert_bundle_detail": ab_d or None,
                 }
             )
     # Daily forward_success: one per incoming webhook only when every outbound succeeded (unroll → N HTTP calls, still 1 tick).
@@ -917,6 +926,18 @@ def _enrich_dlq_entry_alert_firing(entry: Dict[str, Any]) -> None:
             entry["alert_firing"] = s
 
 
+def _enrich_dlq_entry_alert_bundle(entry: Dict[str, Any]) -> None:
+    """API-only: legacy DLQ rows may omit alert_bundle_*; best-effort from transformed."""
+    if entry.get("alert_bundle_preview"):
+        return
+    t = entry.get("transformed")
+    if isinstance(t, dict):
+        s = extract_alert_summary(t)
+        if s:
+            entry["alert_bundle_preview"] = s[:120] + ("…" if len(s) > 120 else "")
+            entry["alert_bundle_detail"] = s
+
+
 @app.get("/api/dlq/recent")
 async def api_dlq_recent(
     _: Optional[str] = Depends(require_basic_auth),
@@ -932,6 +953,7 @@ async def api_dlq_recent(
     entries = read_recent_dlq(limit=lim)
     for e in entries:
         _enrich_dlq_entry_alert_firing(e)
+        _enrich_dlq_entry_alert_bundle(e)
     return JSONResponse({"configured": True, "entries": entries, "count": len(entries)})
 
 
@@ -1203,7 +1225,7 @@ async def api_portal_status() -> Response:
 
 @app.get("/api/pattern-schemas")
 async def api_pattern_schemas(_: Optional[str] = Depends(require_basic_auth)) -> Response:
-    """Return built-in source schemas (OCP 4.20, Confluent 8.10) and target fields for the mapper UI."""
+    """Return built-in source schemas (OCP Alertmanager 4.20) and target fields for the mapper UI."""
     return JSONResponse(list_schemas())
 
 

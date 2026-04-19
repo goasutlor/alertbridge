@@ -1,7 +1,7 @@
 # alertbridge-lite - OCP Deployment (v1.0.08022026)
 #
 # Deploy steps:
-# 1. Edit Secret (TARGET_URL_OCP, TARGET_URL_CONFLUENT, API keys) below
+# 1. Edit Secret (TARGET_URL_OCP, API keys) below
 # 2. oc apply -f deploy/install-ocp.yaml
 # 3. oc start-build alertbridge-lite -n alertbridge
 # 4. oc get builds -n alertbridge   # wait until Complete
@@ -113,21 +113,6 @@ data:
             title: $.groupLabels.alertname
             message: $.commonAnnotations.summary
             status: $.alerts.0.status
-    - name: confluent-alerts
-      match:
-        source: confluent
-      target:
-        url_env: TARGET_URL_CONFLUENT
-        api_key_header: X-API-Key
-        api_key_env: TARGET_API_KEY_CONFLUENT
-      transform:
-        include_fields: [alertId, description, severity]
-        output_template:
-          type: flat
-          fields:
-            alert_id: $.alertId
-            message: $.description
-            severity: $.severity
     auth:
       api_keys:
         required: false
@@ -143,8 +128,6 @@ stringData:
   # Change to real target URLs for forwarding
   TARGET_URL_OCP: "https://example.ocp.target/webhook"
   TARGET_API_KEY_OCP: "change-me"
-  TARGET_URL_CONFLUENT: "https://example.confluent.target/webhook"
-  TARGET_API_KEY_CONFLUENT: "change-me"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -185,16 +168,6 @@ spec:
                 secretKeyRef:
                   name: alertbridge-secrets
                   key: TARGET_API_KEY_OCP
-            - name: TARGET_URL_CONFLUENT
-              valueFrom:
-                secretKeyRef:
-                  name: alertbridge-secrets
-                  key: TARGET_URL_CONFLUENT
-            - name: TARGET_API_KEY_CONFLUENT
-              valueFrom:
-                secretKeyRef:
-                  name: alertbridge-secrets
-                  key: TARGET_API_KEY_CONFLUENT
           volumeMounts:
             - name: rules
               mountPath: /etc/alertbridge/rules.yaml

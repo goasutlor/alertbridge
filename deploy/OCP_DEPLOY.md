@@ -109,25 +109,23 @@ http_config:
 
 Ensure API Key matches the one generated in alertbridge-lite (API Keys section).
 
-## Config Confluent Platform
+## Confluent Platform (and other producers)
 
-In Confluent notification / webhook config:
-- URL: `https://alertbridge-lite.apps.cwdc.esb-kafka-prod.intra.ais/webhook/confluent` (or your cluster’s Route host + `/webhook/confluent`)
-- Headers: `X-API-Key: <API_KEY>` or `Authorization: Bearer <API_KEY>`
-- Content-Type: `application/json`
+Point Confluent (or any other) webhook integration at the **same** URL as Alertmanager:  
+`https://<route-host>/webhook/ocp` — same API key and JSON body as your OCP route.  
+There is no separate `/webhook/confluent` path in the default deployment.
 
 ## Webhook Paths
 
 | Source   | Path                | Used by              |
 |----------|---------------------|----------------------|
-| ocp      | `/webhook/ocp`      | OCP Alertmanager     |
-| confluent| `/webhook/confluent`| Confluent Platform   |
+| ocp      | `/webhook/ocp`      | OCP Alertmanager, Confluent, etc. |
 
-Paths come from `match.source` in route config (not hardcoded).
+`match.source` in `routes` must be `ocp` for this path.
 
 ## Cross-Cluster
 
-If OCP Alertmanager or Confluent runs in a different cluster:
+If OCP Alertmanager or other producers run in a different cluster:
 - Use the **external Route URL** e.g. `https://alertbridge-lite-xxx.apps.cluster-a.domain`
 - Verify DNS and network between clusters
 - Wildcard cert must cover the domain used
@@ -153,5 +151,5 @@ When deployed with `install-ocp.yaml` or `k8s.yaml` (ServiceAccount + RBAC):
 ## Compatibility
 
 - **OCP Alertmanager**: Webhook format supported (incl. v4)
-- **Confluent Platform**: Confluent webhook format supported
+- **Flat JSON payloads** (e.g. legacy Confluent-style) can be posted to `/webhook/ocp` and mapped via Field Mapper / Custom paste
 - Authentication: `X-API-Key` or `Authorization: Bearer` (both sides support header-based auth)

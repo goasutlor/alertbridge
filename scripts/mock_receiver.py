@@ -9,7 +9,6 @@ Usage:
 
   # Terminal 2: set target URL and start alertbridge-lite
   set TARGET_URL_OCP=http://127.0.0.1:9999/webhook
-  set TARGET_URL_CONFLUENT=http://127.0.0.1:9999/webhook
   python -m uvicorn app.main:app --host 127.0.0.1 --port 8081
 
   # Terminal 3: run load test
@@ -139,7 +138,6 @@ def main():
     print()
     print("Set env and run alertbridge-lite:")
     print(f"  TARGET_URL_OCP={proto}://127.0.0.1:{args.port}/webhook")
-    print(f"  TARGET_URL_CONFLUENT={proto}://127.0.0.1:{args.port}/webhook")
     print()
     server.serve_forever()
 

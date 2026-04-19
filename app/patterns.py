@@ -1,6 +1,6 @@
 """
 Alert source patterns and field mapping for the Bridge.
-Initial patterns: Red Hat OpenShift Alertmanager 4.20.10, Confluent Platform 8.10.
+Primary schema: Red Hat OpenShift Alertmanager 4.20.10 (all inbound webhooks use /webhook/ocp).
 User can map source fields (left) to target fields (right), save as pattern, apply to route.
 """
 import uuid
@@ -56,17 +56,6 @@ SOURCE_SCHEMAS: Dict[str, Dict[str, Any]] = {
             {"id": "alerts.0.startsAt", "label": "alerts[0].startsAt"},
             {"id": "alerts.0.endsAt", "label": "alerts[0].endsAt"},
             {"id": "alerts.0.generatorURL", "label": "alerts[0].generatorURL"},
-        ],
-    },
-    "confluent-8.10": {
-        "name": "Confluent Platform 8.10",
-        "description": "Alerts from Confluent Enterprise Platform 8.10",
-        "fields": [
-            {"id": "alertId", "label": "alertId"},
-            {"id": "description", "label": "description"},
-            {"id": "severity", "label": "severity"},
-            {"id": "clusterId", "label": "clusterId"},
-            {"id": "timestamp", "label": "timestamp"},
         ],
     },
 }

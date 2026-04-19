@@ -86,21 +86,6 @@ data:
             title: $.groupLabels.alertname
             message: $.commonAnnotations.summary
             status: $.alerts.0.status
-    - name: confluent-alerts
-      match:
-        source: confluent
-      target:
-        url_env: TARGET_URL_CONFLUENT
-        api_key_header: X-API-Key
-        api_key_env: TARGET_API_KEY_CONFLUENT
-      transform:
-        include_fields: [alertId, description, severity]
-        output_template:
-          type: flat
-          fields:
-            alert_id: $.alertId
-            message: $.description
-            severity: $.severity
     auth:
       api_keys:
         required: false
@@ -115,8 +100,6 @@ type: Opaque
 stringData:
   TARGET_URL_OCP: "https://example.ocp.target/webhook"
   TARGET_API_KEY_OCP: "change-me"
-  TARGET_URL_CONFLUENT: "https://example.confluent.target/webhook"
-  TARGET_API_KEY_CONFLUENT: "change-me"
   # Basic Auth for UI (enabled by default). CHANGE password before production!
   BASIC_AUTH_USER: "admin"
   BASIC_AUTH_PASSWORD: "change-me"
@@ -164,16 +147,6 @@ spec:
                 secretKeyRef:
                   name: alertbridge-secrets-dev
                   key: TARGET_API_KEY_OCP
-            - name: TARGET_URL_CONFLUENT
-              valueFrom:
-                secretKeyRef:
-                  name: alertbridge-secrets-dev
-                  key: TARGET_URL_CONFLUENT
-            - name: TARGET_API_KEY_CONFLUENT
-              valueFrom:
-                secretKeyRef:
-                  name: alertbridge-secrets-dev
-                  key: TARGET_API_KEY_CONFLUENT
             - name: BASIC_AUTH_USER
               valueFrom:
                 secretKeyRef:

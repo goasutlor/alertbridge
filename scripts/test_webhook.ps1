@@ -49,8 +49,8 @@ try {
 }
 Write-Host ""
 
-# Test Confluent format
-Write-Host "=== Test 2: Confluent Alert ===" -ForegroundColor Yellow
+# Flat JSON via same OCP path
+Write-Host "=== Test 2: Flat JSON alert (same /webhook/ocp) ===" -ForegroundColor Yellow
 $confluentPayload = @{
     alertId = "a1"
     description = "Broker down"
@@ -58,7 +58,7 @@ $confluentPayload = @{
 } | ConvertTo-Json
 
 try {
-    $response = Invoke-RestMethod -Uri "$BaseUrl/webhook/confluent" `
+    $response = Invoke-RestMethod -Uri "$BaseUrl/webhook/ocp" `
         -Method Post `
         -Headers @{
             "X-API-Key" = $ApiKey

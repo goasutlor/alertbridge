@@ -64,37 +64,6 @@ routes:
   verify_hmac: null
   unroll_alerts: true
   forward_enabled: true
-- name: confluent-alerts
-  match:
-    source: confluent
-  target:
-    url_env: TARGET_URL_CONFLUENT
-    url: http://127.0.0.1:9999/webhook
-    auth_header_env: null
-    api_key_header: null
-    api_key_env: null
-    api_key: null
-    verify_tls: null
-    ca_cert_env: null
-    ca_cert: null
-  transform:
-    include_fields:
-    - alertId
-    - description
-    - severity
-    drop_fields: null
-    rename: null
-    enrich_static: null
-    map_values: null
-    output_template:
-      type: flat
-      fields:
-        alert_id: $.alertId
-        message: $.description
-        severity: $.severity
-  verify_hmac: null
-  unroll_alerts: false
-  forward_enabled: true
 auth:
   basic: null
   api_keys:

@@ -61,21 +61,6 @@ data:
             title: $.groupLabels.alertname
             message: $.commonAnnotations.summary
             status: $.alerts.0.status
-    - name: confluent-alerts
-      match:
-        source: confluent
-      target:
-        url_env: TARGET_URL_CONFLUENT
-        api_key_header: X-API-Key
-        api_key_env: TARGET_API_KEY_CONFLUENT
-      transform:
-        include_fields: [alertId, description, severity]
-        output_template:
-          type: flat
-          fields:
-            alert_id: $.alertId
-            message: $.description
-            severity: $.severity
     auth:
       api_keys:
         required: false
@@ -90,8 +75,6 @@ type: Opaque
 stringData:
   TARGET_URL_OCP: "https://example.ocp.target/webhook"
   TARGET_API_KEY_OCP: "change-me"
-  TARGET_URL_CONFLUENT: "https://example.confluent.target/webhook"
-  TARGET_API_KEY_CONFLUENT: "change-me"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -131,16 +114,6 @@ spec:
                 secretKeyRef:
                   name: alertbridge-secrets
                   key: TARGET_API_KEY_OCP
-            - name: TARGET_URL_CONFLUENT
-              valueFrom:
-                secretKeyRef:
-                  name: alertbridge-secrets
-                  key: TARGET_URL_CONFLUENT
-            - name: TARGET_API_KEY_CONFLUENT
-              valueFrom:
-                secretKeyRef:
-                  name: alertbridge-secrets
-                  key: TARGET_API_KEY_CONFLUENT
           volumeMounts:
             - name: rules
               mountPath: /etc/alertbridge/rules.yaml
@@ -187,7 +160,7 @@ spec:
       targetPort: 8080
 ---
 # Route: HTTPS via TLS edge termination (OCP uses default or custom wildcard cert)
-# Clients (OCP Alertmanager, Confluent) call: https://<host>/webhook/ocp or /webhook/confluent
+# Clients POST to: https://<host>/webhook/ocp
 # Set spec.host to match your wildcard (*.apps.domain) e.g. alertbridge-lite-alertbridge.apps.cluster.domain
 apiVersion: route.openshift.io/v1
 kind: Route

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AlertBridge</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
-    <link rel="stylesheet" href="/static/styles.css?v=52" />
+    <link rel="stylesheet" href="/static/styles.css?v=53" />
   </head>
   <body>
     <div class="hero-bg"></div>
@@ -78,7 +78,6 @@
               <tr>
                 <th>Time (GMT+7)</th>
                 <th data-i18n="colTraceWebhook" data-i18n-title="colTraceWebhookHint">Webhook ID</th>
-                <th>Route</th>
                 <th data-i18n="colAlertBundle" data-i18n-title="colAlertBundleHint">Alert(s)</th>
                 <th data-i18n="colAlertsInBundle">Alerts</th>
                 <th data-i18n="colSeverity">Severity</th>
@@ -89,7 +88,7 @@
             </thead>
             <tbody id="liveRequestsBody"></tbody>
           </table>
-          <p id="liveRequestsEmpty" class="live-empty"><span data-i18n="liveEmpty">No webhooks yet. POST to</span> <code>/webhook/ocp</code> <code>/webhook/confluent</code> <span data-i18n="orSource">or other source</span></p>
+          <p id="liveRequestsEmpty" class="live-empty"><span data-i18n="liveEmpty">No webhooks yet. POST to</span> <code>/webhook/ocp</code></p>
           <div class="table-pager">
             <label for="livePageSize" data-i18n="rowsPerPage">Rows</label>
             <select id="livePageSize" class="select select-compact">
@@ -108,7 +107,7 @@
         <h2 class="card-title" data-i18n="failedEvents">Failed Events (Forward did not succeed)</h2>
         <p class="card-subtitle" data-i18n="failedEventsSub">Display 20 · up to 200 in memory (search all) · use DLQ below for durable history on PVC</p>
         <div class="failed-events-toolbar">
-          <input type="text" id="failedEventsSearch" class="input-inline" placeholder="Search: source, route, request_id..." data-i18n-placeholder="failedSearchPlaceholder" />
+          <input type="text" id="failedEventsSearch" class="input-inline" placeholder="Search: webhook id, source, severity…" data-i18n-placeholder="failedSearchPlaceholder" />
         </div>
         <div id="failedEventsContainer" class="live-requests">
           <table class="live-table">
@@ -116,7 +115,6 @@
               <tr>
                 <th>Time (GMT+7)</th>
                 <th data-i18n="colTraceWebhook" data-i18n-title="colTraceWebhookHint">Webhook ID</th>
-                <th>Route</th>
                 <th data-i18n="colAlertBundle" data-i18n-title="colAlertBundleHint">Alert(s)</th>
                 <th data-i18n="colSeverity">Severity</th>
                 <th data-i18n="colAlertFiring" data-i18n-title="colAlertFiringHint">Alert status</th>
@@ -169,7 +167,7 @@
                   <th data-i18n="dlqColTime">Time (GMT+7)</th>
                   <th data-i18n="colTraceWebhook" data-i18n-title="colTraceWebhookHint">Webhook ID</th>
                   <th data-i18n="dlqColShard">Shard</th>
-                  <th data-i18n="dlqColRoute">Route</th>
+                  <th data-i18n="colAlertBundle" data-i18n-title="colAlertBundleHint">Alert(s)</th>
                   <th data-i18n="colSeverity">Severity</th>
                   <th data-i18n="colAlertFiring" data-i18n-title="colAlertFiringHint">Alert status</th>
                   <th data-i18n="dlqColError">Error</th>
@@ -243,9 +241,9 @@
 
       <section class="card card-api-keys">
         <h2 class="card-title">API Keys (incoming webhook auth)</h2>
-        <p class="card-subtitle">Generate API keys for OCP/Confluent (or any client) to send alerts. Clients send <code>X-API-Key</code> or <code>Authorization: Bearer &lt;key&gt;</code>.</p>
+        <p class="card-subtitle">Generate API keys for clients sending alerts to the OCP webhook. Clients send <code>X-API-Key</code> or <code>Authorization: Bearer &lt;key&gt;</code>.</p>
         <div class="api-keys-toolbar">
-          <input type="text" id="apiKeyNameInput" class="input-inline" placeholder="e.g. ocp-prod, confluent-staging" />
+          <input type="text" id="apiKeyNameInput" class="input-inline" placeholder="e.g. ocp-prod" />
           <button id="genApiKeyBtn" class="btn btn-primary">Gen API Key</button>
           <span id="apiKeysStatus" class="status"></span>
         </div>
@@ -306,7 +304,6 @@
           <div id="mapperMergeSchemasWrap" class="mapper-merge-schemas" style="display:none;" title="">
             <span class="mapper-merge-label" data-i18n="mapperMergeSchemasLabel">Also merge preset fields:</span>
             <label class="mapper-merge-cb"><input type="checkbox" id="mapperMergeOcp" /> OCP Alertmanager</label>
-            <label class="mapper-merge-cb"><input type="checkbox" id="mapperMergeConfluent" /> Confluent</label>
           </div>
           <span class="mapper-toolbar-saved-label" data-i18n="mapperSavedPatternLabel">Saved pattern</span>
           <select id="mapperLoadPatternSelect" class="select"><option value="">— Select pattern —</option></select>
@@ -443,7 +440,7 @@
       </div>
     </div>
 
-    <script src="/static/i18n.js?v=47"></script>
-    <script src="/static/app.js?v=52"></script>
+    <script src="/static/i18n.js?v=48"></script>
+    <script src="/static/app.js?v=53"></script>
   </body>
 </html>
