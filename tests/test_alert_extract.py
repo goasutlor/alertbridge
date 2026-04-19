@@ -3,8 +3,10 @@ from app.main import (
     extract_alert_severity,
     extract_bundle_alert_names,
     extract_bundle_firing_status,
+    extract_inbound_alert_status_by_index,
     extract_shard_firing_status,
     format_alert_bundle_for_ui,
+    resolve_stored_alert_firing,
 )
 
 
@@ -99,3 +101,22 @@ def test_format_alert_bundle_for_ui_no_alerts_uses_flat_summary():
     prev, det = format_alert_bundle_for_ui(p)
     assert "FlatOnly" in prev
     assert det == "FlatOnly"
+
+
+def test_extract_inbound_alert_status_by_index():
+    p = {"alerts": [{"status": "firing"}, {"status": "resolved"}]}
+    assert extract_inbound_alert_status_by_index(p, 0) == "firing"
+    assert extract_inbound_alert_status_by_index(p, 1) == "resolved"
+
+
+def test_resolve_stored_firing_fallback_inbound_when_transform_omits_alerts():
+    inbound = {"alerts": [{"status": "resolved", "labels": {}}]}
+    out = {"title": "x"}
+    assert resolve_stored_alert_firing(out, inbound, 0, 1) == "resolved"
+
+
+def test_resolve_stored_firing_unroll_uses_inbound_per_shard():
+    inbound = {"alerts": [{"status": "firing"}, {"status": "resolved"}]}
+    out = {"custom": True}
+    assert resolve_stored_alert_firing(out, inbound, 0, 2) == "firing"
+    assert resolve_stored_alert_firing(out, inbound, 1, 2) == "resolved"

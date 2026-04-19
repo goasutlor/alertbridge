@@ -18,6 +18,7 @@ All notable changes to this project are documented in this file. The format is i
 
 ### Fixed
 
+- **DLQ / Recent-sent Alert status when transform omits `alerts[]`:** Stored `alert_firing` for unrolled shards (and single-shard forwards) now falls back to **inbound** `alerts[i].status` when the transformed body no longer includes Alertmanager `alerts[0].status` (common with `output_template`). Previously the UI showed **—** in the DLQ **Alert status** column in that case.
 - **Failed Events severity vs Live:** `RECENT_FAILED` now uses the same bundle-level severity as Live (`extract_alert_severity(payload)` first), instead of preferring the last failed shard’s transformed payload (which could stay `warning` while another alert in the bundle was `critical`).
 - **Severity on bundled Alertmanager webhooks:** `extract_alert_severity()` now prefers the **worst** `alerts[].labels.severity` across the whole `alerts[]` list before `commonLabels` / `groupLabels`, so Live Events / payloads match DLQ when one shard is `critical` and the group label is only `warning`.
 - **Field Mapper:** `tr is not a function` when adding source options — DOM row variables named `tr` shadowed the i18n helper `tr()`; renamed to `rowEl` in `mapperSetOptionRowCount`, `onMapperAddSrcOptClick`, and `setMappingsToForm`.

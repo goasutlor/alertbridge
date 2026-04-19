@@ -293,6 +293,42 @@ def extract_shard_firing_status(sanitized: Any) -> str:
     return ""
 
 
+def extract_inbound_alert_status_by_index(payload: Any, index: int) -> str:
+    """Alertmanager alerts[i].status on the inbound webhook (before transform drops fields)."""
+    if not payload or not isinstance(payload, dict):
+        return ""
+    alerts = payload.get("alerts")
+    if not isinstance(alerts, list) or index < 0 or index >= len(alerts):
+        return ""
+    a = alerts[index]
+    if not isinstance(a, dict):
+        return ""
+    st = a.get("status")
+    if isinstance(st, str):
+        lv = st.strip().lower()
+        if lv in ("firing", "resolved"):
+            return lv
+    return ""
+
+
+def resolve_stored_alert_firing(
+    sanitized_output: Any,
+    inbound_payload: Any,
+    shard_index: int,
+    total_shards: int,
+) -> str:
+    """
+    Firing/resolved for DLQ / RECENT_SENT when the transformed body may omit alerts[].status
+    (e.g. output_template). Prefer sanitized output; then inbound shard i when unroll; else bundle aggregate.
+    """
+    s = extract_shard_firing_status(sanitized_output)
+    if s:
+        return s
+    if total_shards > 1:
+        return extract_inbound_alert_status_by_index(inbound_payload, shard_index)
+    return extract_bundle_firing_status(inbound_payload)
+
+
 _config_watch_task: Optional[asyncio.Task] = None
 
 
@@ -604,11 +640,13 @@ async def webhook(source: str, request: Request) -> Response:
             status_code=http_status,
         )
 
+    n_fwd = len(outputs_to_forward)
     for i, output in enumerate(outputs_to_forward):
-        rid = f"{request_id}-{i}" if len(outputs_to_forward) > 1 else request_id
+        rid = f"{request_id}-{i}" if n_fwd > 1 else request_id
         ok, status_code, err, attempt_meta = await forward_payload(output, route, rid, rules.defaults)
         if ok:
             out_san = sanitize_payload(output)
+            af_stored = resolve_stored_alert_firing(out_san, payload, i, n_fwd) or None
             RECENT_SENT.append({
                 "ts": datetime.now(BANGKOK).isoformat(timespec="milliseconds"),
                 "request_id": rid,
@@ -617,7 +655,7 @@ async def webhook(source: str, request: Request) -> Response:
                 "route": route.name,
                 "transformed": out_san,
                 "alert_severity": extract_alert_severity(out_san) or None,
-                "alert_firing": extract_shard_firing_status(out_san) or None,
+                "alert_firing": af_stored,
             })
         else:
             all_success = False
@@ -627,9 +665,10 @@ async def webhook(source: str, request: Request) -> Response:
             # One DLQ line per forward outcome after internal retries complete (not per retry attempt).
             # When unroll_alerts splits one webhook into N forwards, N lines share base_request_id;
             # suffix -0/-1 on request_id is the shard index, not HTTP retry.
-            n_out = len(outputs_to_forward)
+            n_out = n_fwd
             out_san = sanitize_payload(output)
             sev = extract_alert_severity(out_san) or extract_alert_severity(payload)
+            af_dlq = resolve_stored_alert_firing(out_san, payload, i, n_out) or None
             record_failed_forward(
                 {
                     "ts": datetime.now(BANGKOK).isoformat(timespec="milliseconds"),
@@ -650,7 +689,7 @@ async def webhook(source: str, request: Request) -> Response:
                     "final_failure": True,
                     "transformed": out_san,
                     "alert_severity": sev or None,
-                    "alert_firing": extract_shard_firing_status(out_san) or None,
+                    "alert_firing": af_dlq,
                 }
             )
     # Daily forward_success: one per incoming webhook only when every outbound succeeded (unroll → N HTTP calls, still 1 tick).
