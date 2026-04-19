@@ -30,34 +30,6 @@ patterns:
     assert "MyPattern" in names
 
 
-def test_load_rules_drops_legacy_confluent_route():
-    """Old ConfigMaps with a separate confluent route should not expose it in the UI after load."""
-    from app.config import load_rules_from_yaml_text
-
-    yaml_text = """
-version: 1
-defaults:
-  target_timeout_connect_sec: 2
-  target_timeout_read_sec: 5
-routes:
-  - name: ocp-alertmanager
-    match:
-      source: ocp
-    target:
-      url_env: TARGET_URL_OCP
-    transform: {}
-  - name: confluent-alerts
-    match:
-      source: confluent
-    target:
-      url_env: TARGET_URL_CONFLUENT
-    transform: {}
-"""
-    rules = load_rules_from_yaml_text(yaml_text)
-    assert len(rules.routes) == 1
-    assert rules.routes[0].match.source == "ocp"
-
-
 def _route(transform: TransformConfig) -> RouteConfig:
     return RouteConfig(
         name="test",

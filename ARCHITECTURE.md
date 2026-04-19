@@ -70,7 +70,7 @@ alertbridge-lite/
 
 ## 4. Core Data Flow
 
-### 4.1 Webhook Flow (POST /webhook/ocp — legacy `POST /webhook/confluent` returns 410)
+### 4.1 Webhook Flow (POST /webhook/{source})
 
 1. **Request** → middleware assigns `request_id`
 2. **API Key** → `verify_api_key()` (if auth.api_keys configured)

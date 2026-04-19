@@ -6,7 +6,7 @@ from typing import Optional
 
 import yaml
 
-from app.rules import Defaults, RuleSet, RouteConfig
+from app.rules import Defaults, RuleSet
 
 logger = logging.getLogger("alertbridge")
 RULES_PATH = Path(os.getenv("ALERTBRIDGE_RULES_PATH", "/etc/alertbridge/rules.yaml"))
@@ -67,23 +67,6 @@ def persist_rules(rules: RuleSet) -> None:
         raise
 
 
-def strip_legacy_confluent_routes(rules: RuleSet) -> RuleSet:
-    """
-    Drop routes whose match.source is 'confluent'. Legacy dual-route configs in ConfigMaps
-    still showed Confluent in the UI; inbound traffic must use /webhook/ocp only.
-    """
-    legacy: list[RouteConfig] = [r for r in rules.routes if r.match.source.lower() == "confluent"]
-    if not legacy:
-        return rules
-    logger.warning(
-        "Dropped %d legacy route(s) with match.source 'confluent' (use POST /webhook/ocp only). "
-        "Save config from the UI or patch the ConfigMap to remove them permanently.",
-        len(legacy),
-    )
-    kept = [r for r in rules.routes if r.match.source.lower() != "confluent"]
-    return rules.model_copy(update={"routes": kept})
-
-
 def load_rules_from_yaml_text(yaml_text: str) -> RuleSet:
     """Parse rules.yaml content (includes optional `patterns` list)."""
     from app.patterns import init_patterns
@@ -91,8 +74,7 @@ def load_rules_from_yaml_text(yaml_text: str) -> RuleSet:
     data = yaml.safe_load(yaml_text) or {}
     patterns = data.pop("patterns", None)
     init_patterns(patterns)
-    rules = RuleSet.model_validate(data)
-    return strip_legacy_confluent_routes(rules)
+    return RuleSet.model_validate(data)
 
 
 def load_rules_from_file(path: Path = RULES_PATH) -> RuleSet:
