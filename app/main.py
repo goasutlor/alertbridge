@@ -906,6 +906,17 @@ async def api_recent_payloads() -> Response:
     return JSONResponse(snapshot)
 
 
+def _enrich_dlq_entry_alert_firing(entry: Dict[str, Any]) -> None:
+    """API-only: older JSONL rows may omit alert_firing; use transformed if it still has alerts[].status."""
+    if entry.get("alert_firing"):
+        return
+    t = entry.get("transformed")
+    if isinstance(t, dict):
+        s = extract_shard_firing_status(t)
+        if s:
+            entry["alert_firing"] = s
+
+
 @app.get("/api/dlq/recent")
 async def api_dlq_recent(
     _: Optional[str] = Depends(require_basic_auth),
@@ -919,6 +930,8 @@ async def api_dlq_recent(
         )
     lim = max(1, min(int(limit), 200))
     entries = read_recent_dlq(limit=lim)
+    for e in entries:
+        _enrich_dlq_entry_alert_firing(e)
     return JSONResponse({"configured": True, "entries": entries, "count": len(entries)})
 
 
