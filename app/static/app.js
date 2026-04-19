@@ -111,10 +111,20 @@ function tr(key) {
   return fn(key);
 }
 
+/** Format API timestamps (ISO UTC, +07:00, or naive) as wall time in Asia/Bangkok. */
+function formatTimeGMT7(iso) {
+  if (iso == null || iso === "") return "—";
+  const raw = String(iso).trim();
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return escapeHtml(raw);
+  const s = d.toLocaleString("sv-SE", { timeZone: "Asia/Bangkok" });
+  return `${s.replace("T", " ")} GMT+7`;
+}
+
 function fmtPatternTime(ts) {
   if (!ts) return "";
-  const s = String(ts);
-  return s.replace("T", " ").replace("+07:00", " GMT+7");
+  const x = formatTimeGMT7(ts);
+  return x === "—" ? String(ts) : x;
 }
 
 const RATE_HISTORY_MAX = 90;
@@ -1118,13 +1128,13 @@ function renderLiveRequests(list) {
     .map(
       (r) =>
         `<tr>
-          <td>${escapeHtml(r.ts || "")}</td>
+          <td>${formatTimeGMT7(r.ts)}</td>
           <td>${traceWebhookCell(r.request_id)}</td>
-          <td>${escapeHtml(r.source || "")}</td>
           <td>${escapeHtml(r.route || "")}</td>
           <td class="live-alert-summary" title="${escapeHtml(r.alert_summary || "")}">${escapeHtml((r.alert_summary || "-").slice(0, 60))}${(r.alert_summary || "").length > 60 ? "…" : ""}</td>
           <td class="td-num" title="${escapeHtml(tr("colAlertsInBundleHint"))}">${escapeHtml(String(r.alerts_in_bundle != null ? r.alerts_in_bundle : 1))}</td>
           <td class="td-severity">${severityBadgeHtml(r.alert_severity)}</td>
+          <td class="td-firing">${firingBadgeHtml(r.alert_firing)}</td>
           <td class="status-${r.http_status || ""}">${escapeHtml(String(r.http_status || ""))}</td>
           <td class="${r.forwarded ? "forwarded-ok" : "forwarded-fail"}">${r.forwarded ? "yes" : "no"}</td>
         </tr>`
@@ -1164,6 +1174,18 @@ function severityBadgeHtml(sev) {
   return `<span class="${cls}" title="${escapeHtml(s)}">${escapeHtml(s)}</span>`;
 }
 
+/** Alertmanager alerts[].status aggregate: firing | resolved | mixed */
+function firingBadgeHtml(st) {
+  const s = st != null ? String(st).trim() : "";
+  if (!s) return "—";
+  const lower = s.toLowerCase();
+  let cls = "firing-badge firing-default";
+  if (lower === "firing") cls = "firing-badge firing-on";
+  else if (lower === "resolved") cls = "firing-badge firing-off";
+  else if (lower === "mixed") cls = "firing-badge firing-mixed";
+  return `<span class="${cls}" title="${escapeHtml(s)}">${escapeHtml(s)}</span>`;
+}
+
 async function loadLiveRequests() {
   try {
     const response = await fetch("/api/recent-requests", { credentials: "include" });
@@ -1184,7 +1206,8 @@ function filterFailedEvents(list, q) {
     const err = (r.error || "").toLowerCase();
     const preview = (r.payload_preview || "").toLowerCase();
     const sev = (r.alert_severity || "").toLowerCase();
-    return src.includes(ql) || route.includes(ql) || rid.includes(ql) || err.includes(ql) || preview.includes(ql) || sev.includes(ql);
+    const af = (r.alert_firing || "").toLowerCase();
+    return src.includes(ql) || route.includes(ql) || rid.includes(ql) || err.includes(ql) || preview.includes(ql) || sev.includes(ql) || af.includes(ql);
   });
 }
 
@@ -1216,11 +1239,11 @@ function renderFailedEvents(list) {
   failedEventsBody.innerHTML = toShow
     .map((r) =>
       `<tr>
-        <td>${escapeHtml(r.ts || "")}</td>
+        <td>${formatTimeGMT7(r.ts)}</td>
         <td>${traceWebhookCell(r.request_id)}</td>
-        <td>${escapeHtml(r.source || "")}</td>
         <td>${escapeHtml(r.route || "")}</td>
         <td class="td-severity">${severityBadgeHtml(r.alert_severity)}</td>
+        <td class="td-firing">${firingBadgeHtml(r.alert_firing)}</td>
         <td class="status-${r.http_status || ""}">${escapeHtml(String(r.http_status || ""))}</td>
         <td class="failed-error-cell" title="${escapeHtml(r.error || "")}">${escapeHtml((r.error || r.payload_preview || "").slice(0, 60))}${(r.error || r.payload_preview || "").length > 60 ? "…" : ""}</td>
       </tr>`
@@ -1259,7 +1282,7 @@ function renderDailyMetrics(rows) {
       <td>${escapeHtml(String(r.forward_success ?? 0))}</td>
       <td>${escapeHtml(String(r.forward_fail ?? 0))}</td>
       <td>${escapeHtml(String(r.dlq ?? 0))}</td>
-      <td>${escapeHtml(r.updated_at || "")}</td>
+      <td>${formatTimeGMT7(r.updated_at)}</td>
     </tr>
   `).join("");
 }
@@ -2423,10 +2446,11 @@ async function loadRecentPayloads() {
         recentPayloadsList.innerHTML = uniquePayloads.map((item, idx) =>
           `<li>
             <div class="payload-header">
-              <span class="payload-ts">${escapeHtml(item.ts || "")}</span>
+              <span class="payload-ts">${formatTimeGMT7(item.ts)}</span>
               <span class="payload-source">Source: <code>${escapeHtml(item.source || "")}</code></span>
               <span class="payload-route">Route: <strong>${escapeHtml(item.route || "")}</strong></span>
               <span class="payload-severity">${severityBadgeHtml(item.alert_severity)}</span>
+              <span class="payload-firing">${firingBadgeHtml(item.alert_firing)}</span>
             </div>
             <div class="payload-preview">
               <code class="payload-preview-code">${escapeHtml(JSON.stringify(item.payload || {}, null, 2))}</code>
@@ -2465,11 +2489,12 @@ async function loadRecentSent() {
       recentSentList.innerHTML = items.map((item, idx) =>
         `<li class="recent-sent-item${idx === 0 ? " recent-sent-latest" : ""}">
           <div class="payload-header">
-            <span class="payload-ts">${escapeHtml(item.ts || "")}</span>
+            <span class="payload-ts">${formatTimeGMT7(item.ts)}</span>
             ${idx === 0 ? `<span class="recent-sent-latest-badge">${escapeHtml(tr("recentSentLatestBadge"))}</span>` : ""}
             <span class="payload-source">Source: <code>${escapeHtml(item.source || "")}</code></span>
             <span class="payload-route">Route: <strong>${escapeHtml(item.route || "")}</strong></span>
             <span class="payload-severity">${severityBadgeHtml(item.alert_severity)}</span>
+            <span class="payload-firing">${firingBadgeHtml(item.alert_firing)}</span>
           </div>
           <div class="payload-preview">
             <code class="payload-preview-code">${escapeHtml(JSON.stringify(item.transformed || {}, null, 2))}</code>
@@ -2788,12 +2813,12 @@ function renderDlqTable() {
       : `<input type="checkbox" disabled title="${escapeHtml(tr("dlqNoIdHint"))}" />`;
     rows.push(`<tr class="dlq-row">
       <td class="dlq-cb-cell">${cbCell}</td>
-      <td>${escapeHtml(e.ts || "")}</td>
+      <td>${formatTimeGMT7(e.ts)}</td>
       <td>${traceWebhookCell(dlqWebhookFullId(e))}</td>
       <td class="td-num" title="${escapeHtml(tr("dlqColShardHint"))}">${escapeHtml(dlqShardLabel(e))}</td>
-      <td>${escapeHtml(e.source || "")}</td>
       <td>${escapeHtml(e.route || "")}</td>
       <td class="td-severity">${severityBadgeHtml(e.alert_severity)}</td>
+      <td class="td-firing">${firingBadgeHtml(e.alert_firing)}</td>
       <td class="failed-error-cell" title="${escapeHtml(errFull)}">${escapeHtml(errShort)}${errTrunc ? "…" : ""}</td>
       <td><button type="button" class="btn btn-secondary dlq-detail-btn" data-dlq-toggle="${i}" aria-expanded="${open}">${btnLabel}</button></td>
     </tr>`);

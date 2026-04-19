@@ -5,7 +5,7 @@ const LANG = {
   en: {
     liveEvents: "Live Events (Incoming Webhooks)",
     liveEventsSub:
-      "Recent webhooks · auto refresh · Use Webhook ID (8 chars, hover for full UUID) to match Failed Events and DLQ. One row per POST. Severity = worst among alerts[].",
+      "Recent webhooks · auto refresh · Times shown in GMT+7. Webhook ID matches Failed/DLQ. Alert status = firing / resolved / mixed from Alertmanager. HTTP = response to client.",
     liveEmpty: "No webhooks yet. POST to",
     orSource: "or other configured source",
     webhookEndpoints: "Webhook Endpoints (Alert Receivers)",
@@ -56,6 +56,10 @@ const LANG = {
     colRequestId: "Request ID",
     colTraceWebhook: "Webhook ID",
     colTraceWebhookHint: "Incoming POST id (X-Request-ID). Same across Live, Failed, and DLQ — hover for full UUID.",
+    colAlertFiring: "Alert status",
+    colAlertFiringHint: "From Alertmanager alerts[].status: firing vs resolved (mixed = both in one POST).",
+    colHttpStatus: "HTTP",
+    colForwarded: "Forwarded",
     failedEmpty: "No failed events. Forward failures will appear here.",
     noMatchesForSearch: "No matches for search",
     targetFwdChecking: "Target Fwd: Checking…",
@@ -210,7 +214,7 @@ const LANG = {
   th: {
     liveEvents: "Live Events (Webhooks ที่เข้ามา)",
     liveEventsSub:
-      "รายการล่าสุด · รีเฟรชอัตโนมัติ · ใช้ Webhook ID (8 ตัวแรก — ชี้เมาส์ดู UUID เต็ม) จับคู่กับ Failed และ DLQ · หนึ่งแถวต่อ POST · Severity = ระดับที่รุนแรงที่สุดใน alerts[]",
+      "รายการล่าสุด · รีเฟรชอัตโนมัติ · แสดงเวลาเป็น GMT+7 · Webhook ID จับคู่กับ Failed/DLQ · สถานะ alert = firing / resolved / mixed จาก Alertmanager · HTTP = รหัสตอบกลับให้ client",
     liveEmpty: "ยังไม่มี webhooks เข้ามา. ส่ง POST มาที่",
     orSource: "หรือ source อื่นที่ configure ไว้",
     webhookEndpoints: "Webhook Endpoints (ช่องทางการรับ Alert)",
@@ -261,6 +265,10 @@ const LANG = {
     colRequestId: "Request ID",
     colTraceWebhook: "Webhook ID",
     colTraceWebhookHint: "รหัส POST เข้า (X-Request-ID) — ตรงกันใน Live, Failed และ DLQ — ชี้เมาส์ดู UUID เต็ม",
+    colAlertFiring: "สถานะ alert",
+    colAlertFiringHint: "จาก Alertmanager alerts[].status: firing หรือ resolved (mixed = ทั้งคู่ใน POST เดียว)",
+    colHttpStatus: "HTTP",
+    colForwarded: "ส่งต่อ",
     failedEmpty: "ยังไม่มีรายการล้มเหลว. เมื่อ forward ล้มเหลวจะปรากฏที่นี่",
     noMatchesForSearch: "ไม่พบผลลัพธ์จากคำค้น",
     targetFwdChecking: "Target Fwd: กำลังตรวจสอบ…",

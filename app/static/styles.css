@@ -828,6 +828,37 @@ code.trace-webhook-id { cursor: help; }
   color: #1d4ed8;
   border: 1px solid rgba(59, 130, 246, 0.4);
 }
+.firing-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.firing-badge.firing-on {
+  background: rgba(220, 38, 38, 0.15);
+  color: #b91c1c;
+  border: 1px solid rgba(220, 38, 38, 0.4);
+}
+.firing-badge.firing-off {
+  background: rgba(22, 163, 74, 0.15);
+  color: #15803d;
+  border: 1px solid rgba(22, 163, 74, 0.4);
+}
+.firing-badge.firing-mixed {
+  background: rgba(234, 179, 8, 0.2);
+  color: #a16207;
+  border: 1px solid rgba(234, 179, 8, 0.45);
+}
+.firing-badge.firing-default {
+  background: var(--bg-input);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+.live-table .td-firing { white-space: nowrap; }
+
 .severity-badge.severity-low {
   background: rgba(100, 116, 139, 0.12);
   color: #475569;

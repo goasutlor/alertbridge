@@ -199,6 +199,52 @@ def extract_alert_severity(payload: Any) -> str:
     return ""
 
 
+def extract_bundle_firing_status(payload: Any) -> str:
+    """
+    Aggregate Alertmanager alerts[].status for the webhook row: firing | resolved | mixed | ''.
+    """
+    if not payload or not isinstance(payload, dict):
+        return ""
+    alerts = payload.get("alerts")
+    if isinstance(alerts, list) and alerts:
+        states: set[str] = set()
+        for a in alerts:
+            if not isinstance(a, dict):
+                continue
+            st = a.get("status")
+            if isinstance(st, str):
+                lv = st.strip().lower()
+                if lv in ("firing", "resolved"):
+                    states.add(lv)
+        if not states:
+            return ""
+        if states == {"firing"}:
+            return "firing"
+        if states == {"resolved"}:
+            return "resolved"
+        return "mixed"
+    st = payload.get("status")
+    if isinstance(st, str):
+        lv = st.strip().lower()
+        if lv in ("firing", "resolved"):
+            return lv
+    return ""
+
+
+def extract_shard_firing_status(sanitized: Any) -> str:
+    """Single transformed shard: alerts[0].status (firing | resolved)."""
+    if not sanitized or not isinstance(sanitized, dict):
+        return ""
+    alerts = sanitized.get("alerts")
+    if isinstance(alerts, list) and alerts and isinstance(alerts[0], dict):
+        st = alerts[0].get("status")
+        if isinstance(st, str):
+            lv = st.strip().lower()
+            if lv in ("firing", "resolved"):
+                return lv
+    return ""
+
+
 _config_watch_task: Optional[asyncio.Task] = None
 
 
@@ -433,9 +479,10 @@ async def webhook(source: str, request: Request) -> Response:
             preview_src = transform_payload(payload, route)
         san_preview = sanitize_payload(preview_src)
         alert_severity = extract_alert_severity(payload) or extract_alert_severity(san_preview)
+        alert_firing_b = extract_bundle_firing_status(payload) or extract_shard_firing_status(san_preview) or None
         RECENT_FAILED.append(
             {
-                "ts": datetime.now(BANGKOK).isoformat()[:23],
+                "ts": datetime.now(BANGKOK).isoformat(timespec="milliseconds"),
                 "request_id": request_id,
                 "source": source,
                 "route": route.name,
@@ -443,12 +490,13 @@ async def webhook(source: str, request: Request) -> Response:
                 "payload_preview": json.dumps(san_preview)[:200],
                 "error": err_pause,
                 "alert_severity": alert_severity or None,
+                "alert_firing": alert_firing_b,
             }
         )
         if dlq_file_path():
             record_failed_forward(
                 {
-                    "ts": datetime.now(BANGKOK).isoformat()[:23],
+                    "ts": datetime.now(BANGKOK).isoformat(timespec="milliseconds"),
                     "request_id": request_id,
                     "base_request_id": request_id,
                     "unroll_index": 0,
@@ -462,6 +510,7 @@ async def webhook(source: str, request: Request) -> Response:
                     "forward_paused": True,
                     "transformed": san_preview,
                     "alert_severity": alert_severity or None,
+                    "alert_firing": alert_firing_b,
                 }
             )
         increment_daily("forward_fail")
@@ -472,7 +521,7 @@ async def webhook(source: str, request: Request) -> Response:
         else:
             alerts_in_bundle_paused = 1
         RECENT_WEBHOOKS.append({
-            "ts": datetime.now(BANGKOK).isoformat()[:23],
+            "ts": datetime.now(BANGKOK).isoformat(timespec="milliseconds"),
             "request_id": request_id,
             "source": source,
             "route": route.name,
@@ -481,14 +530,16 @@ async def webhook(source: str, request: Request) -> Response:
             "alert_summary": alert_summary or None,
             "alert_severity": alert_severity or None,
             "alerts_in_bundle": alerts_in_bundle_paused,
+            "alert_firing": alert_firing_b,
         })
         RECENT_PAYLOADS.append({
-            "ts": datetime.now(BANGKOK).isoformat()[:23],
+            "ts": datetime.now(BANGKOK).isoformat(timespec="milliseconds"),
             "source": source,
             "route": route.name,
             "request_id": request_id,
             "payload": sanitize_payload(payload),
             "alert_severity": alert_severity or None,
+            "alert_firing": alert_firing_b,
         })
         return JSONResponse(
             {
@@ -506,13 +557,14 @@ async def webhook(source: str, request: Request) -> Response:
         if ok:
             out_san = sanitize_payload(output)
             RECENT_SENT.append({
-                "ts": datetime.now(BANGKOK).isoformat()[:23],
+                "ts": datetime.now(BANGKOK).isoformat(timespec="milliseconds"),
                 "request_id": rid,
                 "base_request_id": request_id,
                 "source": source,
                 "route": route.name,
                 "transformed": out_san,
                 "alert_severity": extract_alert_severity(out_san) or None,
+                "alert_firing": extract_shard_firing_status(out_san) or None,
             })
         else:
             all_success = False
@@ -527,7 +579,7 @@ async def webhook(source: str, request: Request) -> Response:
             sev = extract_alert_severity(out_san) or extract_alert_severity(payload)
             record_failed_forward(
                 {
-                    "ts": datetime.now(BANGKOK).isoformat()[:23],
+                    "ts": datetime.now(BANGKOK).isoformat(timespec="milliseconds"),
                     "request_id": rid,
                     "base_request_id": request_id,
                     "unroll_index": i,
@@ -545,6 +597,7 @@ async def webhook(source: str, request: Request) -> Response:
                     "final_failure": True,
                     "transformed": out_san,
                     "alert_severity": sev or None,
+                    "alert_firing": extract_shard_firing_status(out_san) or None,
                 }
             )
     # Daily forward_success: one per incoming webhook only when every outbound succeeded (unroll → N HTTP calls, still 1 tick).
@@ -573,6 +626,7 @@ async def webhook(source: str, request: Request) -> Response:
     # (worst across alerts[]), not from the last failed shard only — avoids WARNING vs CRITICAL mismatch.
     alert_summary = extract_alert_summary(payload)
     alert_severity_bundle = extract_alert_severity(payload)
+    alert_firing_bundle = extract_bundle_firing_status(payload)
     raw_alerts = payload.get("alerts")
     if isinstance(raw_alerts, list) and raw_alerts:
         alerts_in_bundle = len(raw_alerts)
@@ -599,7 +653,7 @@ async def webhook(source: str, request: Request) -> Response:
         )
         failed_san = sanitize_payload(failed_output)
         RECENT_FAILED.append({
-            "ts": datetime.now(BANGKOK).isoformat()[:23],
+            "ts": datetime.now(BANGKOK).isoformat(timespec="milliseconds"),
             "request_id": request_id,
             "source": source,
             "route": route.name,
@@ -607,11 +661,12 @@ async def webhook(source: str, request: Request) -> Response:
             "payload_preview": json.dumps(failed_san)[:200],
             "error": str(last_error) if last_error else None,
             "alert_severity": alert_severity_bundle or extract_alert_severity(failed_san) or None,
+            "alert_firing": alert_firing_bundle or extract_shard_firing_status(failed_san) or None,
         })
 
     # Append to live feed for UI (newest at end; API returns reversed)
     RECENT_WEBHOOKS.append({
-        "ts": datetime.now(BANGKOK).isoformat()[:23],
+        "ts": datetime.now(BANGKOK).isoformat(timespec="milliseconds"),
         "request_id": request_id,
         "source": source,
         "route": route.name,
@@ -620,15 +675,17 @@ async def webhook(source: str, request: Request) -> Response:
         "alert_summary": alert_summary or None,
         "alert_severity": alert_severity_bundle or None,
         "alerts_in_bundle": alerts_in_bundle,
+        "alert_firing": alert_firing_bundle or None,
     })
     # Store sanitized incoming payload so UI can use as source pattern (real traffic shape)
     RECENT_PAYLOADS.append({
-        "ts": datetime.now(BANGKOK).isoformat()[:23],
+        "ts": datetime.now(BANGKOK).isoformat(timespec="milliseconds"),
         "source": source,
         "route": route.name,
         "request_id": request_id,
         "payload": sanitize_payload(payload),
         "alert_severity": alert_severity_bundle or None,
+        "alert_firing": alert_firing_bundle or None,
     })
 
     return JSONResponse(

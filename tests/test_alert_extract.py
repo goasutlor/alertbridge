@@ -1,5 +1,5 @@
 """Alert summary / severity extraction from webhook payloads."""
-from app.main import extract_alert_severity
+from app.main import extract_alert_severity, extract_bundle_firing_status, extract_shard_firing_status
 
 
 def test_extract_severity_common_labels():
@@ -37,3 +37,23 @@ def test_extract_severity_top_labels():
 def test_extract_severity_empty():
     assert extract_alert_severity({}) == ""
     assert extract_alert_severity(None) == ""
+
+
+def test_extract_bundle_firing_all_firing():
+    p = {"alerts": [{"status": "firing"}, {"status": "firing"}]}
+    assert extract_bundle_firing_status(p) == "firing"
+
+
+def test_extract_bundle_firing_mixed():
+    p = {"alerts": [{"status": "firing"}, {"status": "resolved"}]}
+    assert extract_bundle_firing_status(p) == "mixed"
+
+
+def test_extract_bundle_firing_top_level():
+    p = {"status": "resolved", "alerts": []}
+    assert extract_bundle_firing_status(p) == "resolved"
+
+
+def test_extract_shard_firing():
+    san = {"alerts": [{"status": "resolved", "labels": {}}]}
+    assert extract_shard_firing_status(san) == "resolved"

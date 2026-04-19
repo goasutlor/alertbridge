@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AlertBridge</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
-    <link rel="stylesheet" href="/static/styles.css?v=50" />
+    <link rel="stylesheet" href="/static/styles.css?v=51" />
   </head>
   <body>
     <div class="hero-bg"></div>
@@ -78,13 +78,13 @@
               <tr>
                 <th>Time (GMT+7)</th>
                 <th data-i18n="colTraceWebhook" data-i18n-title="colTraceWebhookHint">Webhook ID</th>
-                <th>Source</th>
                 <th>Route</th>
                 <th>Alert</th>
                 <th data-i18n="colAlertsInBundle">Alerts</th>
                 <th data-i18n="colSeverity">Severity</th>
-                <th>Status</th>
-                <th>Forwarded</th>
+                <th data-i18n="colAlertFiring" data-i18n-title="colAlertFiringHint">Alert status</th>
+                <th data-i18n="colHttpStatus">HTTP</th>
+                <th data-i18n="colForwarded">Forwarded</th>
               </tr>
             </thead>
             <tbody id="liveRequestsBody"></tbody>
@@ -116,10 +116,10 @@
               <tr>
                 <th>Time (GMT+7)</th>
                 <th data-i18n="colTraceWebhook" data-i18n-title="colTraceWebhookHint">Webhook ID</th>
-                <th>Source</th>
                 <th>Route</th>
                 <th data-i18n="colSeverity">Severity</th>
-                <th>Status</th>
+                <th data-i18n="colAlertFiring" data-i18n-title="colAlertFiringHint">Alert status</th>
+                <th data-i18n="colHttpStatus">HTTP</th>
                 <th>Error</th>
               </tr>
             </thead>
@@ -168,9 +168,9 @@
                   <th data-i18n="dlqColTime">Time (GMT+7)</th>
                   <th data-i18n="colTraceWebhook" data-i18n-title="colTraceWebhookHint">Webhook ID</th>
                   <th data-i18n="dlqColShard">Shard</th>
-                  <th data-i18n="dlqColSource">Source</th>
                   <th data-i18n="dlqColRoute">Route</th>
                   <th data-i18n="colSeverity">Severity</th>
+                  <th data-i18n="colAlertFiring" data-i18n-title="colAlertFiringHint">Alert status</th>
                   <th data-i18n="dlqColError">Error</th>
                   <th data-i18n="dlqColAction">Detail</th>
                 </tr>
@@ -442,7 +442,7 @@
       </div>
     </div>
 
-    <script src="/static/i18n.js?v=45"></script>
-    <script src="/static/app.js?v=50"></script>
+    <script src="/static/i18n.js?v=46"></script>
+    <script src="/static/app.js?v=51"></script>
   </body>
 </html>
