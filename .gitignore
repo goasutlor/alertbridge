@@ -5,7 +5,9 @@ __pycache__/
 *.so
 .venv/
 .venv-sec/
+.venv-sbom/
 venv/
+freeze.txt
 .env
 *.egg-info/
 dist/

@@ -15,6 +15,8 @@
 | `kubernetes>=35,<36` | Official client allows urllib3 2.x (drops the old `urllib3<2` cap from kubernetes 28.x) so urllib3 can be upgraded safely. |
 
 Rebuild container images after changing `requirements.txt`.
+
+- **SBOM:** CycloneDX JSON at `sbom/cyclonedx.json` (regenerate with `scripts/generate-sbom.sh` or `scripts/generate-sbom.ps1` after dependency changes).
 - **Secrets**: No plain passwords in config; use env vars (`password_env`, `BASIC_AUTH_PASSWORD`, etc.) and mount via Kubernetes Secret.
 - **YAML**: Only `yaml.safe_load` / `yaml.safe_dump` (no arbitrary class loading).
 - **Forward URL**: Target URL from env only; scheme restricted to `http`/`https` (no `file:`, `gopher:`, etc.). Redirects disabled (`follow_redirects=False`) to avoid redirect-based SSRF.
