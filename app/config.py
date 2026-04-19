@@ -6,7 +6,7 @@ from typing import Optional
 
 import yaml
 
-from app.rules import Defaults, RuleSet, RouteConfig
+from app.rules import Defaults, RuleSet
 
 logger = logging.getLogger("alertbridge")
 RULES_PATH = Path(os.getenv("ALERTBRIDGE_RULES_PATH", "/etc/alertbridge/rules.yaml"))
@@ -67,20 +67,20 @@ def persist_rules(rules: RuleSet) -> None:
         raise
 
 
-def strip_disallowed_confluent_routes(rules: RuleSet) -> RuleSet:
+def enforce_ocp_inbound_only(rules: RuleSet) -> RuleSet:
     """
-    Drop routes whose match.source is 'confluent'. Example ConfigMaps / saves may still list a
-    second route; product standard is a single inbound path (POST /webhook/ocp) only.
+    Keep only routes with match.source 'ocp' (case-insensitive). Inbound URL is POST /webhook/ocp
+    for this product; extra routes in stored YAML are dropped with a log line.
     """
-    legacy: list[RouteConfig] = [r for r in rules.routes if r.match.source.lower() == "confluent"]
-    if not legacy:
+    kept = [r for r in rules.routes if r.match.source.lower() == "ocp"]
+    if len(kept) == len(rules.routes):
         return rules
+    dropped = [r for r in rules.routes if r.match.source.lower() != "ocp"]
     logger.warning(
-        "Ignoring %d route(s) with match.source 'confluent' (use POST /webhook/ocp only). "
-        "Save config from the UI to persist rules without them.",
-        len(legacy),
+        "Dropped %d route(s) without match.source 'ocp': %s",
+        len(dropped),
+        ", ".join(f"{r.name}({r.match.source})" for r in dropped),
     )
-    kept = [r for r in rules.routes if r.match.source.lower() != "confluent"]
     return rules.model_copy(update={"routes": kept})
 
 
@@ -92,7 +92,7 @@ def load_rules_from_yaml_text(yaml_text: str) -> RuleSet:
     patterns = data.pop("patterns", None)
     init_patterns(patterns)
     rules = RuleSet.model_validate(data)
-    return strip_disallowed_confluent_routes(rules)
+    return enforce_ocp_inbound_only(rules)
 
 
 def load_rules_from_file(path: Path = RULES_PATH) -> RuleSet:

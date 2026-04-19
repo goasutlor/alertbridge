@@ -30,8 +30,8 @@ patterns:
     assert "MyPattern" in names
 
 
-def test_load_rules_drops_confluent_source_route():
-    """Rules that still list a confluent match.source must not surface in API/UI (OCP-only product)."""
+def test_load_rules_keeps_only_ocp_routes():
+    """Stored YAML may list extra routes; only match.source ocp is kept."""
     from app.config import load_rules_from_yaml_text
 
     yaml_text = """
@@ -46,11 +46,11 @@ routes:
     target:
       url_env: TARGET_URL_OCP
     transform: {}
-  - name: confluent-alerts
+  - name: legacy-other
     match:
-      source: confluent
+      source: legacy
     target:
-      url_env: TARGET_URL_CONFLUENT
+      url_env: TARGET_URL_LEGACY
     transform: {}
 """
     rules = load_rules_from_yaml_text(yaml_text)

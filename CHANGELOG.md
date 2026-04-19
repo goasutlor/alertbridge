@@ -8,10 +8,10 @@ All notable changes to this project are documented in this file. The format is i
 
 ### Changed
 
-- **Config still listing `confluent` routes:** On load and before `PUT /api/config` persist, routes with `match.source: confluent` are **dropped** so the UI (Target URLs, Client Info, forward summary) stays **OCP-only** even if a ConfigMap still contains `confluent-alerts`. Saving from the UI writes YAML without them; `POST /webhook/confluent` then **404** (no matching route).
-- **Documentation & copy:** Aligned **ARCHITECTURE**, **FEATURES**, **VA_TEST**, **OCP_DEPLOY**, Field Mapper i18n, and `docs/TARGET_PATTERN_EXAMPLES.json` with a **single inbound source** (`POST /webhook/ocp`); removed remaining “two routes / Confluent” wording outside historical changelog notes.
+- **Inbound policy:** On rules load and before `PUT /api/config` persist, **only** routes with `match.source: ocp` are kept; any other route entries in YAML are **dropped** (warning in logs) so the UI and forwarder always reflect a **single** inbound path: `POST /webhook/ocp`. Saving from the UI persists cleaned YAML.
+- **Documentation & copy:** **ARCHITECTURE**, **FEATURES**, **VA_TEST**, **OCP_DEPLOY**, Field Mapper i18n, and `docs/TARGET_PATTERN_EXAMPLES.json` describe a single inbound webhook and OCP-focused mapping.
 - **UI (Live / Failed / DLQ):** Removed **Route** column (single inbound path `/webhook/ocp`). **DLQ** adds **Alert(s)** with the same preview/tooltip as Live (`alert_bundle_preview` / `alert_bundle_detail` stored per DLQ row; legacy rows backfilled from `transformed` when possible).
-- **Confluent route removed:** Dropped `confluent-alerts` / `TARGET_URL_CONFLUENT` from example rules and deploy manifests; Confluent and other producers use the same OCP webhook URL. Field Mapper **Confluent** preset merge checkbox removed; built-in `confluent-8.10` schema removed from `patterns.py` (flat JSON still works via Custom paste to `/webhook/ocp`). Docs and test scripts updated.
+- **Example rules & deploy:** Default manifests and `rules.example.yaml` use one route (`ocp`) and OCP target env vars only; flat JSON producers use the same `/webhook/ocp` path with Field Mapper **Custom** paste as needed.
 
 ### Security
 
@@ -25,8 +25,8 @@ All notable changes to this project are documented in this file. The format is i
 - **`/api/recent-sent`:** Returns up to **15** successful forwards sorted by **`ts` descending** (true “latest” first). In-memory `RECENT_SENT` holds up to 50. UI badges the top row as “Latest”. Fixes the old `maxlen=1` case where only the **last** unroll shard survived vs Live Events (first alert summary).
 - **Custom source JSON:** Multiple stacked sample rows (`+ Add JSON sample`, up to 8); **Use as source fields** merges parsed paths from every non-empty row into one Source field list (unique paths) for mapping dropdowns.
 - **Pattern mapping fallbacks:** Optional `source_field_ids` array on each mapping row — ordered source paths; the engine uses the first **non-empty** value (skips `null` and blank strings), then falls back to the first path that exists. Builds `TransformConfig.coalesce_sources` for Alertmanager payloads where `alerts[0]` vs `commonLabels` / `groupLabels` differ.
-- **Field Mapper UI:** Per target row, **Source columns 1…n** (horizontal): numbered badges, field `<select>`s (same merged list), **+** inserts a column after that slot, **−** removes a column (minimum one), up to 12 columns — first non-empty value left-to-right wins. **Custom** mode: checkboxes to merge **OCP Alertmanager** and/or **Confluent** preset fields into every dropdown. Save/Apply sends `source_field_ids` when multiple options are set; loading restores from pattern or route `coalesce_sources`.
-- **Mapper safety / design:** In-page hint explains option order and merge behavior; **duplicate path in the same target row** blocks Save/Apply with row highlight; **Load pattern (Custom)** auto-enables OCP/Confluent merge when saved paths reference preset fields not present in the pasted custom list.
+- **Field Mapper UI:** Per target row, **Source columns 1…n** (horizontal): numbered badges, field `<select>`s (same merged list), **+** inserts a column after that slot, **−** removes a column (minimum one), up to 12 columns — first non-empty value left-to-right wins. **Custom** mode: optional checkbox to merge the **OCP Alertmanager** preset path catalog into every dropdown. Save/Apply sends `source_field_ids` when multiple options are set; loading restores from pattern or route `coalesce_sources`.
+- **Mapper safety / design:** In-page hint explains option order and merge behavior; **duplicate path in the same target row** blocks Save/Apply with row highlight; **Load pattern (Custom)** can auto-enable OCP preset merge when saved paths reference preset fields not present in the pasted custom list.
 
 ### Fixed
 
