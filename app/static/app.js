@@ -2815,7 +2815,7 @@ function renderDlqTable() {
       <td><button type="button" class="btn btn-secondary dlq-detail-btn" data-dlq-toggle="${i}" aria-expanded="${open}">${btnLabel}</button></td>
     </tr>`);
     rows.push(
-      `<tr class="dlq-detail-row" data-dlq-detail-for="${i}" style="display:${open ? "table-row" : "none"};"><td colspan="${DLQ_TABLE_COLS}"><pre class="dlq-detail-pre">${escapeHtml(JSON.stringify(e, null, 2))}</pre></td></tr>`
+      `<tr class="dlq-detail-row" data-dlq-detail-for="${i}" style="display:${open ? "table-row" : "none"};"><td colspan="${DLQ_TABLE_COLS}"><div class="dlq-detail-actions"><button type="button" class="btn btn-secondary dlq-copy-json-btn" data-dlq-copy="${i}">${escapeHtml(tr("dlqCopyJson"))}</button><span class="dlq-copy-feedback" data-dlq-copy-feedback="${i}" style="display:none; margin-left: 6px; color: var(--accent); font-size: 12px;">${escapeHtml(tr("copied"))}</span></div><pre class="dlq-detail-pre">${escapeHtml(JSON.stringify(e, null, 2))}</pre></td></tr>`
     );
   });
   body.innerHTML = rows.join("");
@@ -2833,6 +2833,25 @@ function renderDlqTable() {
 }
 
 function onDlqTableClick(ev) {
+  const copyBtn = ev.target.closest("[data-dlq-copy]");
+  if (copyBtn) {
+    const idx = parseInt(copyBtn.getAttribute("data-dlq-copy"), 10);
+    if (Number.isNaN(idx)) return;
+    const e = dlqEntriesCache[idx];
+    if (!e) return;
+    const text = JSON.stringify(e, null, 2);
+    navigator.clipboard.writeText(text).then(() => {
+      const feedback = document.querySelector(`.dlq-copy-feedback[data-dlq-copy-feedback="${idx}"]`);
+      if (feedback) {
+        feedback.style.display = "inline";
+        feedback.textContent = tr("copied");
+        setTimeout(() => { feedback.style.display = "none"; }, 1200);
+      }
+      copyBtn.textContent = tr("copied");
+      setTimeout(() => { copyBtn.textContent = tr("dlqCopyJson"); }, 1200);
+    }).catch(() => {});
+    return;
+  }
   const btn = ev.target.closest("[data-dlq-toggle]");
   if (!btn) return;
   const idx = parseInt(btn.getAttribute("data-dlq-toggle"), 10);

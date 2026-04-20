@@ -150,6 +150,17 @@ def test_map_values_and_output_template():
     assert result["missing"] is None
 
 
+def test_severity_from_resolved_status_overrides_flat_output():
+    payload = {"status": "resolved", "severity": "critical"}
+    transform = TransformConfig(
+        severity_from_resolved_status=True,
+        output_template=OutputTemplate(fields={"status": "$.status", "severity": "$.severity"}),
+    )
+    result = transform_payload(payload, _route(transform))
+    assert result["status"] == "resolved"
+    assert result["severity"] == "resolved"
+
+
 def test_alerts_array_path_mapping():
     """Paths like alerts.0.labels.job and alerts.0.startsAt must resolve correctly."""
     payload = {
