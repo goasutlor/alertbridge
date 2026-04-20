@@ -1255,17 +1255,24 @@ async def api_save_pattern(
     request: Request,
     _: Optional[str] = Depends(require_basic_auth),
 ) -> Response:
-    """Save a pattern. Body: { name, source_type, mappings[, id] }."""
+    """Save a pattern. Body: { name, source_type, mappings[, id, severity_from_resolved_status] }."""
     body = await _read_json_with_limit(request)
     name = (body.get("name") or "Unnamed pattern").strip()[:200]
     source_type = (body.get("source_type") or "").strip()[:100]
     mappings = body.get("mappings") or []
+    severity_from_resolved_status = bool(body.get("severity_from_resolved_status", False))
     if len(mappings) > 500:
         raise HTTPException(status_code=400, detail="Too many mappings")
     pattern_id = body.get("id")
     old = copy.deepcopy(get_pattern(pattern_id)) if pattern_id else None
     try:
-        saved = save_pattern_data(name=name, source_type=source_type, mappings=mappings, pattern_id=pattern_id)
+        saved = save_pattern_data(
+            name=name,
+            source_type=source_type,
+            mappings=mappings,
+            severity_from_resolved_status=severity_from_resolved_status,
+            pattern_id=pattern_id,
+        )
     except Exception as exc:
         logger.warning("Pattern save failed: %s", exc)
         raise HTTPException(status_code=400, detail="Invalid pattern") from exc
@@ -1277,6 +1284,7 @@ async def api_save_pattern(
                 name=old["name"],
                 source_type=old["source_type"],
                 mappings=old["mappings"],
+                severity_from_resolved_status=bool(old.get("severity_from_resolved_status", False)),
                 pattern_id=old["id"],
             )
         else:
@@ -1302,6 +1310,7 @@ async def api_delete_pattern(
             name=old["name"],
             source_type=old["source_type"],
             mappings=old["mappings"],
+            severity_from_resolved_status=bool(old.get("severity_from_resolved_status", False)),
             pattern_id=old["id"],
         )
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -1317,7 +1326,7 @@ async def api_apply_pattern(
     Apply a pattern to a route.
 
     - Body ``{ route_name, pattern_id }`` (no mappings): use the saved pattern's mappings as the route transform.
-    - Body ``{ route_name, mappings, pattern_name [, pattern_id] }``: use **mappings from the request** for the
+    - Body ``{ route_name, mappings, pattern_name [, pattern_id, severity_from_resolved_status] }``: use **mappings from the request** for the
       transform; **does not** create or update the pattern library. The named pattern must already exist (Save first).
       Optional ``pattern_id`` disambiguates when multiple legacy rows share a name.
     """
@@ -1337,6 +1346,7 @@ async def api_apply_pattern(
 
     raw_mappings = body.get("mappings")
     pattern_id = body.get("pattern_id")
+    severity_from_resolved_status = bool(body.get("severity_from_resolved_status", False))
 
     active_id: Optional[str] = None
     active_nm: Optional[str] = None
@@ -1384,11 +1394,15 @@ async def api_apply_pattern(
         mappings = pattern["mappings"]
         active_id = pattern_id
         active_nm = pattern.get("name")
+        severity_from_resolved_status = bool(pattern.get("severity_from_resolved_status", False))
     else:
         return JSONResponse({"detail": "Provide pattern_id or non-empty mappings"}, status_code=400)
 
     try:
-        new_transform = build_transform_from_mapping(mappings)
+        new_transform = build_transform_from_mapping(
+            mappings,
+            severity_from_resolved_status=severity_from_resolved_status,
+        )
         new_route = route.model_copy(
             update={
                 "transform": new_transform,

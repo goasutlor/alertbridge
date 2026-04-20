@@ -171,6 +171,39 @@ def test_save_pattern_includes_timestamps(client):
     assert body.get("updated_at")
 
 
+def test_save_pattern_persists_severity_resolved_option(client):
+    response = client.post(
+        "/api/patterns",
+        json={
+            "name": "p-severity-resolved",
+            "source_type": "ocp-alertmanager-4.20",
+            "severity_from_resolved_status": True,
+            "mappings": [{"target_field_id": "severity", "source_field_id": "severity"}],
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body.get("severity_from_resolved_status") is True
+
+
+def test_apply_pattern_by_id_sets_route_severity_resolved_option(client, monkeypatch):
+    monkeypatch.setattr("app.main.persist_rules", lambda _rules: None)
+    saved = save_pattern_data(
+        name="saved-severity-flag",
+        source_type="ocp-alertmanager-4.20",
+        mappings=[{"target_field_id": "severity", "source_field_id": "severity"}],
+        severity_from_resolved_status=True,
+    )
+    pid = saved["id"]
+    response = client.post(
+        "/api/patterns/apply",
+        json={"route_name": "ocp-alertmanager", "pattern_id": pid},
+    )
+    assert response.status_code == 200
+    route = next(r for r in get_rules().routes if r.name == "ocp-alertmanager")
+    assert route.transform.severity_from_resolved_status is True
+
+
 def test_save_pattern_same_name_reuses_same_id(client, monkeypatch):
     monkeypatch.setattr("app.main.persist_rules", lambda _rules: None)
     r1 = client.post(

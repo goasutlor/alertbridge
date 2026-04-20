@@ -136,6 +136,7 @@ def save_pattern(
     name: str,
     source_type: str,
     mappings: List[Dict[str, Any]],
+    severity_from_resolved_status: bool = False,
     pattern_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
@@ -155,6 +156,7 @@ def save_pattern(
         "name": name,
         "source_type": source_type,
         "mappings": mappings,
+        "severity_from_resolved_status": bool(severity_from_resolved_status),
         "created_at": created_at,
         "updated_at": _now_bangkok_iso(),
     }
@@ -180,6 +182,7 @@ def init_patterns(patterns: List[Dict[str, Any]]) -> None:
                 "name": p.get("name") or "Unnamed",
                 "source_type": p.get("source_type") or "",
                 "mappings": p["mappings"],
+                "severity_from_resolved_status": bool(p.get("severity_from_resolved_status", False)),
                 "created_at": p.get("created_at"),
                 "updated_at": p.get("updated_at"),
             }
@@ -195,6 +198,7 @@ def _include_path_and_parents(include_set: set, path: str) -> None:
 def build_transform_from_mapping(
     mappings: List[Dict[str, Any]],
     target_field_ids: Optional[List[str]] = None,
+    severity_from_resolved_status: bool = False,
 ) -> TransformConfig:
     """
     Build TransformConfig from mapping list.
@@ -269,5 +273,6 @@ def build_transform_from_mapping(
         coalesce_sources=coalesce_sources if coalesce_sources else None,
         enrich_static=enrich_static if enrich_static else None,
         concat_templates=concat_templates if concat_templates else None,
+        severity_from_resolved_status=bool(severity_from_resolved_status),
         output_template=OutputTemplate(type="flat", fields=output_fields) if output_fields else None,
     )

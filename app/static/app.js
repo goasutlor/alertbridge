@@ -35,6 +35,7 @@ const mapperApplySavedToRouteBtn = document.getElementById("mapperApplySavedToRo
 const mapperApplyRoute = document.getElementById("mapperApplyRoute");
 const mapperApplyBtn = document.getElementById("mapperApplyBtn");
 const mapperStatus = document.getElementById("mapperStatus");
+const mapperSeverityResolvedToggle = document.getElementById("mapperSeverityResolvedToggle");
 const savedPatternsList = document.getElementById("savedPatternsList");
 const mapperImportPatternBtn = document.getElementById("mapperImportPatternBtn");
 const mapperImportPatternFile = document.getElementById("mapperImportPatternFile");
@@ -1968,6 +1969,14 @@ function mappingsFromRouteTransform(route) {
   return mappings;
 }
 
+function mapperSeverityResolvedEnabledFromRoute(route) {
+  return Boolean(route && route.transform && route.transform.severity_from_resolved_status === true);
+}
+
+function mapperSeverityResolvedEnabledFromPattern(pattern) {
+  return Boolean(pattern && pattern.severity_from_resolved_status === true);
+}
+
 function loadActiveRouteMappingIntoForm() {
   updateMapperActivePatternDisplay();
   if (!configJson || !Array.isArray(configJson.routes)) return;
@@ -1976,6 +1985,9 @@ function loadActiveRouteMappingIntoForm() {
   if (!routeName) return;
   const route = configJson.routes.find((r) => r.name === routeName);
   if (!route) return;
+  if (mapperSeverityResolvedToggle) {
+    mapperSeverityResolvedToggle.checked = mapperSeverityResolvedEnabledFromRoute(route);
+  }
   editorPatternId = route.active_pattern_id || null;
   const mappings = mappingsFromRouteTransform(route);
   if (!mappings.length) return;
@@ -2078,6 +2090,9 @@ async function loadOnePattern(patternId) {
     const res = await fetch(`/api/patterns/${patternId}`, { credentials: "include" });
     if (!res.ok) return;
     const p = await res.json();
+    if (mapperSeverityResolvedToggle) {
+      mapperSeverityResolvedToggle.checked = mapperSeverityResolvedEnabledFromPattern(p);
+    }
     editorPatternId = p.id || null;
     mapperPatternName.value = p.name || "";
     mapperSourceType.value = p.source_type || "";
@@ -2172,7 +2187,7 @@ async function downloadPattern(patternId, patternName) {
 
 /**
  * Import a pattern from JSON (same shape as GET /api/patterns/:id / Download).
- * POST /api/patterns with name, source_type, mappings; optional id updates that row.
+ * POST /api/patterns with name, source_type, mappings; optional id and severity_from_resolved_status.
  */
 async function importPatternFromJsonData(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) {
@@ -2192,6 +2207,7 @@ async function importPatternFromJsonData(data) {
     throw new Error(check.msg);
   }
   const payload = { name, source_type: sourceType, mappings };
+  payload.severity_from_resolved_status = data.severity_from_resolved_status === true;
   if (data.id != null && String(data.id).trim() !== "") {
     payload.id = String(data.id).trim();
   }
@@ -2300,7 +2316,12 @@ if (mapperSavePatternBtn) {
       if (mapperStatus) mapperStatus.textContent = check.msg;
       return;
     }
-    const payload = { name, source_type: sourceType, mappings };
+    const payload = {
+      name,
+      source_type: sourceType,
+      mappings,
+      severity_from_resolved_status: Boolean(mapperSeverityResolvedToggle && mapperSeverityResolvedToggle.checked),
+    };
     if (editorPatternId) payload.id = editorPatternId;
     try {
       const res = await fetch("/api/patterns", {
@@ -2573,6 +2594,7 @@ if (mapperApplyBtn) {
       source_type: mapperSourceType?.value || "",
       mappings,
       pattern_name: pName,
+      severity_from_resolved_status: Boolean(mapperSeverityResolvedToggle && mapperSeverityResolvedToggle.checked),
     };
     if (editorPatternId) applyBody.pattern_id = editorPatternId;
     try {
