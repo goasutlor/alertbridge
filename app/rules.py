@@ -66,7 +66,7 @@ class TransformConfig(BaseModel):
     coalesce_sources: Optional[Dict[str, List[str]]] = None
     enrich_static: Optional[Dict[str, Any]] = None
     map_values: Optional[Dict[str, Dict[str, str]]] = None
-    # If True and payload status is "resolved", overwrite severity with "resolved".
+    # If True and payload status is "resolved", overwrite severity with "clear".
     severity_from_resolved_status: bool = False
     # target_field_id -> combine several JSON paths with a format template ({0}, {1}, …).
     concat_templates: Optional[Dict[str, ConcatTemplateSpec]] = None
@@ -241,7 +241,7 @@ def transform_payload(payload: Any, route: RouteConfig) -> Any:
 
 def _force_resolved_status_to_severity(payload: Any) -> None:
     """
-    If status is resolved, force severity to resolved.
+    If status is resolved, force severity to clear.
     Supports common flat and alert-style transformed shapes.
     """
     if not isinstance(payload, dict):
@@ -249,9 +249,9 @@ def _force_resolved_status_to_severity(payload: Any) -> None:
     status = _extract_status_text(payload)
     if status != "resolved":
         return
-    _set_by_path(payload, "severity", "resolved")
+    _set_by_path(payload, "severity", "clear")
     if isinstance(payload.get("labels"), dict):
-        _set_by_path(payload, "labels.severity", "resolved")
+        _set_by_path(payload, "labels.severity", "clear")
 
 
 def _extract_status_text(payload: Dict[str, Any]) -> str:

@@ -181,7 +181,7 @@ const LANG = {
       "Stores the mapping under a name in Saved patterns. Same name overwrites the existing row — this does not change live forwarding until you Apply.",
     mapperStepOptionsHeading: "Transform options",
     mapperStepOptionsHint: "Extra behavior saved with the pattern and used on Apply.",
-    mapperSeverityResolvedToggleLabel: "When status is resolved, force severity = resolved",
+    mapperSeverityResolvedToggleLabel: "When status is resolved, force severity = clear",
     mapperStepApplyHeading: "2. Apply to route",
     mapperStepApplyHint:
       "The pattern name must already exist in Saved patterns (Save first with that name). This sets the selected route’s live transform from the form; it does not add a new library row.",
@@ -413,7 +413,7 @@ const LANG = {
       "เก็บ mapping เป็นชื่อใน Saved patterns — ชื่อซ้ำจะเขียนทับแถวเดิม — ยังไม่เปลี่ยนการ forward จนกว่าจะ Apply",
     mapperStepOptionsHeading: "ตัวเลือก Transform เพิ่มเติม",
     mapperStepOptionsHint: "ค่าพิเศษที่บันทึกร่วมกับ pattern และใช้ตอน Apply",
-    mapperSeverityResolvedToggleLabel: "ถ้า status เป็น resolved ให้บังคับ severity = resolved",
+    mapperSeverityResolvedToggleLabel: "ถ้า status เป็น resolved ให้บังคับ severity = clear",
     mapperStepApplyHeading: "2. นำไปใช้กับ route",
     mapperStepApplyHint:
       "ชื่อ pattern ต้องมีใน Saved patterns แล้ว (บันทึกก่อนด้วยชื่อนั้น) — ขั้นนี้กำหนด transform ของ route จากฟอร์ม ไม่สร้างแถวใหม่ในคลัง",

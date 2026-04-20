@@ -158,7 +158,7 @@ def test_severity_from_resolved_status_overrides_flat_output():
     )
     result = transform_payload(payload, _route(transform))
     assert result["status"] == "resolved"
-    assert result["severity"] == "resolved"
+    assert result["severity"] == "clear"
 
 
 def test_alerts_array_path_mapping():

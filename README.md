@@ -210,7 +210,7 @@ routes:
       enrich_static: {}             # { "field": "fixed value" }
       concat_templates: {}          # { "target": { template: "[{0}] {1}", paths: ["a","b"] } }
       map_values: {}                # { "field": { "old": "new" } }
-      severity_from_resolved_status: false  # true => if status == resolved, force severity = resolved
+      severity_from_resolved_status: false  # true => if status == resolved, force severity = clear
       output_template:
         type: flat
         fields: {}                  # { "target_field": "$.source.path" }
