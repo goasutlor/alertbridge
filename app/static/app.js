@@ -1174,6 +1174,22 @@ function alertBundleCellHtml(r) {
   return `<td class="live-alert-bundle" title="${escapeHtml(title)}">${escapeHtml(display)}</td>`;
 }
 
+/** DLQ compatibility: if legacy row stores whole bundle, show only this shard's line. */
+function dlqAlertBundleCellHtml(e) {
+  const basePreview = (e.alert_bundle_preview || e.alert_summary || "").trim() || "—";
+  const baseDetail = (e.alert_bundle_detail || e.alert_summary || "").trim();
+  const n = Number(e.unroll_count);
+  const idx = Number(e.unroll_index);
+  if (!Number.isFinite(n) || n <= 1 || !Number.isFinite(idx) || idx < 0 || !baseDetail.includes("\n")) {
+    const display = basePreview.length > 96 ? `${basePreview.slice(0, 93)}…` : basePreview;
+    return `<td class="live-alert-bundle" title="${escapeHtml(baseDetail)}">${escapeHtml(display)}</td>`;
+  }
+  const lines = baseDetail.split("\n").map((x) => x.trim()).filter(Boolean);
+  const selected = idx < lines.length ? lines[idx] : lines[0] || basePreview;
+  const display = selected.length > 96 ? `${selected.slice(0, 93)}…` : selected;
+  return `<td class="live-alert-bundle" title="${escapeHtml(selected)}">${escapeHtml(display)}</td>`;
+}
+
 /** Severity from alert payload (labels.severity, commonLabels, etc.) for table columns. */
 function severityBadgeHtml(sev) {
   const s = sev != null ? String(sev).trim() : "";
@@ -2872,7 +2888,7 @@ function renderDlqTable() {
       <td>${formatTimeGMT7(e.ts)}</td>
       <td>${traceWebhookCell(dlqWebhookFullId(e))}</td>
       <td class="td-num" title="${escapeHtml(tr("dlqColShardHint"))}">${escapeHtml(dlqShardLabel(e))}</td>
-      ${alertBundleCellHtml(e)}
+      ${dlqAlertBundleCellHtml(e)}
       <td class="td-severity">${severityBadgeHtml(e.alert_severity)}</td>
       <td class="td-firing">${firingBadgeHtml(e.alert_firing)}</td>
       <td class="failed-error-cell" title="${escapeHtml(errFull)}">${escapeHtml(errShort)}${errTrunc ? "…" : ""}</td>
