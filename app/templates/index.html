@@ -62,7 +62,7 @@
             </div>
             <div class="stat-card">
               <span class="stat-label">Forward</span>
-              <span class="stat-inline">success <strong id="statsForwardOk">0</strong> · failed <strong id="statsForwardFail">0</strong></span>
+              <span class="stat-inline">success <strong id="statsForwardOk">0</strong> · failed <strong id="statsForwardFail">0</strong> · skipped <strong id="statsForwardSkipped">0</strong></span>
             </div>
           </div>
           <span id="statsStatus" class="status"></span>
@@ -146,6 +146,9 @@
           <p class="text-muted" id="dlqDisabledMsg" data-i18n="dlqOff">DLQ is not configured. Set ALERTBRIDGE_DLQ_FILE and mount a volume (see install-ocp-pull.yaml).</p>
         </div>
         <div id="dlqPanel" class="dlq-panel" style="display:none;">
+          <div class="failed-events-toolbar">
+            <input type="text" id="dlqSearch" class="input-inline" placeholder="Search DLQ: webhook id, alert, error…" data-i18n-placeholder="dlqSearchPlaceholder" />
+          </div>
           <div class="dlq-toolbar">
             <label for="dlqLimit" data-i18n="rowsPerPage">Rows</label>
             <select id="dlqLimit" class="select" aria-label="Rows per page">
@@ -220,6 +223,9 @@
       <section class="card card-sent">
         <h2 class="card-title" data-i18n="recentSentTitle">Recent transformed forwards</h2>
         <p class="card-subtitle" data-i18n="recentSentSub">Top row = last successful forward by time. Unroll may add more rows below. Live Events = one line per webhook.</p>
+        <div class="failed-events-toolbar">
+          <input type="text" id="recentSentSearch" class="input-inline" placeholder="Search success logs: webhook id, alert, severity…" data-i18n-placeholder="recentSentSearchPlaceholder" />
+        </div>
         <ul id="recentSentList" class="recent-payloads-list"></ul>
         <div id="recentSentStatus" class="status"></div>
       </section>

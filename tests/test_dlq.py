@@ -253,3 +253,56 @@ def test_webhook_forward_paused_skips_outbound_but_records_failed_and_dlq(monkey
     assert any(
         x.get("error") == "Forwarding paused (outbound disabled for this route)" for x in failed_list
     ), failed_list
+
+
+def test_webhook_forward_paused_unroll_one_dlq_row_per_shard(monkeypatch, tmp_path: Path) -> None:
+    """Paused + unroll_alerts: each shard gets its own DLQ line and alert_bundle for that alert only."""
+    dlq = tmp_path / "paused_unroll.jsonl"
+    monkeypatch.setenv("ALERTBRIDGE_DLQ_FILE", str(dlq))
+
+    async def should_not_call(*args, **kwargs):
+        raise AssertionError("forward_payload must not be called when forward_enabled is false")
+
+    monkeypatch.setattr("app.main.forward_payload", should_not_call)
+
+    rules = RuleSet(
+        version=1,
+        defaults=Defaults(target_timeout_connect_sec=1, target_timeout_read_sec=1),
+        routes=[
+            RouteConfig(
+                name="unroll-pause",
+                match=MatchConfig(source="probe"),
+                target=TargetConfig(
+                    url_env="UNUSED_PAUSE_UNROLL",
+                    url="http://127.0.0.1:9/",
+                ),
+                transform=TransformConfig(),
+                forward_enabled=False,
+                unroll_alerts=True,
+            )
+        ],
+    )
+    body = {
+        "alerts": [
+            {"status": "firing", "labels": {"alertname": "Alpha"}},
+            {"status": "resolved", "labels": {"alertname": "Beta"}},
+        ]
+    }
+    with TestClient(app) as ac:
+        set_rules(rules)
+        r = ac.post("/webhook/probe", json=body)
+
+    assert r.status_code == 200
+    assert dlq.exists()
+    lines = [ln for ln in dlq.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    assert len(lines) == 2
+    row0 = json.loads(lines[0])
+    row1 = json.loads(lines[1])
+    assert row0["unroll_index"] == 0 and row0["unroll_count"] == 2
+    assert row1["unroll_index"] == 1 and row1["unroll_count"] == 2
+    assert str(row0["request_id"]).endswith("-0")
+    assert str(row1["request_id"]).endswith("-1")
+    assert "Alpha" in (row0.get("alert_bundle_preview") or "")
+    assert "Beta" not in (row0.get("alert_bundle_preview") or "")
+    assert "Beta" in (row1.get("alert_bundle_preview") or "")
+    assert "Alpha" not in (row1.get("alert_bundle_preview") or "")

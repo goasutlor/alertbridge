@@ -89,6 +89,30 @@ def test_format_alert_bundle_for_ui_multiline_detail():
     assert det == "[0] X\n[1] Y"
 
 
+def test_format_alert_bundle_for_ui_mixed_includes_status_per_line():
+    p = {
+        "alerts": [
+            {"status": "resolved", "labels": {"alertname": "A"}},
+            {"status": "firing", "labels": {"alertname": "B"}},
+        ]
+    }
+    prev, det = format_alert_bundle_for_ui(p)
+    assert "[0] A (resolved)" in prev and "[1] B (firing)" in prev
+    assert det == "[0] A — resolved\n[1] B — firing"
+
+
+def test_format_alert_bundle_for_ui_all_firing_no_per_line_noise():
+    p = {
+        "alerts": [
+            {"status": "firing", "labels": {"alertname": "A"}},
+            {"status": "firing", "labels": {"alertname": "B"}},
+        ]
+    }
+    prev, det = format_alert_bundle_for_ui(p)
+    assert det == "[0] A\n[1] B"
+    assert "(firing)" not in prev
+
+
 def test_format_alert_bundle_for_ui_many_alerts_preview_truncates():
     alerts = [{"labels": {"alertname": f"N{i}"}} for i in range(8)]
     prev, det = format_alert_bundle_for_ui({"alerts": alerts})

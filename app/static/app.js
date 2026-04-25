@@ -12,12 +12,14 @@ const statsTotal = document.getElementById("statsTotal");
 const statsBySource = document.getElementById("statsBySource");
 const statsForwardOk = document.getElementById("statsForwardOk");
 const statsForwardFail = document.getElementById("statsForwardFail");
+const statsForwardSkipped = document.getElementById("statsForwardSkipped");
 const statsStatus = document.getElementById("statsStatus");
 const liveRequestsBody = document.getElementById("liveRequestsBody");
 const liveRequestsEmpty = document.getElementById("liveRequestsEmpty");
 const failedEventsBody = document.getElementById("failedEventsBody");
 const failedEventsEmpty = document.getElementById("failedEventsEmpty");
 const failedEventsSearch = document.getElementById("failedEventsSearch");
+const dlqSearch = document.getElementById("dlqSearch");
 const heartbeatChart = document.getElementById("heartbeatChart");
 const heartbeatLabel = document.getElementById("heartbeatLabel");
 const targetUrlsPanel = document.getElementById("targetUrlsPanel");
@@ -56,6 +58,7 @@ const recentPayloadsList = document.getElementById("recentPayloadsList");
 const recentPayloadsStatus = document.getElementById("recentPayloadsStatus");
 const recentSentList = document.getElementById("recentSentList");
 const recentSentStatus = document.getElementById("recentSentStatus");
+const recentSentSearch = document.getElementById("recentSentSearch");
 const apiKeyNameInput = document.getElementById("apiKeyNameInput");
 const genApiKeyBtn = document.getElementById("genApiKeyBtn");
 const apiKeysStatus = document.getElementById("apiKeysStatus");
@@ -69,6 +72,7 @@ let liveRequestsCache = [];
 let targetsCache = [];
 let targetStatusCache = { routes: [] };
 let dlqEntriesCache = [];
+let recentSentCache = [];
 let dlqOpenDetailIndex = null;
 /** @type {Set<string>} Selected dlq_id values for bulk purge */
 let dlqSelectedIds = new Set();
@@ -1099,6 +1103,7 @@ async function loadStatsAndChart() {
       : "-";
     if (statsForwardOk) statsForwardOk.textContent = String(data.forward_success ?? 0);
     if (statsForwardFail) statsForwardFail.textContent = String(data.forward_fail ?? 0);
+    if (statsForwardSkipped) statsForwardSkipped.textContent = String(data.forward_skipped ?? 0);
     if (statsStatus) statsStatus.textContent = "Last updated";
   } catch (err) {
     if (statsStatus) statsStatus.textContent = "Failed to load count";
@@ -1216,6 +1221,36 @@ function filterFailedEvents(list, q) {
     const af = (r.alert_firing || "").toLowerCase();
     const bun = `${r.alert_bundle_preview || ""} ${r.alert_bundle_detail || ""}`.toLowerCase();
     return src.includes(ql) || rid.includes(ql) || err.includes(ql) || preview.includes(ql) || sev.includes(ql) || af.includes(ql) || bun.includes(ql);
+  });
+}
+
+function filterDlqEntries(list, q) {
+  if (!q || !q.trim()) return list;
+  const ql = q.trim().toLowerCase();
+  return list.filter((e) => {
+    const webhook = dlqWebhookFullId(e).toLowerCase();
+    const shard = dlqShardLabel(e).toLowerCase();
+    const err = (e.error || "").toLowerCase();
+    const sev = (e.alert_severity || "").toLowerCase();
+    const firing = (e.alert_firing || "").toLowerCase();
+    const bundle = `${e.alert_bundle_preview || ""} ${e.alert_bundle_detail || ""}`.toLowerCase();
+    const transformed = JSON.stringify(e.transformed || {}).toLowerCase();
+    return webhook.includes(ql) || shard.includes(ql) || err.includes(ql) || sev.includes(ql) || firing.includes(ql) || bundle.includes(ql) || transformed.includes(ql);
+  });
+}
+
+function filterRecentSent(list, q) {
+  if (!q || !q.trim()) return list;
+  const ql = q.trim().toLowerCase();
+  return list.filter((item) => {
+    const rid = String(item.request_id || "").toLowerCase();
+    const bid = String(item.base_request_id || "").toLowerCase();
+    const source = String(item.source || "").toLowerCase();
+    const route = String(item.route || "").toLowerCase();
+    const sev = String(item.alert_severity || "").toLowerCase();
+    const firing = String(item.alert_firing || "").toLowerCase();
+    const transformed = JSON.stringify(item.transformed || {}).toLowerCase();
+    return rid.includes(ql) || bid.includes(ql) || source.includes(ql) || route.includes(ql) || sev.includes(ql) || firing.includes(ql) || transformed.includes(ql);
   });
 }
 
@@ -2495,15 +2530,20 @@ async function loadRecentSent() {
     const res = await fetch("/api/recent-sent", { credentials: "include" });
     if (!res.ok) return;
     const list = await res.json();
-    const items = Array.isArray(list) ? list : [];
+    recentSentCache = Array.isArray(list) ? list : [];
+    const q = recentSentSearch ? recentSentSearch.value.trim() : "";
+    const items = filterRecentSent(recentSentCache, q);
     if (items.length === 0) {
-      recentSentList.innerHTML = "<li class=\"text-muted\">No successfully forwarded payloads yet. Send webhooks and they will appear here after transform + forward.</li>";
+      recentSentList.innerHTML = q
+        ? `<li class="text-muted">${escapeHtml(tr("noMatchesForSearch"))}</li>`
+        : "<li class=\"text-muted\">No successfully forwarded payloads yet. Send webhooks and they will appear here after transform + forward.</li>";
     } else {
       recentSentList.innerHTML = items.map((item, idx) =>
         `<li class="recent-sent-item${idx === 0 ? " recent-sent-latest" : ""}">
           <div class="payload-header">
             <span class="payload-ts">${formatTimeGMT7(item.ts)}</span>
             ${idx === 0 ? `<span class="recent-sent-latest-badge">${escapeHtml(tr("recentSentLatestBadge"))}</span>` : ""}
+            <span class="payload-webhook" title="${escapeHtml(String(item.base_request_id || item.request_id || ""))}">Webhook: <code>${escapeHtml(((item.base_request_id || item.request_id || "").slice(0, 8)) || "—")}</code></span>
             <span class="payload-source">Source: <code>${escapeHtml(item.source || "")}</code></span>
             <span class="payload-route">Route: <strong>${escapeHtml(item.route || "")}</strong></span>
             <span class="payload-severity">${severityBadgeHtml(item.alert_severity)}</span>
@@ -2782,7 +2822,8 @@ function renderDlqTable() {
   const body = document.getElementById("dlqTableBody");
   const emptyEl = document.getElementById("dlqTableEmpty");
   if (!body || !emptyEl) return;
-  const entries = dlqEntriesCache;
+  const q = dlqSearch ? dlqSearch.value.trim() : "";
+  const entries = filterDlqEntries(dlqEntriesCache, q);
   const pageSize = dlqPageSize();
   const pageInfo = document.getElementById("dlqPageInfo");
   const prevBtn = document.getElementById("dlqPrevBtn");
@@ -2792,6 +2833,7 @@ function renderDlqTable() {
   if (!entries.length) {
     body.innerHTML = "";
     emptyEl.style.display = "block";
+    emptyEl.textContent = q ? tr("noMatchesForSearch") : tr("dlqEmpty");
     if (pageInfo) pageInfo.textContent = "0/0";
     if (prevBtn) prevBtn.disabled = true;
     if (nextBtn) nextBtn.disabled = true;
@@ -2889,7 +2931,8 @@ function onDlqTableClick(ev) {
 function onDlqListWrapChange(ev) {
   const t = ev.target;
   const pageSize = dlqPageSize();
-  const entries = dlqEntriesCache;
+  const q = dlqSearch ? dlqSearch.value.trim() : "";
+  const entries = filterDlqEntries(dlqEntriesCache, q);
   const start = (dlqPage - 1) * pageSize;
   const pagedEntries = entries.slice(start, start + pageSize);
   if (t && t.id === "dlqSelectPage") {
@@ -3117,6 +3160,12 @@ document.getElementById("dailyDays")?.addEventListener("change", () => { loadDai
 
 if (failedEventsSearch) {
   failedEventsSearch.addEventListener("input", () => { failedPage = 1; renderFailedEvents(failedEventsCache); });
+}
+if (dlqSearch) {
+  dlqSearch.addEventListener("input", () => { dlqPage = 1; renderDlqTable(); });
+}
+if (recentSentSearch) {
+  recentSentSearch.addEventListener("input", () => { loadRecentSent(); });
 }
 
 const patternModal = document.getElementById("patternModal");

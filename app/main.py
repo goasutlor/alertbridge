@@ -32,6 +32,7 @@ from app.config import (
 )
 from app.daily_metrics import daily_metrics_file_path, increment_daily, read_daily
 from app.dlq import dlq_file_path, purge_dlq_all, purge_dlq_by_ids, read_recent_dlq, record_failed_forward
+from app.success_log import read_recent_success, record_success_forward, success_log_enabled, success_log_file_path
 from app.forwarder import check_target_status, close_client, forward_payload, get_client
 from app.logging_conf import configure_logging
 from app.hmac_verify import verify_hmac as verify_hmac_signature
@@ -85,7 +86,7 @@ RECENT_PAYLOADS: deque = deque(maxlen=30)
 RECENT_FAILED: deque = deque(maxlen=200)
 # Successfully forwarded (transformed) payloads — one entry per outbound success (unroll = multiple per webhook)
 RECENT_SENT_MAX = 50
-RECENT_SENT_API_LIMIT = 5
+RECENT_SENT_API_LIMIT = 50
 RECENT_SENT: deque = deque(maxlen=RECENT_SENT_MAX)
 
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
@@ -153,18 +154,56 @@ def extract_bundle_alert_names(payload: Any) -> List[str]:
     return out
 
 
+def _per_alert_status_suffix(alert: Any) -> str:
+    if not isinstance(alert, dict):
+        return ""
+    st = alert.get("status")
+    if isinstance(st, str):
+        lv = st.strip().lower()
+        if lv in ("firing", "resolved"):
+            return lv
+    return ""
+
+
 def format_alert_bundle_for_ui(payload: Any) -> Tuple[str, str]:
     """
     One-line preview + newline-separated detail ([0] name …) for Live/Failed rows.
-    Falls back to extract_alert_summary when no alerts[] (e.g. flat JSON).
+    When the bundle is mixed (some firing, some resolved), each detail line includes
+    that alert's status so the tooltip is unambiguous. Falls back to extract_alert_summary
+    when no alerts[] (e.g. flat JSON).
     """
     names = extract_bundle_alert_names(payload)
     if names:
-        detail = "\n".join(f"[{i}] {n}" for i, n in enumerate(names))
+        alerts_list = payload.get("alerts") if isinstance(payload, dict) else None
+        mixed_bundle = extract_bundle_firing_status(payload) == "mixed"
+        detail_lines: List[str] = []
+        for i, n in enumerate(names):
+            line = f"[{i}] {n}"
+            if mixed_bundle and isinstance(alerts_list, list) and i < len(alerts_list):
+                suf = _per_alert_status_suffix(alerts_list[i])
+                if suf:
+                    line = f"{line} — {suf}"
+            detail_lines.append(line)
+        detail = "\n".join(detail_lines)
         if len(names) <= 6:
-            preview = " · ".join(f"[{i}] {n}" for i, n in enumerate(names))
+            preview_parts: List[str] = []
+            for i, n in enumerate(names):
+                if mixed_bundle and isinstance(alerts_list, list) and i < len(alerts_list):
+                    suf = _per_alert_status_suffix(alerts_list[i])
+                    preview_parts.append(f"[{i}] {n} ({suf})" if suf else f"[{i}] {n}")
+                else:
+                    preview_parts.append(f"[{i}] {n}")
+            preview = " · ".join(preview_parts)
         else:
-            preview = " · ".join(f"[{i}] {n}" for i, n in enumerate(names[:6])) + f" (+{len(names) - 6} more)"
+            if mixed_bundle and isinstance(alerts_list, list):
+                prev_chunks = []
+                for i in range(min(6, len(names))):
+                    n = names[i]
+                    suf = _per_alert_status_suffix(alerts_list[i]) if i < len(alerts_list) else ""
+                    prev_chunks.append(f"[{i}] {n} ({suf})" if suf else f"[{i}] {n}")
+                preview = " · ".join(prev_chunks) + f" (+{len(names) - 6} more)"
+            else:
+                preview = " · ".join(f"[{i}] {n}" for i, n in enumerate(names[:6])) + f" (+{len(names) - 6} more)"
         if len(preview) > 220:
             preview = preview[:217] + "…"
         return (preview, detail)
@@ -563,51 +602,57 @@ async def webhook(source: str, request: Request) -> Response:
         ).inc()
         alert_summary = extract_alert_summary(payload)
         err_pause = "Forwarding paused (outbound disabled for this route)"
-        if outputs_to_forward:
-            preview_src = outputs_to_forward[0]
-        else:
-            preview_src = transform_payload(payload, route)
-        san_preview = sanitize_payload(preview_src)
+        n_pause = max(1, len(outputs_to_forward))
+        ts_pause = datetime.now(BANGKOK).isoformat(timespec="milliseconds")
+        for i in range(n_pause):
+            out_i = outputs_to_forward[i]
+            san_i = sanitize_payload(out_i)
+            shard_inbound = inbound_shards[i] if i < len(inbound_shards) else payload
+            rid_i = f"{request_id}-{i}" if n_pause > 1 else request_id
+            ab_p, ab_d = format_alert_bundle_for_ui(shard_inbound)
+            sev_i = extract_alert_severity(payload) or extract_alert_severity(san_i)
+            af_i = resolve_stored_alert_firing(san_i, payload, i, n_pause) or None
+            RECENT_FAILED.append(
+                {
+                    "ts": ts_pause,
+                    "request_id": rid_i,
+                    "source": source,
+                    "route": route.name,
+                    "http_status": http_status,
+                    "payload_preview": json.dumps(san_i)[:200],
+                    "error": err_pause,
+                    "alert_severity": sev_i or None,
+                    "alert_firing": af_i,
+                    "alert_bundle_preview": ab_p or None,
+                    "alert_bundle_detail": ab_d or None,
+                }
+            )
+            if dlq_file_path():
+                record_failed_forward(
+                    {
+                        "ts": ts_pause,
+                        "request_id": rid_i,
+                        "base_request_id": request_id,
+                        "unroll_index": i,
+                        "unroll_count": n_pause,
+                        "source": source,
+                        "route": route.name,
+                        "http_status": None,
+                        "error": err_pause,
+                        "error_type": "ForwardPaused",
+                        "final_failure": True,
+                        "forward_paused": True,
+                        "transformed": san_i,
+                        "alert_severity": sev_i or None,
+                        "alert_firing": af_i,
+                        "alert_bundle_preview": ab_p or None,
+                        "alert_bundle_detail": ab_d or None,
+                    }
+                )
+        san_preview = sanitize_payload(outputs_to_forward[0] if outputs_to_forward else transform_payload(payload, route))
         alert_severity = extract_alert_severity(payload) or extract_alert_severity(san_preview)
         alert_firing_b = extract_bundle_firing_status(payload) or extract_shard_firing_status(san_preview) or None
         ab_preview, ab_detail = format_alert_bundle_for_ui(payload)
-        RECENT_FAILED.append(
-            {
-                "ts": datetime.now(BANGKOK).isoformat(timespec="milliseconds"),
-                "request_id": request_id,
-                "source": source,
-                "route": route.name,
-                "http_status": http_status,
-                "payload_preview": json.dumps(san_preview)[:200],
-                "error": err_pause,
-                "alert_severity": alert_severity or None,
-                "alert_firing": alert_firing_b,
-                "alert_bundle_preview": ab_preview or None,
-                "alert_bundle_detail": ab_detail or None,
-            }
-        )
-        if dlq_file_path():
-            record_failed_forward(
-                {
-                    "ts": datetime.now(BANGKOK).isoformat(timespec="milliseconds"),
-                    "request_id": request_id,
-                    "base_request_id": request_id,
-                    "unroll_index": 0,
-                    "unroll_count": max(1, len(outputs_to_forward)),
-                    "source": source,
-                    "route": route.name,
-                    "http_status": None,
-                    "error": err_pause,
-                    "error_type": "ForwardPaused",
-                    "final_failure": True,
-                    "forward_paused": True,
-                    "transformed": san_preview,
-                    "alert_severity": alert_severity or None,
-                    "alert_firing": alert_firing_b,
-                    "alert_bundle_preview": ab_preview or None,
-                    "alert_bundle_detail": ab_detail or None,
-                }
-            )
         increment_daily("forward_fail")
         increment_daily("dlq")
         raw_alerts_paused = payload.get("alerts")
@@ -655,7 +700,7 @@ async def webhook(source: str, request: Request) -> Response:
         if ok:
             out_san = sanitize_payload(output)
             af_stored = resolve_stored_alert_firing(out_san, payload, i, n_fwd) or None
-            RECENT_SENT.append({
+            sent_row = {
                 "ts": datetime.now(BANGKOK).isoformat(timespec="milliseconds"),
                 "request_id": rid,
                 "base_request_id": request_id,
@@ -664,7 +709,9 @@ async def webhook(source: str, request: Request) -> Response:
                 "transformed": out_san,
                 "alert_severity": extract_alert_severity(out_san) or None,
                 "alert_firing": af_stored,
-            })
+            }
+            RECENT_SENT.append(sent_row)
+            record_success_forward(sent_row)
         else:
             all_success = False
             last_status_code = status_code
@@ -899,6 +946,8 @@ async def api_recent_failed() -> Response:
 
 def _recent_sent_newest_first() -> list:
     """Newest successful forward first (by `ts`), for UI 'latest' row."""
+    if success_log_enabled() and success_log_file_path():
+        return read_recent_success(limit=RECENT_SENT_API_LIMIT)
     rows = [x for x in RECENT_SENT if isinstance(x, dict)]
     rows.sort(key=lambda r: str(r.get("ts") or ""), reverse=True)
     return rows[:RECENT_SENT_API_LIMIT]

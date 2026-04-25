@@ -157,7 +157,12 @@ spec:
               value: "alertbridge-rules"
             - name: ALERTBRIDGE_CONFIG_WATCH_INTERVAL
               value: "30"
-            # Optional DLQ: set ALERTBRIDGE_DLQ_FILE and mount a volume (see install-ocp-pull.yaml).
+            - name: ALERTBRIDGE_DLQ_FILE
+              value: "/var/dlq/failed.jsonl"
+            - name: ALERTBRIDGE_SUCCESS_LOG_ENABLED
+              value: "true"
+            - name: ALERTBRIDGE_SUCCESS_LOG_FILE
+              value: "/var/dlq/success.jsonl"
             - name: TARGET_URL_OCP
               valueFrom:
                 secretKeyRef:
@@ -172,6 +177,8 @@ spec:
             - name: rules
               mountPath: /etc/alertbridge/rules.yaml
               subPath: rules.yaml
+            - name: dlq
+              mountPath: /var/dlq
           livenessProbe:
             httpGet:
               path: /healthz
@@ -198,6 +205,9 @@ spec:
             items:
               - key: rules.yaml
                 path: rules.yaml
+        - name: dlq
+          persistentVolumeClaim:
+            claimName: alertbridge-dlq
 ---
 apiVersion: v1
 kind: Service
@@ -245,3 +255,15 @@ spec:
     termination: edge
     insecureEdgeTerminationPolicy: None   # HTTPS only, no HTTP
   # host: alertbridge-lite-alertbridge.apps.cluster.domain  # uncomment and set your domain
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: alertbridge-dlq
+  namespace: alertbridge
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi

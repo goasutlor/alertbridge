@@ -1558,6 +1558,49 @@ code.trace-webhook-id { cursor: help; }
 .dlq-cb-cell input[type="checkbox"]:not(:disabled) {
   cursor: pointer;
 }
+.dlq-panel .failed-events-toolbar {
+  margin-bottom: 10px;
+}
+.dlq-panel .failed-events-toolbar .input-inline {
+  min-width: 280px;
+}
+.dlq-table {
+  table-layout: fixed;
+}
+.dlq-table th,
+.dlq-table td {
+  padding: 10px 10px;
+}
+.dlq-table th:nth-child(2),
+.dlq-table td:nth-child(2) {
+  width: 138px;
+}
+.dlq-table th:nth-child(3),
+.dlq-table td:nth-child(3) {
+  width: 84px;
+}
+.dlq-table th:nth-child(4),
+.dlq-table td:nth-child(4) {
+  width: 56px;
+}
+.dlq-table th:nth-child(5),
+.dlq-table td:nth-child(5) {
+  width: 190px;
+}
+.dlq-table th:nth-child(6),
+.dlq-table td:nth-child(6),
+.dlq-table th:nth-child(7),
+.dlq-table td:nth-child(7) {
+  width: 92px;
+}
+.dlq-table th:nth-child(8),
+.dlq-table td:nth-child(8) {
+  width: 210px;
+}
+.dlq-table th:nth-child(9),
+.dlq-table td:nth-child(9) {
+  width: 68px;
+}
 .dlq-table tbody tr.dlq-detail-row td {
   background: var(--bg-input);
   border-bottom: 1px solid var(--border);

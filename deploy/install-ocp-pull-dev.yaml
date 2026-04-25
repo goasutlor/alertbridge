@@ -137,6 +137,10 @@ spec:
               value: "30"
             - name: ALERTBRIDGE_DLQ_FILE
               value: "/var/dlq/failed.jsonl"
+            - name: ALERTBRIDGE_SUCCESS_LOG_ENABLED
+              value: "true"
+            - name: ALERTBRIDGE_SUCCESS_LOG_FILE
+              value: "/var/dlq/success.jsonl"
             - name: TARGET_URL_OCP
               valueFrom:
                 secretKeyRef:

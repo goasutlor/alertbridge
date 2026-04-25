@@ -50,6 +50,7 @@ const LANG = {
     failedEventsSub:
       "Same Webhook ID as Live for that failure (one row per webhook). In-memory only — DLQ on PVC has one row per failed shard after retries when configured. Search by Webhook ID prefix.",
     failedSearchPlaceholder: "Search: webhook id, source, severity, alerts…",
+    dlqSearchPlaceholder: "Search DLQ: webhook id, alert, error…",
     colSeverity: "Severity",
     colAlertsInBundle: "Alerts",
     colAlertsInBundleHint: "How many alerts were in this POST (alerts[] length, or 1 if not an array).",
@@ -72,6 +73,7 @@ const LANG = {
     targetFail: "●",
     recentSentTitle: "Recent transformed forwards",
     recentSentLatestBadge: "Latest",
+    recentSentSearchPlaceholder: "Search success logs: webhook id, alert, severity…",
     recentSentSub:
       "Top row = chronologically last successful forward (same order as forward completion time). One incoming webhook may produce several forwards — if unroll is on, older rows in the same second are earlier shards. Live Events = one line per webhook; summary uses the first alert’s name, severity uses the worst label across alerts[].",
     dlqTitle: "Dead letter queue",
@@ -267,6 +269,7 @@ const LANG = {
     failedEventsSub:
       "Webhook ID เดียวกับ Live สำหรับความล้มเหลวนั้น (หนึ่งแถวต่อ webhook) · เก็บใน memory เท่านั้น — DLQ บน PVC หนึ่งแถวต่อ shard หลัง retry ครบเมื่อตั้งค่าแล้ว · ค้นหาด้วย prefix ของ Webhook ID",
     failedSearchPlaceholder: "ค้นหา: webhook id, source, severity, alerts…",
+    dlqSearchPlaceholder: "ค้นหา DLQ: webhook id, alert, error…",
     colSeverity: "ระดับความรุนแรง",
     colAlertsInBundle: "จำนวน alert",
     colAlertsInBundleHint: "มีกี่ alert ใน POST นี้ (ความยาว alerts[] หรือ 1 ถ้าไม่ใช่ array)",
@@ -289,6 +292,7 @@ const LANG = {
     targetFail: "●",
     recentSentTitle: "การส่งที่ transform แล้ว (ล่าสุด)",
     recentSentLatestBadge: "ล่าสุด",
+    recentSentSearchPlaceholder: "ค้นหา log ที่ส่งสำเร็จ: webhook id, alert, severity…",
     recentSentSub:
       "แถวบนสุด = การส่งสำเร็จครั้งล่าสุดตามเวลาจริง (ตรงกับลำดับที่ forward เสร็จ) — webhook เดียวอาจส่งหลายครั้ง ถ้าเปิด unroll แถวถัดไปคือ shard ก่อนหน้าในเวลาใกล้เคียงกัน · Live Events หนึ่งแถวต่อ webhook — ชื่อ alert ใช้ตัวแรก, severity ใช้ระดับที่รุนแรงที่สุดจาก alerts[]",
     dlqTitle: "Dead letter queue (DLQ)",
